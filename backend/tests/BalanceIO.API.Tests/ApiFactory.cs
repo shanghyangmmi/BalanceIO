@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BalanceIO.API.Models;
 using BalanceIO.API.Data;
-using BalanceIO.API.Models;
 using BalanceIO.API.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
