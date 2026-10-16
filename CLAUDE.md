@@ -1,144 +1,148 @@
 # BalanceIO
 
-Accounting and bookkeeping platform for the Indonesian market. .NET 8
-Web API + Next.js 16 frontend, multi-tenant, SQLite in development and
-PostgreSQL in production.
+Accounting platform for the Indonesian market. Multi-tenant. .NET 8 Web API
+(EF Core; SQLite in Development, PostgreSQL in Production) and a Next.js 16
+App Router frontend built as a static export.
 
 ```
-backend/src/BalanceIO.API/   .NET 8 · EF Core · Controllers, Services, Models
-frontend/                    Next.js 16 · App Router · static export
-BALANCEIO_WIKI.md            longer-form project documentation
+backend/BalanceIO.sln
+backend/src/BalanceIO.API/   Controllers, Services, Models, DTOs, Data, Middleware, Security, Migrations
+frontend/                    Next.js app. UI rules: frontend/CLAUDE.md, frontend/DESIGN-SYSTEM.md
+BALANCEIO_WIKI.md            architecture overview
+SECRETS.md                   environment variables, rotation
 ```
 
-`frontend/CLAUDE.md` and `frontend/DESIGN-SYSTEM.md` cover everything
-visual. Read those before touching the UI.
+## Build, run, test
 
-**Run everything:** `start-dev.bat` (backend on :5210, frontend on :3000).
+```bash
+# backend (http://localhost:5210, Swagger at /swagger, SQLite file balanceio.db in the cwd)
+dotnet build backend/BalanceIO.sln
+cd backend/src/BalanceIO.API && dotnet run --launch-profile http
 
----
+# frontend (http://localhost:3000; API base is NEXT_PUBLIC_API_URL, default http://localhost:5210/api)
+cd frontend && npm ci && npm run dev
+npm run build      # static export to frontend/out
+npm run lint
+```
 
-## Product scope — the rule that decides what gets built
+There is no launcher script in the repo (`*.bat` is gitignored). In
+Development the API calls `EnsureCreated()`, patches missing columns with raw
+SQL, and seeds two known-password users (`Program.cs`). Do not rely on that
+path to exercise migrations; it never runs them.
 
-BalanceIO is **accounting-first**, not an ERP. It already carries
-Inventory, Fixed Assets and Projects, which puts it in light-ERP
-territory, but breadth is not the strategy.
+Baseline as of this audit: `dotnet build` is clean; `next build` passes;
+`npm run lint` fails with 453 errors, 414 of them `no-explicit-any`.
 
-A module earns its place only if it answers yes to one question:
+## Scope rule
 
-> **Does it post to the general ledger?**
+A module belongs only if it posts to the general ledger. Inventory (COGS),
+Fixed Assets (depreciation) and Tax qualify; Payroll qualifies and is not
+built. CRM, attendance and storefronts do not. The moat is Indonesian
+compliance (PPN, PPh, e-Faktur, Coretax, PSAK). `ModuleEntitlementService`
+gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
+`payroll` (`UnbuiltModules` = payroll).
 
-| Qualifies | Does not |
-|---|---|
-| Inventory (produces COGS) | CRM — a sales pipeline generates no journal |
-| Fixed Assets (depreciation) | Attendance / leave management |
-| Payroll (salary expense, PPh 21) | Website or storefront building |
-| Manufacturing (in principle — too complex for now) | |
+## Accounting integrity
 
-The reasoning behind the rule: a shallow module damages trust in the
-deep ones. In most categories that is a disappointment; in accounting
-software the stakes are audit and tax, so trust *is* the product.
+- `Sum(Debit) == Sum(Credit)`, compared with `!=`. No tolerance.
+- Money is `decimal`; `float`/`double` are not used for money. Rounding is
+  `MidpointRounding.ToEven` unless a regulation says otherwise.
+- Journal status: `0 Draft`, `1 Posted`, `2 Void`. Posted and Void entries
+  reject `PUT` (`POSTED_IMMUTABLE`, `VOID_IMMUTABLE`). Corrections use
+  `POST /{id}/void` or `POST /{id}/reverse` (swapped Dr/Cr, `REV-` prefix,
+  created as Draft). Only Drafts are deletable.
+- Tenant isolation: `CompanyScopeMiddleware` reads `X-Company-Id`, verifies
+  membership in `UserCompanies` (platform admins excepted), and sets
+  `ApplicationDbContext.CurrentCompanyId`. Global query filters compare
+  `CompanyId == CurrentCompanyId`, so a missing scope returns no rows. Entities
+  without a filter must be queried with an explicit `CompanyId` predicate.
+- Segregation of duties: `Company.EnforceSegregationOfDuties` (default true)
+  blocks the creator of an entry from posting it.
 
-The defensible moat is **Indonesian compliance** — Coretax, e-Faktur,
-PPN, PPh, PSAK. Foreign competitors will not do this work seriously.
-It is also currently the weakest module.
+### Choke points
 
----
+| Concern | Where | Covers |
+|---|---|---|
+| Balance of Posted entries, journal quota, audit rows | `ApplicationDbContext.SaveChangesAsync` | every writer |
+| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (15 files) |
+| Tenant scope | `CompanyScopeMiddleware` + query filters | reads; writes depend on the writer setting `CompanyId` |
+| Permissions | `[RequiresPermission]` → `PermissionFilter` | per action |
+| Plan limit → 402 | `PlanLimitMiddleware` catches `PlanLimitExceededException` | |
 
-## Accounting integrity — non-negotiable
+A new posting path must call the period lock itself and set `CompanyId`.
 
-- **Double entry is exact.** `Sum(Debit) == Sum(Credit)`, compared with
-  `!=`, never a tolerance. A `0.0001m` tolerance was removed
-  deliberately.
-- **Money is `decimal`.** `float`/`double` are banned throughout. Use
-  Bankers rounding (`MidpointRounding.ToEven`).
-- **Posted entries are immutable.** `PUT` on a Posted or Void entry
-  returns `POSTED_IMMUTABLE` / `VOID_IMMUTABLE`. Corrections go through
-  `POST /{id}/void` or `POST /{id}/reverse` (Dr/Cr swapped, `REV-`
-  prefix, lands as Draft). Only Draft entries are deletable.
-- **Period locking.** `PeriodLockService` rejects transactions dated
-  inside a locked period. Call it from any new posting path.
-- **Audit trail is append-only.** `AuditService` records mutations.
+### Audit trail
 
-Journal status enum: `0 = Draft, 1 = Posted, 2 = Void`.
+`SaveChangesAsync` writes `AuditLogs` rows for Accounts, JournalEntries,
+JournalLines, Contacts, Products, SalesInvoices, PurchaseBills, FixedAssets.
+`AuditService` records explicit events. Nothing in the API edits audit rows,
+but the `AuditPrune` scheduled job deletes rows older than
+`Audit:RetentionDays` when that setting is positive (default 0: off).
 
----
+## Migrations
+
+Production runs `Database.Migrate()` at boot; a failure is logged and boot
+continues. Development uses `EnsureCreated()`. `Program.cs` additionally runs
+idempotent raw DDL (`ADD COLUMN`, `CREATE TABLE IF NOT EXISTS`) at every
+boot on both providers. See the audit report for why this is a liability.
+Policy for new schema: add an EF migration generated against Npgsql
+(`dotnet ef migrations add`), never a new raw DDL patch.
+
+## Tax module state
+
+Implemented: SPT Masa PPN 1111 summary, e-Faktur CSV export, e-Bupot CSV
+export, withholding summary (PPh 21/22/23/4(2)), PPN settlement journal,
+ekualisasi PPN, rekonsiliasi fiskal, DER test (PMK-169). Product-level
+`DppScheme` (11/12 nilai lain) and PPnBM fields exist.
+Not implemented: Coretax integration, faktur pajak numbering (NSFP is
+entered, never generated), real bukti potong numbers, payroll-driven PPh 21.
+Several outputs are derived from bills at report time rather than from the
+ledger. Tax logic needs practitioner review before reliance.
 
 ## Frontend conventions
 
-- **TanStack Query owns server state.** 30s `staleTime`, 10min
-  `gcTime`. Do not reintroduce `useEffect` + `fetch` — that pattern
-  caused a skeleton flash on every navigation and was removed.
-- **Large tables are virtualised** (`VirtualDataTable`, TanStack
-  Virtual). Journal and ledger endpoints support
-  `?page=&pageSize=&search=&status=`.
-- **Money always uses `.font-money`** or sits in a `<table>` — tabular,
-  lining, slashed-zero numerals.
-- `⌘K` command palette is global inside `/dashboard`.
-- Motion, colour semantics and typography: see `frontend/CLAUDE.md`.
+- Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
+  `components/providers/query-provider.tsx`). Only 14 files use it so far;
+  91 files still call `apiClient` from `useEffect`. New code uses Query.
+- `VirtualDataTable` (`components/ui/virtual-data-table.tsx`) for large lists.
+  Server paging (`?page=&pageSize=&search=&status=`) exists on journal entries
+  and audit logs only. The general ledger report is unpaged.
+- Money uses `.font-money` or sits in a `<table>`. Do arithmetic on money in
+  integer minor units or a decimal library, not JS floats.
+- `⌘K` palette: `components/command-palette.tsx`, mounted in
+  `app/dashboard/layout.tsx`.
+- The module hub exists: `app/dashboard/(hub)`, backed by
+  `GET /api/Dashboard/module-health` (`ModuleHealthService`). Workspaces live
+  under `app/dashboard/(workspace)`.
 
----
+## Model-only entities
 
-## Known issues
-
-| Issue | Where | Notes |
-|---|---|---|
-| **`Jwt.Key` hard-coded in `appsettings.json`** | backend | Anyone with the repo can forge a token for any user. Move to an environment variable and keep it out of git. **Highest-priority security item.** |
-| `.text-gradient` heading pattern | 44 files in `frontend/src/app/dashboard` | Legacy. Canonical is a Merriweather display heading with one italic gradient span. Fix incrementally. |
-| `shadow-sm` on in-flow cards | `card.tsx`, `tabs.tsx`, ~22 dashboard files | Contradicts the hairline rule in the design system. |
-| Raw hex colours | 31 in `components/dashboard`, 7 in `app/dashboard` | Do not respond to the theme. Replace with semantic tokens. |
-| Serif mis-mapped in Claude Design | design system export | Reports `Cambria (--font-serif)`; the real display serif is **Merriweather** via `--font-document-serif`. |
-| `ledger-core.tsx` | `frontend/src/components/landing` | Dead code since the hero was rebuilt. Safe to delete. |
-| i18n covers nav labels only | frontend | Everything else is hardcoded English. |
-| `journal/edit/page.tsx` hardcodes `status: "POSTED"` | frontend | Contract drift; should map the real status. |
-
----
-
-## Model-only entities — built but unreachable
-
-These have EF models and database tables, but no controller and no UI.
-Finishing them adds real capability at low cost and is the recommended
-next work:
-
-`SalesOrder` · `CreditNote` · `DeliveryOrder` · `GoodsReceipt` ·
-`PaymentVoucher`
-
----
+Tables and EF models, no controller, no UI, and no tenant query filter:
+`SalesOrder`, `CreditNote`, `DebitNote`, `DeliveryOrder`, `GoodsReceipt`,
+`JournalVoucher`, `FundTransfer`. Add the filter in the same change as the
+controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 
 ## Roadmap
 
-1. **Finish the model-only entities above.** Cheapest capability gain
-   available.
-2. **Deepen tax compliance.** e-Faktur export, faktur pajak numbering,
-   PPh 21/23 withholding automation, Coretax readiness. This is the
-   moat.
-3. **Bank reconciliation.** The single biggest daily pain for anyone
-   keeping books. Watch for: Indonesian number format (`1.234.567,89`),
-   import de-duplication, timing differences, bank-side sign
-   convention, transfer fees, statement continuity, and VA numbers
-   buried in free-text descriptions.
-4. **Payroll.** Qualifies under the ledger rule, and PPh 21 / BPJS are
-   compliance problems.
+1. Finish the model-only entities.
+2. Tax: real NSFP handling, Coretax readiness, ledger-sourced withholding.
+3. Bank reconciliation: exists (`BankReconciliationService`); hardening for
+   Indonesian number formats, import de-duplication, timing differences.
+4. Payroll.
 
-None of steps 1–3 add a new module — and they are what users will feel
-most.
+## Known issues
 
-### Module hub (agreed, not yet built)
-
-`/dashboard` becomes a map of the five modules rather than a KPI
-dashboard. Each card shows that module's **balance state** and doubles
-as its entry point.
-
-| Module | In balance when |
+| Issue | Where |
 |---|---|
-| Accounting | Dr = Cr, nothing unposted, period lock current |
-| Payroll | staff paid, PPh 21 accrued — **not built, show inactive** |
-| Inventory | book quantity matches the last stock count |
-| Fixed Assets | depreciation posted through the current period |
-| Tax | PPN output/input reconciled, no filing overdue |
-
-Backend supplies this in one call (`GET /Dashboard/module-health`) so
-the figures are computed server-side and stay consistent with the
-reports. Accounting logic does not belong in the frontend.
-
-Build order agreed: hub first, then Accounting and Tax as pilot
-modules, so the pattern is proven twice before it is replicated.
+| Runtime DDL and swallowed migration failure | `Program.cs`, `JournalEntriesController` (GET), `RepairController`, `AdminSystemController` |
+| Journal create/update binds the entity; no server-stamped `CompanyId` | `JournalEntriesController` |
+| Sales invoice, purchase bill, stock opname, recurring journal create entries without `CompanyId` | those controllers |
+| `JournalLine.AccountId` holds an account Code in some writers and an account Id in others; reports key on Code | writers vs `ReportsController` |
+| Production seeds `admin@balanceio.id` with a hard-coded password when absent | `Program.cs` |
+| 500 handler returns `ex.ToString()`; period-lock violations surface as 500 | `Program.cs` |
+| PPh 21 summary uses a fixed sample salary per employee | `TaxReportsService` |
+| Deploy workflow sets the API URL with `set` on a self-hosted Windows runner | `.github/workflows/deploy.yml` |
+| `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
+| `components/landing/ledger-core.tsx` is unreferenced | frontend |
+| i18n covers navigation labels only | frontend |
+| `lint` baseline fails (see above) | frontend |

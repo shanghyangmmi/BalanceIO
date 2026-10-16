@@ -3,6 +3,8 @@
 Next.js 16 (App Router, static export) · React 19 · Tailwind v4 ·
 shadcn/ui (Radix) · TanStack Query + Virtual · Framer Motion · GSAP +
 Lenis. Backend is .NET 8 via `src/lib/api-client.ts`.
+`npm run build` passes; `npm run lint` currently fails (453 errors, mostly
+`no-explicit-any`).
 
 **`DESIGN-SYSTEM.md` in this folder is the design source of truth.**
 Read it before making visual decisions.
@@ -37,7 +39,7 @@ hues drift close together the product stops being legible.
 Light and dark mode use **different stops** of the same hue
 (`emerald-600/700` on paper, `emerald-400` on ink). Consume the OKLCH
 semantic tokens in `globals.css` — raw hex does not respond to the
-theme, and there are already six such bugs in `src/components/dashboard`.
+theme, and `src/components/dashboard` still has 31 hex literals in 4 files.
 
 ### Dark mode
 
@@ -128,12 +130,12 @@ The product's own refusal, which doubles as its scope rule:
 
 ## Deprecated — do not learn from or extend
 
-`.text-gradient` (a fully gradient-filled sans heading) appears in **44
+`.text-gradient` (a fully gradient-filled sans heading) appears in **40
 files under `src/app/dashboard`**. It is legacy. The canonical pattern
 is a Merriweather display heading with a *single* italic gradient span.
 
-`src/app/dashboard` also holds ~22 files putting `shadow-*` on in-flow
-cards, against the hairline rule above.
+`src/app/dashboard` also has 57 `shadow-*` uses across 20 files, and
+`components/ui/card.tsx` ships `shadow-sm`, against the hairline rule above.
 
 Both are cosmetic and can be corrected incrementally as each module is
 touched. Neither should be treated as the house style, and neither

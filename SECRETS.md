@@ -41,7 +41,7 @@ refuses three things outright:
   source),
 - a key shorter than 32 bytes, which is below what HMAC-SHA256 needs.
 
-Development falls back to a fixed local key so `start-dev.bat` needs no
+Every non-Production environment falls back to a fixed local key so `start-dev.bat` needs no
 setup. That fallback is stable rather than random on purpose — a new key
 per boot would sign every developer out on each `dotnet watch` reload.
 
@@ -138,48 +138,44 @@ loaded automatically:
 
 ## Keeping secrets out of git
 
-`.gitignore` covers `appsettings.Local.json`, `.env*`, `*.pem`, `*.pfx`.
+`.gitignore` covers `appsettings.Local.json`, `appsettings.*.local.json`,
+`.env*` (except `.env.example`), `*.pem`, `*.pfx`, `secrets.json`.
 
-A pre-commit hook in `.githooks/pre-commit` refuses any commit that stages
-a non-empty `Key` / `Password` / `SecretKey` / `AccessKey` field in an
-`appsettings*.json`, re-adds one of the burned keys, or adds a private key
-block or an AWS/Slack/GitHub credential pattern.
-
-Enable it once per clone:
-
-```bash
-git config core.hooksPath .githooks
-```
-
-It is already enabled in this working copy.
+There is no commit hook. The earlier `.githooks/pre-commit` was removed from
+the repository; nothing in the repo prevents a secret from being staged. Run
+Run secret scanning in CI or locally (for example `gitleaks`) before
+relying on this.
 
 ---
 
-## Rotation — required, not optional
+## Rotation
 
-These values are in git history and cannot be removed from clones that
-already exist. Treat all of them as public:
+Two JWT signing keys and (per the earlier note) an SMTP password were
+committed in the past and remain in git history. Treat them as public.
 
-| Secret | Status | Action |
+| Secret | Repo can verify | Action |
 |---|---|---|
-| `Jwt:Key` (both files) | Public | **Rotated.** Every token ever issued is invalid once rotated in environment. All live sessions terminate cleanly; users sign in again. |
-| `SmtpSettings:Password` (`support@balanceio.id`) | Public | **Rotated.** Mailbox credential changed at Hostinger provider; updated via `BALANCEIO_SMTP_PASSWORD`. |
-| `AWS:AccessKey` / `SecretKey` | Placeholder only | No real value was committed. Set the real ones by environment. |
-| Production DB password | Placeholder only | No real value was committed. Set by environment. |
+| Old `Jwt:Key` values | Yes: `SecretsBootstrap` rejects their SHA-256 hashes in every environment | Set `BALANCEIO_JWT_KEY` to a fresh key. Existing tokens become invalid. |
+| `SmtpSettings:Password` (`support@balanceio.id`) | No | Rotate at the mail provider; set `BALANCEIO_SMTP_PASSWORD`. |
+| `AWS:AccessKey` / `SecretKey` | Empty in the repo | Set by environment. |
+| Production DB password | Placeholder rejected by `SecretsBootstrap` | Set `BALANCEIO_DB_CONNECTION`. |
 
-### Operational Procedure for Production Operators
+Whether rotation has actually happened on the production host is an
+operator fact, not something this repository records.
 
-1. **Rotate JWT Signing Key:**
-   ```powershell
-   # Generate fresh 48-byte key
-   $newKey = [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
-   # Set in Production host / Docker environment
-   [Environment]::SetEnvironmentVariable("BALANCEIO_JWT_KEY", $newKey, "Machine")
-   ```
-2. **Rotate SMTP Password:**
-   - Log into Hostinger cPanel / Mail Administration.
-   - Reset password for `support@balanceio.id`.
-   - Update `BALANCEIO_SMTP_PASSWORD` on production server.
-3. **Verify API Startup:**
-   - `SecretsBootstrap` fails fast if any burned key hash is supplied or if key length < 32 bytes.
-   - `RepairController` (`/api/repair`) is disabled in Production and requires `SuperAdmin` role.
+### Rotating the JWT key
+
+```powershell
+$newKey = [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 256 }))
+[Environment]::SetEnvironmentVariable("BALANCEIO_JWT_KEY", $newKey, "Machine")
+```
+
+Restart the service. `SecretsBootstrap` refuses to start in Production on a
+missing, burned or sub-32-byte key.
+
+### Repair endpoints
+
+`GET /api/repair/check-schema` returns 404 in Production. The
+`SuperAdmin` endpoints `POST /api/admin/system/reset-database` (refused in
+Production) and `force-schema-fix` (PostgreSQL only, requires a typed
+confirmation) exist; the latter is enabled in Production.
