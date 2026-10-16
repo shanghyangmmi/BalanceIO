@@ -4,13 +4,50 @@ import { format } from "date-fns"
 
 const BASE_URL = siteConfig.api.baseUrl;
 
+/**
+ * A failed API call. `code` is the server's stable machine-readable reason
+ * (for example PERIOD_LOCKED or SEGREGATION_OF_DUTIES_VIOLATION) when it sent
+ * one; callers branch on that, never on the message text.
+ */
+export class ApiError extends Error {
+    constructor(message: string, readonly status: number, readonly code?: string) {
+        super(message)
+        this.name = "ApiError"
+    }
+}
+
+export interface JournalLineInput {
+    accountId: string;
+    description?: string;
+    debit: number;
+    credit: number;
+    tax?: string;
+}
+
+/** What the API accepts for a Draft. Status, tenant and approval fields are server-owned. */
+export interface JournalEntryInput {
+    date: string;
+    referenceNumber?: string;
+    tags?: string;
+    contactId?: string;
+    currency?: string;
+    notes?: string;
+    projectId?: string | null;
+    isAdjustingEntry?: boolean;
+    lines: JournalLineInput[];
+}
+
+/** `silent` leaves error reporting to the caller instead of toasting. */
+type ApiOptions = RequestInit & { silent?: boolean }
+
 type ApiResponse<T> = {
     data: T
     status: number
     message?: string
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}, tokenKey: string = "token"): Promise<T> {
+async function request<T>(endpoint: string, apiOptions: ApiOptions = {}, tokenKey: string = "token"): Promise<T> {
+    const { silent, ...options } = apiOptions
     const url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
 
     const isServer = typeof window === "undefined"
@@ -54,26 +91,33 @@ async function request<T>(endpoint: string, options: RequestInit = {}, tokenKey:
 
         if (!response.ok) {
             const status = response.status;
-            let codePrefix = `ERR_${status}`;
+            const codePrefix = `ERR_${status}`;
 
             // Handle 401 Unauthorized specifically
             if (status === 401) {
-                throw new Error(`${codePrefix}: Session expired or unauthorized access.`);
+                throw new ApiError(`${codePrefix}: Session expired or unauthorized access.`, status);
             }
 
-            if (status === 403) {
-                throw new Error(`${codePrefix}: Action forbidden. This operation is restricted to Owner or Manager roles.`);
-            }
-
-            // Try to parse error message from server
-            let errorMessage = "An error occurred";
+            // The server's reason, whatever its shape: ProblemDetails, our
+            // { code, message } envelope, or a bare string.
+            let errorMessage = "";
+            let code: string | undefined;
+            const raw = await response.text().catch(() => "");
             try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorData.message || errorData.title || errorMessage;
-            } catch (e) {
-                errorMessage = response.statusText || "Server response error";
+                const errorData = JSON.parse(raw);
+                code = typeof errorData?.code === "string" ? errorData.code : undefined;
+                errorMessage = errorData?.error || errorData?.message || errorData?.title
+                    || (typeof errorData === "string" ? errorData : "");
+            } catch {
+                errorMessage = raw.length > 0 && raw.length <= 300 ? raw : "";
             }
-            throw new Error(`${codePrefix}: ${errorMessage}`);
+
+            if (!errorMessage) {
+                errorMessage = status === 403
+                    ? "Action forbidden. This operation is restricted to Owner or Manager roles."
+                    : response.statusText || "Server response error";
+            }
+            throw new ApiError(`${codePrefix}: ${errorMessage}`, status, code);
         }
 
         // Handle 204 No Content
@@ -89,7 +133,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}, tokenKey:
         }
 
         // Only log and toast on client to avoid blocking build with server-side logs/errors
-        if (!isServer) {
+        if (!isServer && !silent) {
             if (!error.message?.includes("Session expired")) {
                 console.error("API Error:", error);
                 toast.error(error.message || "ERR_500: Network Error");
@@ -104,7 +148,7 @@ export const apiClient = {
         return request<T>(url, { ...options, method: "GET" }, "token")
     },
 
-    post: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    post: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "POST",
@@ -112,7 +156,7 @@ export const apiClient = {
         }, "token")
     },
 
-    put: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    put: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "PUT",
@@ -285,12 +329,21 @@ export const apiClient = {
         return apiClient.get<any>(`/JournalEntries/${id}`);
     },
 
-    createJournalEntry: async (data: any) => {
-        return apiClient.post<any>("/JournalEntries", data);
+    // One idempotency key per submission, supplied by the caller: a retry of
+    // the same submission must carry the same key to be de-duplicated.
+    createJournalEntry: async (data: JournalEntryInput, idempotencyKey?: string, options: ApiOptions = {}) => {
+        return apiClient.post<any>("/JournalEntries", data, {
+            ...options,
+            headers: idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : undefined,
+        });
     },
 
-    updateJournalEntry: async (id: string, data: any) => {
-        return apiClient.put<any>(`/JournalEntries/${id}`, data);
+    postJournalEntry: async (id: string, options: ApiOptions = {}) => {
+        return apiClient.post<any>(`/JournalEntries/${id}/post`, {}, options);
+    },
+
+    updateJournalEntry: async (id: string, data: JournalEntryInput, options: ApiOptions = {}) => {
+        return apiClient.put<any>(`/JournalEntries/${id}`, data, options);
     },
 
     deleteJournalEntry: async (id: string) => {
@@ -869,7 +922,7 @@ export const adminApiClient = {
         return request<T>(url, { ...options, method: "GET" }, "adminToken")
     },
 
-    post: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    post: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "POST",
@@ -877,7 +930,7 @@ export const adminApiClient = {
         }, "adminToken")
     },
 
-    put: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    put: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "PUT",

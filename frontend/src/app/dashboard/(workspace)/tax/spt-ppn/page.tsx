@@ -445,7 +445,7 @@ export default function SptPpnPage() {
                                             ) : (
                                                 data.formA2Lines.map((row: any) => (
                                                     <TableRow key={row.documentId}>
-                                                        <TableCell className="font-bold">{row.fakturPajakNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.fakturPajakNumber ?? "Not entered"}</TableCell>
                                                         <TableCell>{formatDate(row.documentDate)}</TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || row.counterpartyNik || "—"}</TableCell>
@@ -495,7 +495,7 @@ export default function SptPpnPage() {
                                             ) : (
                                                 data.formB2Lines.map((row: any) => (
                                                     <TableRow key={row.documentId}>
-                                                        <TableCell className="font-bold">{row.fakturPajakNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.fakturPajakNumber ?? "Not entered"}</TableCell>
                                                         <TableCell>{formatDate(row.documentDate)}</TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || "—"}</TableCell>

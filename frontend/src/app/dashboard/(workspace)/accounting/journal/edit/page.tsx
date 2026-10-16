@@ -1,53 +1,42 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useMemo } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { JournalForm } from "@/components/accounting/journal-form";
-import { apiClient } from "@/lib/api-client";
+import { useJournalEntry } from "@/hooks/use-journal-entries";
 import { JournalEntry } from "@/lib/types/accounting";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+
+// Backend enum: 0 = Draft, 1 = Posted, 2 = Void
+const STATUS_MAP: Record<number, JournalEntry["status"]> = {
+    0: "DRAFT",
+    1: "POSTED",
+    2: "VOID",
+};
 
 function JournalEditContent() {
-    const searchParams = useSearchParams();
-    const id = searchParams.get("id");
-    const [data, setData] = useState<JournalEntry | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const id = useSearchParams().get("id") ?? undefined;
+    const { data: response, isLoading, isError } = useJournalEntry(id);
 
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                if (!id) return;
-
-                const response = await apiClient.getJournalEntry(id);
-
-                // Map API response to Frontend Type
-                const journal: JournalEntry = {
-                    id: response.id,
-                    date: new Date(response.date),
-                    referenceNumber: response.referenceNumber,
-                    description: response.notes || "-", // Map Backend 'Notes' to 'Description'
-                    notes: response.notes,
-                    tags: response.tags,
-                    contactId: response.contactId,
-                    currency: response.currency,
-                    status: "POSTED",
-                    createdAt: new Date(response.createdAt),
-                    updatedAt: new Date(response.updatedAt),
-                    lines: response.lines || [],
-                };
-
-                setData(journal);
-            } catch (error) {
-                console.error("Failed to load journal", error);
-                toast.error("Failed to load journal details");
-            } finally {
-                setIsLoading(false);
-            }
+    const journal = useMemo<JournalEntry | null>(() => {
+        if (!response) return null;
+        return {
+            id: response.id,
+            date: new Date(response.date),
+            referenceNumber: response.referenceNumber,
+            description: response.notes || "-", // Map Backend 'Notes' to 'Description'
+            notes: response.notes,
+            tags: response.tags,
+            contactId: response.contactId,
+            currency: response.currency,
+            status: STATUS_MAP[response.status as number] ?? "DRAFT",
+            createdAt: new Date(response.createdAt),
+            updatedAt: new Date(response.updatedAt ?? response.createdAt),
+            lines: response.lines || [],
         };
-
-        loadData();
-    }, [id]);
+    }, [response]);
 
     if (isLoading) {
         return (
@@ -60,10 +49,26 @@ function JournalEditContent() {
         );
     }
 
-    if (!data) {
+    if (isError || !journal) {
+        return <div className="flex-1 space-y-4">Journal Entry not found</div>;
+    }
+
+    // The API refuses edits to Posted and Void entries (POSTED_IMMUTABLE,
+    // VOID_IMMUTABLE); corrections go through void or reverse.
+    if (journal.status !== "DRAFT") {
         return (
-            <div className="flex-1 space-y-4">
-                <div>Journal Entry not found</div>
+            <div className="flex-1 space-y-4 p-6">
+                <h1 className="text-lg font-semibold">
+                    {journal.status === "POSTED" ? "Posted entries cannot be edited" : "Void entries cannot be edited"}
+                </h1>
+                <p className="text-sm text-muted-foreground max-w-prose">
+                    {journal.status === "POSTED"
+                        ? "A posted entry is part of the ledger. Void it, or post a reversal, from the journal list."
+                        : "A void entry is a historical record and is kept as it was."}
+                </p>
+                <Button asChild variant="outline">
+                    <Link href="/dashboard/accounting/journal">Back to journal</Link>
+                </Button>
             </div>
         );
     }
@@ -71,7 +76,7 @@ function JournalEditContent() {
     return (
         <div className="flex-1 space-y-0 p-0">
             <div className="bg-card text-card-foreground">
-                <JournalForm initialData={data} />
+                <JournalForm initialData={journal} />
             </div>
         </div>
     );

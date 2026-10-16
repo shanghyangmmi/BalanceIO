@@ -1,15 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
 import { CalendarIcon, Plus, Trash2, Save, Loader2, Hash, FileText, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { apiClient } from "@/lib/api-client"
+import { toast } from "sonner"
+import { useQueryClient } from "@tanstack/react-query"
+import { apiClient, ApiError } from "@/lib/api-client"
+import { journalKeys } from "@/hooks/use-journal-entries"
+import { balanceOf, isStorableAmount, minorToNumber } from "@/lib/utils/minor-units"
+import { formatModuleMoney } from "@/lib/utils/module-money"
 import { JournalEntry } from "@/lib/types/accounting"
 import { defaultContacts as CONTACTS } from "@/lib/data/contacts-data"
-import { formatCurrency } from "@/lib/utils/formatter"
 
 // UI COMPONENTS
 import { Button } from "@/components/ui/button"
@@ -115,17 +119,17 @@ const journalSchema = z.object({
     lines: z.array(z.object({
         accountId: z.string().min(1, "Required"),
         description: z.string().optional(),
-        debit: z.number().min(0),
-        credit: z.number().min(0),
+        debit: z.number().min(0).refine(isStorableAmount, "At most 4 decimal places"),
+        credit: z.number().min(0).refine(isStorableAmount, "At most 4 decimal places"),
         tax: z.array(z.string()).default([]),
     })).min(2).refine((data) => {
         return data.every(line => (line.debit || 0) > 0 || (line.credit || 0) > 0);
     }, { message: "Value required", path: ["debit"] })
-}).refine((data) => {
-    const totalDebit = data.lines.reduce((sum, line) => sum + (line.debit || 0), 0);
-    const totalCredit = data.lines.reduce((sum, line) => sum + (line.credit || 0), 0);
-    return Math.abs(totalDebit - totalCredit) < 1;
-}, { message: "Unbalanced", path: ["lines"] });
+}).refine((data) => balanceOf(data.lines).balanced, {
+    // Exact, like the API: a difference of one sen is still unbalanced.
+    message: "Total debits must equal total credits",
+    path: ["lines"],
+});
 
 type JournalFormValues = z.infer<typeof journalSchema>
 
@@ -135,6 +139,11 @@ interface JournalFormProps {
 
 export function JournalForm({ initialData }: JournalFormProps) {
     const [isSaving, setIsSaving] = useState(false);
+    const queryClient = useQueryClient();
+    // One key per submission attempt. A retry of the same submission (network
+    // drop, double click) reuses it and is de-duplicated by the API; a new
+    // entry gets a new key once this one has succeeded.
+    const submissionKey = useRef<string>(crypto.randomUUID());
 
     const form = useForm<JournalFormValues>({
         resolver: zodResolver(journalSchema) as any,
@@ -177,49 +186,74 @@ export function JournalForm({ initialData }: JournalFormProps) {
 
     const lines = useWatch({ control: form.control, name: "lines" });
 
-    // Calculate Totals
-    const totalDebit = lines?.reduce((sum, line) => sum + (Number(line.debit) || 0), 0) || 0;
-    const totalCredit = lines?.reduce((sum, line) => sum + (Number(line.credit) || 0), 0) || 0;
-    const difference = Math.abs(totalDebit - totalCredit);
-    const isBalanced = difference < 1;
+    // Exact totals in integer minor units; see lib/utils/minor-units.ts.
+    const balance = (() => {
+        try {
+            return balanceOf((lines ?? []).map(l => ({ debit: Number(l.debit) || 0, credit: Number(l.credit) || 0 })));
+        } catch {
+            // An amount with more than 4 decimals cannot balance; the field error says why.
+            return null;
+        }
+    })();
+    const totalDebit = balance ? minorToNumber(balance.debit) : 0;
+    const totalCredit = balance ? minorToNumber(balance.credit) : 0;
+    const difference = balance ? minorToNumber(balance.difference) : 0;
+    const isBalanced = balance?.balanced ?? false;
 
-    async function processSubmit(data: JournalFormValues, status: number) {
+    /**
+     * Saves the entry as a Draft, then, if asked, posts it. Posting is a
+     * separate API call because it is where segregation of duties applies: with
+     * SoD on, the author cannot post their own entry and the draft stays saved.
+     */
+    async function processSubmit(data: JournalFormValues, post: boolean) {
         setIsSaving(true);
-        const roundedLines = data.lines.map(line => ({
-            ...line,
-            debit: Math.round(line.debit * 100) / 100,
-            credit: Math.round(line.credit * 100) / 100,
-            tax: line.tax.join(",")
-        }));
+        const payload = {
+            ...data,
+            lines: data.lines.map(line => ({ ...line, tax: line.tax.join(",") })),
+        };
 
-        // Include status in payload
-        const payload = { ...data, lines: roundedLines, status };
+        let id = initialData?.id;
+        try {
+            if (id) {
+                await apiClient.updateJournalEntry(id, payload);
+            } else {
+                const created = await apiClient.createJournalEntry(payload, submissionKey.current);
+                id = created.id;
+            }
+        } catch {
+            // apiClient has shown the server's reason. The form keeps its
+            // values and its idempotency key so the user can correct and retry.
+            setIsSaving(false);
+            return;
+        }
 
         try {
-            await new Promise(r => setTimeout(r, 800)); // Animation delay
-            if (initialData?.id) {
-                await apiClient.updateJournalEntry(initialData.id, payload);
+            if (post) {
+                await apiClient.postJournalEntry(id!, { silent: true });
+                toast.success("Journal entry posted to the general ledger");
             } else {
-                await apiClient.createJournalEntry(payload);
-                if (status === 0) {
-                    // Toast for Draft
-                    form.reset();
-                } else {
-                    // Toast for Posted
-                    form.reset();
-                }
+                toast.success("Journal entry saved as draft");
             }
-            // Notify checks logic would go here
         } catch (error) {
-            console.error("Failed", error);
+            if (error instanceof ApiError && error.code === "SEGREGATION_OF_DUTIES_VIOLATION") {
+                toast.info("Saved as draft", { description: "A second authorised user must review and post this entry." });
+            } else {
+                toast.error(error instanceof Error ? error.message : "The draft was saved but could not be posted");
+            }
         } finally {
+            await queryClient.invalidateQueries({ queryKey: journalKeys.all });
             setIsSaving(false);
+        }
+
+        if (!initialData?.id) {
+            form.reset();
+            submissionKey.current = crypto.randomUUID();
         }
     }
 
     // Default handler for Form (Enter key) - Defaults to Posted (1)
     async function onSubmit(data: JournalFormValues) {
-        await processSubmit(data, 1);
+        await processSubmit(data, true);
     }
 
     // --- ANIMATION VARIANTS ---
@@ -590,11 +624,11 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center text-sm opacity-80">
                                         <span>Total Debit</span>
-                                        <span className="font-mono tracking-tight">{formatCurrency(totalDebit)}</span>
+                                        <span className="font-mono tracking-tight">{formatModuleMoney(totalDebit, "IDR")}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm opacity-80">
                                         <span>Total Credit</span>
-                                        <span className="font-mono tracking-tight">{formatCurrency(totalCredit)}</span>
+                                        <span className="font-mono tracking-tight">{formatModuleMoney(totalCredit, "IDR")}</span>
                                     </div>
                                 </div>
 
@@ -609,7 +643,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                         </Badge>
                                     ) : (
                                         <Badge variant="destructive" className="bg-red-500/10 text-red-600 hover:bg-red-500/20 border-0 shadow-none">
-                                            <AlertCircle className="w-3.5 h-3.5 mr-1.5" /> Difference: {formatCurrency(difference)}
+                                            <AlertCircle className="w-3.5 h-3.5 mr-1.5" /> Difference: {formatModuleMoney(difference, "IDR")}
                                         </Badge>
                                     )}
                                 </div>
@@ -618,7 +652,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                 <div className="flex flex-col gap-3 mt-4">
                                     <Button
                                         type="button"
-                                        onClick={() => form.handleSubmit((data) => processSubmit(data, 1))()} // 1 = Posted
+                                        onClick={() => form.handleSubmit((data) => processSubmit(data, true))()}
                                         disabled={!isBalanced || isSaving}
                                         className={cn(
                                             "w-full h-12 text-base font-semibold shadow-lg transition-all",
@@ -636,7 +670,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
 
                                     <Button
                                         type="button"
-                                        onClick={() => form.handleSubmit((data) => processSubmit(data, 0))()} // 0 = Draft
+                                        onClick={() => form.handleSubmit((data) => processSubmit(data, false))()}
                                         disabled={isSaving}
                                         variant="outline"
                                         className="w-full h-10 border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600"
