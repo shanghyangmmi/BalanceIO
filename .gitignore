@@ -55,3 +55,19 @@ frontend/.ds-sync/
 frontend/ds-bundle/
 frontend/tsconfig.tsbuildinfo
 
+# Server configs & IIS
+web.config
+**/web.config
+
+# Git hooks & local docs dumps
+.githooks/
+docs/
+
+# Frontend Unused/Trash Assets & Duplicates
+frontend/public/images/original/
+frontend/public/images/hero_bg.png
+frontend/public/next.svg
+frontend/public/vercel.svg
+frontend/public/globe.svg
+frontend/public/file.svg
+frontend/public/window.svg
