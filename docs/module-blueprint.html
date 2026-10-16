@@ -1,0 +1,2650 @@
+<title>BalanceIO Module Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@300;400;500;600&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap">
+
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     Tokens. The palette is the product's own semantic vocabulary:
+     emerald reads as debit / posted / done, cyan as credit, amber
+     as a gap, red as a defect. Neutrals carry a green bias so they
+     sit with the accent rather than beside it.
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --ground:      #FAFCFB;
+    --surface:     #FFFFFF;
+    --surface-sub: #F2F6F4;
+    --ink:         #0E1A18;
+    --ink-soft:    #46564F;
+    --ink-faint:   #79877F;
+    --rule:        #DDE5E1;
+    --rule-strong: #C2CEC8;
+
+    --debit:       #0A6E52;
+    --credit:      #0B6472;
+    --gap:         #8A5A00;
+    --defect:      #A32A1F;
+    --wash:        #EAF4EF;
+
+    --max: 76rem;
+    --step--1: clamp(.78rem, .76rem + .1vw, .82rem);
+    --step-0:  clamp(.94rem, .91rem + .14vw, 1rem);
+    --step-1:  clamp(1.12rem, 1.05rem + .3vw, 1.28rem);
+    --step-2:  clamp(1.4rem, 1.25rem + .6vw, 1.75rem);
+    --step-3:  clamp(1.8rem, 1.5rem + 1.2vw, 2.6rem);
+    --step-4:  clamp(2.3rem, 1.8rem + 2vw, 3.6rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0A100E;
+      --surface:     #101815;
+      --surface-sub: #16211D;
+      --ink:         #E9F1EC;
+      --ink-soft:    #A3B3AB;
+      --ink-faint:   #74857C;
+      --rule:        #22302A;
+      --rule-strong: #35463E;
+
+      --debit:       #4FD3A2;
+      --credit:      #4FC2D6;
+      --gap:         #E0A93C;
+      --defect:      #F0796B;
+      --wash:        #12211B;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0A100E;
+    --surface:     #101815;
+    --surface-sub: #16211D;
+    --ink:         #E9F1EC;
+    --ink-soft:    #A3B3AB;
+    --ink-faint:   #74857C;
+    --rule:        #22302A;
+    --rule-strong: #35463E;
+
+    --debit:       #4FD3A2;
+    --credit:      #4FC2D6;
+    --gap:         #E0A93C;
+    --defect:      #F0796B;
+    --wash:        #12211B;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 0 1.5rem 6rem;
+  }
+
+  /* ── Masthead ─────────────────────────────────────────────── */
+  header.masthead {
+    padding: 4.5rem 0 2.5rem;
+    border-bottom: 1px solid var(--rule-strong);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .eyebrow {
+    font-family: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+    font-size: .625rem;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  h1 {
+    font-family: "Merriweather", Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: var(--step-4);
+    line-height: 1.06;
+    letter-spacing: -.015em;
+    margin: 0;
+    max-width: 20ch;
+    text-wrap: balance;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--debit);
+  }
+
+  .standfirst {
+    max-width: 62ch;
+    color: var(--ink-soft);
+    font-size: var(--step-1);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2rem;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: .625rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ── Sections ─────────────────────────────────────────────── */
+  section {
+    padding-top: 4rem;
+    scroll-margin-top: 1rem;
+  }
+
+  h2 {
+    font-family: "Merriweather", Georgia, serif;
+    font-weight: 700;
+    font-size: var(--step-3);
+    line-height: 1.12;
+    letter-spacing: -.01em;
+    margin: 0 0 .5rem;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: "Merriweather", Georgia, serif;
+    font-weight: 700;
+    font-size: var(--step-1);
+    line-height: 1.3;
+    margin: 2.75rem 0 .75rem;
+    text-wrap: balance;
+  }
+
+  h4 {
+    font-size: var(--step-0);
+    font-weight: 600;
+    margin: 2rem 0 .5rem;
+  }
+
+  p { max-width: 68ch; margin: 0 0 1rem; }
+  p.lede { color: var(--ink-soft); max-width: 66ch; }
+
+  .rule { height: 1px; background: var(--rule); margin: 2.5rem 0; border: 0; }
+  .rule.strong { background: var(--rule-strong); }
+
+  a { color: var(--debit); text-underline-offset: .2em; }
+  a:focus-visible,
+  button:focus-visible { outline: 2px solid var(--debit); outline-offset: 3px; }
+
+  code, .mono {
+    font-family: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+    font-size: .85em;
+  }
+
+  /* ── Status chips ─────────────────────────────────────────── */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    white-space: nowrap;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: .58rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    padding: .2rem .5rem;
+    border-radius: .3rem;
+    border: 1px solid var(--rule-strong);
+    color: var(--ink-soft);
+  }
+  .chip::before {
+    content: "";
+    width: .38rem; height: .38rem;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .chip.built   { color: var(--debit);  border-color: color-mix(in oklab, var(--debit) 40%, transparent); }
+  .chip.partial { color: var(--gap);    border-color: color-mix(in oklab, var(--gap) 40%, transparent); }
+  .chip.missing { color: var(--defect); border-color: color-mix(in oklab, var(--defect) 40%, transparent); }
+  .chip.plain   { color: var(--ink-faint); }
+
+  /* ── Tables ───────────────────────────────────────────────── */
+  .scroll { overflow-x: auto; margin: 1.25rem 0 0; }
+
+  table {
+    width: 100%;
+    min-width: 34rem;
+    border-collapse: collapse;
+    font-size: var(--step--1);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  th {
+    text-align: left;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: .58rem;
+    font-weight: 400;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: .55rem .75rem;
+    border-bottom: 1px solid var(--rule-strong);
+    vertical-align: bottom;
+  }
+
+  td {
+    padding: .65rem .75rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.name { font-weight: 500; }
+  td.note { color: var(--ink-soft); }
+
+  /* ── Journal entry blocks ─────────────────────────────────── */
+  .je {
+    margin: 1.25rem 0 0;
+    border: 1px solid var(--rule);
+    border-radius: .6rem;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .je-head {
+    padding: .7rem 1rem;
+    background: var(--surface-sub);
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .4rem 1rem;
+  }
+
+  .je-title {
+    font-weight: 600;
+    font-size: var(--step--1);
+  }
+
+  .je-trigger {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: .58rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .je .scroll { margin: 0; }
+  .je table { min-width: 30rem; }
+  .je th:first-child, .je td:first-child { padding-left: 1rem; }
+  .je th:last-child,  .je td:last-child  { padding-right: 1rem; }
+
+  .je td.acct {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .je td.dr { color: var(--debit);  font-weight: 500; }
+  .je td.cr { color: var(--credit); font-weight: 500; }
+  .je .indent { padding-left: 2rem; }
+
+  .je-foot {
+    padding: .7rem 1rem;
+    border-top: 1px solid var(--rule);
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+    background: var(--surface-sub);
+  }
+
+  /* ── Callouts ─────────────────────────────────────────────── */
+  .note {
+    border-left: 2px solid var(--rule-strong);
+    padding: .1rem 0 .1rem 1.1rem;
+    margin: 1.5rem 0;
+    color: var(--ink-soft);
+    max-width: 68ch;
+  }
+  .note strong { color: var(--ink); font-weight: 600; }
+  .note.warn { border-left-color: var(--gap); }
+  .note.stop { border-left-color: var(--defect); }
+  .note.good { border-left-color: var(--debit); }
+
+  /* ── Cards ────────────────────────────────────────────────── */
+  .cards {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    margin-top: 1.5rem;
+  }
+
+  .card {
+    border: 1px solid var(--rule);
+    border-radius: .6rem;
+    padding: 1.1rem;
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+  }
+
+  .card h5 {
+    margin: 0;
+    font-size: var(--step-0);
+    font-weight: 600;
+  }
+  .card p { margin: 0; font-size: var(--step--1); color: var(--ink-soft); max-width: none; }
+
+  /* ── Contents ─────────────────────────────────────────────── */
+  nav.toc {
+    margin: 2.5rem 0 0;
+    padding: 1.25rem 0 0;
+    border-top: 1px solid var(--rule);
+    display: grid;
+    gap: .1rem 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  }
+  nav.toc a {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .4rem 0;
+    text-decoration: none;
+    color: var(--ink);
+    border-bottom: 1px solid var(--rule);
+    font-size: var(--step--1);
+  }
+  nav.toc a:hover { color: var(--debit); }
+  nav.toc span.n {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: .58rem;
+    letter-spacing: .12em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+  }
+
+  ul.plain { padding-left: 1.1rem; max-width: 68ch; }
+  ul.plain li { margin-bottom: .4rem; }
+  ul.plain li::marker { color: var(--ink-faint); }
+
+  footer.end {
+    margin-top: 5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule-strong);
+    color: var(--ink-faint);
+    font-size: var(--step--1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">Implementation plan · Work order · Review contract</div>
+    <h1>Every module, and the <em>entries it posts.</em></h1>
+    <p class="standfirst">
+      What each BalanceIO module contains, what it must produce in the general ledger, and
+      which parts of that already exist. A module earns its place here only if it posts — so
+      every feature is stated together with its double entry.
+    </p>
+    <p class="standfirst" style="font-size:var(--step-0)">
+      This document is written to be handed to a developer who was not in the room. It names
+      the traps this codebase hides, spells the five live defects out to the file, and states
+      the acceptance criteria the finished work will be reviewed against — the same list,
+      published before the work rather than after it.
+    </p>
+    <div class="meta">
+      <span>Basis · SAK Indonesia, numbering effective 1 Jan 2024</span>
+      <span>Tax · UU HPP, PMK, SPT Masa &amp; Tahunan</span>
+      <span>Five modules · Contacts as configuration</span>
+      <span>19 sections · 5 defects · 14 sequenced items</span>
+    </div>
+
+    <nav class="toc">
+      <a href="#handover"><span>Before the first commit</span><span class="n">Handover</span></a>
+      <a href="#state"><span>Where we stand</span><span class="n">State</span></a>
+      <a href="#principles"><span>Rules that bind everything</span><span class="n">Rules</span></a>
+      <a href="#howto"><span>Working in this codebase</span><span class="n">Traps</span></a>
+      <a href="#standards"><span>Standards</span><span class="n">SAK &amp; tax</span></a>
+      <a href="#contacts"><span>Contacts</span><span class="n">Configuration</span></a>
+      <a href="#accounting"><span>Accounting</span><span class="n">Module</span></a>
+      <a href="#tax"><span>Tax</span><span class="n">Module</span></a>
+      <a href="#fx"><span>Exchange rates</span><span class="n">BI &amp; KMK</span></a>
+      <a href="#inventory"><span>Inventory</span><span class="n">Module</span></a>
+      <a href="#assets"><span>Assets</span><span class="n">Module</span></a>
+      <a href="#payroll"><span>Payroll</span><span class="n">Module</span></a>
+      <a href="#statements"><span>Financial statements</span><span class="n">Output</span></a>
+      <a href="#platform"><span>Access &amp; accountability</span><span class="n">Platform</span></a>
+      <a href="#adoption"><span>What decides adoption</span><span class="n">Switching</span></a>
+      <a href="#horizons"><span>Extended scope</span><span class="n">Horizons</span></a>
+      <a href="#orders"><span>Work orders</span><span class="n">Executable</span></a>
+      <a href="#done"><span>Definition of done</span><span class="n">Review</span></a>
+      <a href="#sequence"><span>Build order</span><span class="n">Sequence</span></a>
+    </nav>
+  </header>
+
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="handover">
+    <h2>Before the first commit</h2>
+    <p class="lede">
+      This document is the specification and the review contract. It is not everything the
+      work needs. What follows is the rest of the handover — short, and each line is
+      something that stops the work if it is missing.
+    </p>
+
+    <h3>What comes with this document</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:30%">Item</th><th style="width:70%">Why it is needed</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Repository access</td>
+            <td class="note">The plan describes changes to named files. Read them before estimating — several are longer and stranger than the description implies.</td>
+          </tr>
+          <tr>
+            <td class="name"><code>CLAUDE.md</code> at the root</td>
+            <td class="note">The scope rule, the accounting invariants and the known-issues table. This document extends it and does not replace it. Where they disagree, that is a defect in this document — say so.</td>
+          </tr>
+          <tr>
+            <td class="name"><code>frontend/CLAUDE.md</code></td>
+            <td class="note">Money formatting, colour semantics, motion presets, the voice rules and the deprecated patterns not to copy.</td>
+          </tr>
+          <tr>
+            <td class="name"><code>frontend/DESIGN-SYSTEM.md</code></td>
+            <td class="note">The visual source of truth. Read it before any screen work; do not infer the system from an existing page, because roughly forty of them predate it.</td>
+          </tr>
+          <tr>
+            <td class="name">Environment variables</td>
+            <td class="note"><code>BALANCEIO_JWT_KEY</code>, <code>BALANCEIO_DB_CONNECTION</code>, and the SMTP and storage keys. Production refuses to start without the first, and refuses a value that was ever committed to this repository. Development falls back so <code>start-dev.bat</code> works with no setup.</td>
+          </tr>
+          <tr>
+            <td class="name">A working database</td>
+            <td class="note">Development is SQLite, tracked in git, seeded on first run with a company, a chart of 76 accounts and sample documents. Production is PostgreSQL. Anything that touches schema must work on both.</td>
+          </tr>
+          <tr>
+            <td class="name">A decision owner</td>
+            <td class="note">One person who answers when this document is silent or wrong. Guessing at an accounting rule is the one thing that should never happen here — an unanswered question is cheaper than a wrong posting.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>How to work</h3>
+    <ul class="plain">
+      <li><strong>One pull request per work order</strong>, with the acceptance criteria copied in and answered line by line with evidence.</li>
+      <li><strong>Never commit a secret</strong>, and never bypass the pre-commit hook. If it blocks you, it found something.</li>
+      <li><strong>Schema changes go in the startup patcher</strong> in <code>Program.cs</code> — the SQLite list and the Postgres batch — so an existing database upgrades itself.</li>
+      <li><strong>A migration that widens access is a defect.</strong> Backfilling a new column must never open something that was closed, and must never close something a customer already paid for. Say which, in the commit.</li>
+      <li><strong>Report what you find.</strong> This codebase has produced a defect on nearly every feature touched. Finding one is the job working, not a distraction from it — write it down rather than fixing it silently inside an unrelated change.</li>
+    </ul>
+
+    <h3>How the plan changes</h3>
+    <p>
+      This document is versioned like code and is expected to be wrong somewhere. When it is:
+      the finding goes back to the decision owner, the document is corrected, and the work
+      follows the corrected document. The implementer is never caught between a specification
+      and a reviewer — if the review contradicts the plan, the plan wins until it is changed.
+    </p>
+
+    <div class="note good">
+      <strong>What good looks like.</strong> Every figure this product shows can be traced to
+      an entry, every entry balances exactly, every posting respects the period lock, and
+      every screen belongs to exactly one company. A feature that satisfies those four is
+      finished whether or not it is beautiful. A feature that does not is not finished
+      however good it looks.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="state">
+    <h2>Where we stand</h2>
+    <p class="lede">
+      The product's own rule is that a module belongs here only if it posts to the general
+      ledger. Measured against that rule today, two modules do not yet keep their side of
+      the bargain — and one of them is on the hub already.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:26%">Source of a posting</th>
+            <th style="width:44%">What it should produce</th>
+            <th style="width:30%">Today</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Journal entry</td>
+            <td class="note">The entry as typed, with Dr = Cr enforced exactly</td>
+            <td><span class="chip built">Posts</span></td>
+          </tr>
+          <tr>
+            <td class="name">Sales invoice</td>
+            <td class="note">Receivable, revenue, PPN Keluaran</td>
+            <td><span class="chip built">Posts</span></td>
+          </tr>
+          <tr>
+            <td class="name">Expense</td>
+            <td class="note">Expense, cash or payable</td>
+            <td><span class="chip built">Posts</span></td>
+          </tr>
+          <tr>
+            <td class="name">Recurring entry</td>
+            <td class="note">The scheduled entry on its run date</td>
+            <td><span class="chip built">Posts</span></td>
+          </tr>
+          <tr>
+            <td class="name">Reversal</td>
+            <td class="note">The mirror of a posted entry, Dr and Cr swapped</td>
+            <td><span class="chip built">Posts</span></td>
+          </tr>
+          <tr>
+            <td class="name">Depreciation</td>
+            <td class="note">Depreciation expense, accumulated depreciation</td>
+            <td><span class="chip built">Posts</span></td>
+          </tr>
+          <tr>
+            <td class="name">Amortisation</td>
+            <td class="note">Amortisation expense, accumulated amortisation</td>
+            <td><span class="chip built">Posts</span></td>
+          </tr>
+          <tr>
+            <td class="name">Purchase bill</td>
+            <td class="note">Inventory or expense, payable, PPN Masukan</td>
+            <td><span class="chip missing">Posts nothing</span></td>
+          </tr>
+          <tr>
+            <td class="name">Goods issue / sale</td>
+            <td class="note">COGS, inventory relief</td>
+            <td><span class="chip missing">Posts nothing</span></td>
+          </tr>
+          <tr>
+            <td class="name">Stock opname</td>
+            <td class="note">Inventory adjustment against a variance account</td>
+            <td><span class="chip missing">Posts nothing</span></td>
+          </tr>
+          <tr>
+            <td class="name">Payment / receipt</td>
+            <td class="note">Cash, receivable or payable settlement</td>
+            <td><span class="chip missing">Not built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Payroll run</td>
+            <td class="note">Salary expense, PPh 21, BPJS, net pay</td>
+            <td><span class="chip missing">Not built</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note stop">
+      <strong>Inventory is on the hub but produces no COGS.</strong> Stock quantities move,
+      the opname processes, and nothing reaches the ledger. Every gross margin the product
+      reports is therefore revenue with no cost against it. This is the single largest
+      correctness gap in the product and it sits inside a module users can already open.
+    </div>
+
+    <div class="note stop">
+      <strong>The activity log is readable by anyone signed in, across every company.</strong>
+      <code>AuditLog</code> has no <code>CompanyId</code> and <code>/api/audit-logs</code>
+      checks only that you hold a token. Tested live with a Staff account: it returns other
+      users&rsquo; emails, addresses and actions. Detail in
+      <a href="#platform">Access &amp; accountability</a>.
+    </div>
+
+    <div class="note stop">
+      <strong>PPN is modelled as a flat 11%, which is not the rate.</strong> Since
+      PMK 131/2024 the rate is 12% against a DPP nilai lain of 11/12 for non-luxury goods.
+      The money matches for ordinary sales; the faktur pajak does not, and luxury goods are
+      under-collected outright. Detail in
+      <a href="#adoption">What decides adoption</a>.
+    </div>
+
+    <div class="note stop">
+      <strong>The Bank Indonesia rate was not from Bank Indonesia.</strong> The sync so
+      labelled called a public aggregator and stored the result as an official BI rate, with
+      an invented buy/sell spread. Corrected while writing this document — see
+      <a href="#fx">Exchange rates</a> — and worth naming, because nothing in the interface
+      would ever have shown it.
+    </div>
+
+    <div class="note stop">
+      <strong>Purchase bills post nothing either.</strong> A bill records a payable that the
+      Statement of Financial Position never sees, and a PPN Masukan the Tax module counts
+      from the document rather than from the ledger. The two sides of the Ekualisasi report
+      cannot fully agree until this is fixed.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="principles">
+    <h2>Rules that bind everything below</h2>
+    <p class="lede">
+      These are already enforced in the codebase. Every feature specified in this document
+      inherits them; none of them is negotiable per module.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <h5>Double entry is exact</h5>
+        <p>Sum(Dr) = Sum(Cr), compared with <code>!=</code>, never a tolerance. A run that
+        would produce an unbalanced entry throws and posts nothing at all.</p>
+      </div>
+      <div class="card">
+        <h5>Money is decimal</h5>
+        <p><code>float</code> and <code>double</code> are banned end to end. Rounding is
+        Bankers (<code>MidpointRounding.ToEven</code>) at two places.</p>
+      </div>
+      <div class="card">
+        <h5>Posted entries are immutable</h5>
+        <p>Corrections go through void or reverse, never edit. The correction is part of the
+        record; an audit that cannot see it is not an audit.</p>
+      </div>
+      <div class="card">
+        <h5>Period lock is honoured by every path</h5>
+        <p>Any posting path — including automatic ones like depreciation — validates the
+        transaction date before it writes.</p>
+      </div>
+      <div class="card">
+        <h5>Accounting logic lives on the server</h5>
+        <p>The frontend never re-derives a balance. Two screens disagreeing about the same
+        figure destroys trust in both.</p>
+      </div>
+      <div class="card">
+        <h5>The product records, it does not decide</h5>
+        <p>Tax treatment, useful lives, deductibility: entered by the accountant, computed
+        by the product. Guessing puts a position in someone's return that they did not take.</p>
+      </div>
+    </div>
+  </section>
+
+
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="howto">
+    <h2>Working in this codebase</h2>
+    <p class="lede">
+      Read this before the first commit. Everything below was learned by getting it wrong
+      here, in this repository, on this data. None of it is guessable from the type names,
+      and most of it fails silently — which is the reason it is written down.
+    </p>
+
+    <h3>Traps that do not announce themselves</h3>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:26%">What you will assume</th>
+            <th style="width:38%">What is actually true</th>
+            <th style="width:36%">How it fails</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name"><code>JournalLine.AccountId</code> is an account id</td>
+            <td class="note">It is a <code>string</code> holding the account <strong>code</strong> — <code>"4-1000"</code> — not the <code>Guid</code>.</td>
+            <td class="note">Joining on <code>Account.Id</code> matches nothing and every figure reads as zero. Cost one full rewrite of the PPN equalisation.</td>
+          </tr>
+          <tr>
+            <td class="name">Header accounts hold no postings</td>
+            <td class="note">They do. <code>5-0000</code>, <code>6-1000</code> and <code>6-2000</code> are flagged <code>IsHeader</code> and carry entries.</td>
+            <td class="note">Filtering <code>!IsHeader</code> silently dropped Rp 18.000.000 of expense from a fiscal reconciliation. Nothing errored.</td>
+          </tr>
+          <tr>
+            <td class="name"><code>SumAsync</code> works on money</td>
+            <td class="note">The SQLite provider refuses a decimal <code>SUM</code> outright.</td>
+            <td class="note">Runtime exception in development only, so it reaches production untested. Read the rows and add them in C#, or branch on <code>Database.IsSqlite()</code>.</td>
+          </tr>
+          <tr>
+            <td class="name"><code>Type == "Revenue"</code> means sales</td>
+            <td class="note">It also catches <code>OtherIncomeExpense</code> — interest income, FX gains, gain on disposal.</td>
+            <td class="note">Peredaran usaha inflated against a DPP that never included it. Use <code>AccountGroup == "Sales"</code>.</td>
+          </tr>
+          <tr>
+            <td class="name">Query filters need a null guard</td>
+            <td class="note">They are fail-closed on purpose: <code>e.CompanyId == CurrentCompanyId</code>, with no <code>!HasValue ||</code> escape.</td>
+            <td class="note">Re-adding the guard turns "no tenant context" into "every tenant's rows". Never restore it.</td>
+          </tr>
+          <tr>
+            <td class="name">A bare <code>fetch</code> is fine</td>
+            <td class="note">Only <code>apiClient</code> attaches the bearer token, the <code>X-Company-Id</code> header and the idempotency key.</td>
+            <td class="note">Four calls in the onboarding wizard and company hook worked only because the endpoint was unauthenticated, and broke the moment it was not.</td>
+          </tr>
+          <tr>
+            <td class="name">Framer Motion variants reach every child</td>
+            <td class="note">They propagate only through <code>motion</code> components. A plain <code>&lt;div&gt;</code> in between breaks the chain.</td>
+            <td class="note">Cards starting at <code>opacity: 0</code> never animated in. The ones with <code>whileHover</code> appeared on hover; the one without never appeared at all and read as a missing feature.</td>
+          </tr>
+          <tr>
+            <td class="name">A failed query lands in <code>isError</code></td>
+            <td class="note">Only after retries stop. A query still retrying reports <code>status: "pending"</code>.</td>
+            <td class="note">A 402 was retried, so a locked module rendered skeletons forever instead of the refusal. Use <code>retryUnlessClientError</code> from <code>lib/query-retry.ts</code>.</td>
+          </tr>
+          <tr>
+            <td class="name">Content can start hidden and animate in</td>
+            <td class="note">It must not. If the animation does not run, the content is simply gone.</td>
+            <td class="note">Use CSS transitions for feedback, never JavaScript animation as the thing that makes content visible.</td>
+          </tr>
+          <tr>
+            <td class="name"><code>formatCurrency</code> is safe for any figure</td>
+            <td class="note">It rounds to whole rupiah, which is right for IDR presentation and wrong for a balance check.</td>
+            <td class="note">A ledger out by cents printed two identical figures under a headline saying they disagree. Use <code>formatModuleMoney</code>.</td>
+          </tr>
+          <tr>
+            <td class="name"><code>new Date("2026-08-31")</code> is that date</td>
+            <td class="note">It parses as UTC midnight and renders as the previous day west of Greenwich.</td>
+            <td class="note">Period lock and count dates drift by one. Split the ISO string by hand — see <code>formatIsoDate</code>.</td>
+          </tr>
+          <tr>
+            <td class="name">Intl money output contains normal spaces</td>
+            <td class="note">It uses a non-breaking space between symbol and digits.</td>
+            <td class="note">String comparisons and test assertions fail for no visible reason.</td>
+          </tr>
+          <tr>
+            <td class="name">Animated blur is cheap</td>
+            <td class="note">Animating <code>scale</code> on <code>blur(120px)</code> re-rasterises the layer every frame.</td>
+            <td class="note">Three of them ran forever on every dashboard page. Both ambient animations are now <code>animation: none</code> — leave them there.</td>
+          </tr>
+          <tr>
+            <td class="name">Static export handles any hook</td>
+            <td class="note"><code>useSearchParams</code> needs a Suspense boundary or the route stops exporting.</td>
+            <td class="note">Build failure, late, with an unhelpful message.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Rules with no exceptions</h3>
+    <ul class="plain">
+      <li><strong>Money is <code>decimal</code>.</strong> <code>float</code> and <code>double</code> are banned end to end, including in JavaScript totals. Round with <code>MidpointRounding.ToEven</code>.</li>
+      <li><strong>Compare with <code>!=</code>, never a tolerance.</strong> A ledger out by 0,0001 is out. A tolerance was removed from this codebase deliberately; do not reintroduce one anywhere.</li>
+      <li><strong>Build the entry, check it balances, then save.</strong> If debits do not equal credits, throw and post nothing. A partially posted run is worse than a failed one.</li>
+      <li><strong>Every posting path calls <code>IPeriodLockService.ValidateTransactionDate</code></strong> before it writes — automatic runs included.</li>
+      <li><strong>Posted entries are immutable.</strong> Corrections go through void or reverse. Never add an edit path.</li>
+      <li><strong>Accounting answers are computed on the server.</strong> The frontend renders them; it never re-derives a balance.</li>
+      <li><strong>Every new tenant table gets a <code>CompanyId</code> and a fail-closed query filter</strong> in the same commit that creates it.</li>
+      <li><strong>Schema changes go in the startup patcher</strong> in <code>Program.cs</code> — both the SQLite list and the Postgres batch — not only in a migration.</li>
+    </ul>
+
+    <h3>Frontend conventions</h3>
+    <ul class="plain">
+      <li>Monetary figures carry <code>.font-money</code> or sit in a <code>&lt;table&gt;</code>.</li>
+      <li>Depth is hairlines and tonal shifts. No shadows on in-flow cards.</li>
+      <li>Colour carries meaning: emerald posted or balanced, cyan the credit side, amber out of balance, red overdue or void. Never decorative.</li>
+      <li>Italic gradient headings need <code>box-decoration-clone pr-[0.14em] pb-[0.08em]</code>, or every line but the last is clipped.</li>
+      <li>Module menus live in <code>lib/module-nav.ts</code>. A screen that is not in there cannot be reached from a sidebar.</li>
+      <li>Route groups <code>(hub)</code> and <code>(workspace)</code> do not appear in URLs. The hub has no sidebar by structure, not by condition.</li>
+    </ul>
+
+    <div class="note">
+      <strong>Running it.</strong> <code>start-dev.bat</code> brings up the API on 5210 and the
+      frontend on 3000. The development database is SQLite and is tracked in git, so a schema
+      patch or a seed shows up as a change to <code>balanceio.db</code> — commit it
+      deliberately or not at all. The API holds a lock on its own executable, so stop it
+      before <code>dotnet build</code> or the build fails on a file copy.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="standards">
+    <h2>The standards this is written against</h2>
+    <p class="lede">
+      SAK Indonesia was renumbered, effective 1 January 2024. The substance of each
+      standard did not change; the numbers did, and a product that still says PSAK 46 is
+      quoting a reference that no longer exists.
+    </p>
+
+    <p>
+      The rule is simple enough to check any row yourself: a standard that adopts an
+      <strong>IAS</strong> takes <code>2</code> + the IAS number, one that adopts an
+      <strong>IFRS</strong> takes <code>1</code> + the IFRS number. Standards with no
+      international counterpart start at 3 and 4.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:13%">Now</th>
+            <th style="width:13%">Was</th>
+            <th style="width:40%">Subject</th>
+            <th style="width:34%">Where it binds this product</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono name">PSAK 201</td><td class="mono">PSAK 1</td><td>Penyajian Laporan Keuangan <span class="mono" style="color:var(--ink-faint)">IAS 1</span></td><td class="note">The complete set of statements, and comparatives</td></tr>
+          <tr><td class="mono name">PSAK 202</td><td class="mono">PSAK 14</td><td>Persediaan <span class="mono" style="color:var(--ink-faint)">IAS 2</span></td><td class="note">FIFO or weighted average; lower of cost and NRV</td></tr>
+          <tr><td class="mono name">PSAK 207</td><td class="mono">PSAK 2</td><td>Laporan Arus Kas <span class="mono" style="color:var(--ink-faint)">IAS 7</span></td><td class="note">Operating, investing, financing</td></tr>
+          <tr><td class="mono name">PSAK 208</td><td class="mono">PSAK 25</td><td>Kebijakan Akuntansi, Perubahan Estimasi dan Kesalahan <span class="mono" style="color:var(--ink-faint)">IAS 8</span></td><td class="note">Restatement, and why a posted entry is never edited</td></tr>
+          <tr><td class="mono name">PSAK 212</td><td class="mono">PSAK 46</td><td>Pajak Penghasilan <span class="mono" style="color:var(--ink-faint)">IAS 12</span></td><td class="note">Deferred tax on temporary differences</td></tr>
+          <tr><td class="mono name">PSAK 216</td><td class="mono">PSAK 16</td><td>Aset Tetap <span class="mono" style="color:var(--ink-faint)">IAS 16</span></td><td class="note">Depreciation, components, revaluation model</td></tr>
+          <tr><td class="mono name">PSAK 219</td><td class="mono">PSAK 24</td><td>Imbalan Kerja <span class="mono" style="color:var(--ink-faint)">IAS 19</span></td><td class="note">Payroll accruals and post-employment obligations</td></tr>
+          <tr><td class="mono name">PSAK 221</td><td class="mono">PSAK 10</td><td>Pengaruh Perubahan Kurs Valuta Asing <span class="mono" style="color:var(--ink-faint)">IAS 21</span></td><td class="note">Spot rate on recognition; monetary items retranslated</td></tr>
+          <tr><td class="mono name">PSAK 236</td><td class="mono">PSAK 48</td><td>Penurunan Nilai Aset <span class="mono" style="color:var(--ink-faint)">IAS 36</span></td><td class="note">Impairment where carrying exceeds recoverable amount</td></tr>
+          <tr><td class="mono name">PSAK 238</td><td class="mono">PSAK 19</td><td>Aset Takberwujud <span class="mono" style="color:var(--ink-faint)">IAS 38</span></td><td class="note">Amortisation of intangibles</td></tr>
+          <tr><td class="mono name">PSAK 109</td><td class="mono">PSAK 71</td><td>Instrumen Keuangan <span class="mono" style="color:var(--ink-faint)">IFRS 9</span></td><td class="note">Expected credit loss on receivables</td></tr>
+          <tr><td class="mono name">PSAK 110</td><td class="mono">PSAK 65</td><td>Laporan Keuangan Konsolidasian <span class="mono" style="color:var(--ink-faint)">IFRS 10</span></td><td class="note">Consolidation across companies</td></tr>
+          <tr><td class="mono name">PSAK 115</td><td class="mono">PSAK 72</td><td>Pendapatan dari Kontrak dengan Pelanggan <span class="mono" style="color:var(--ink-faint)">IFRS 15</span></td><td class="note">When revenue is recognised, not when it is invoiced</td></tr>
+          <tr><td class="mono name">PSAK 116</td><td class="mono">PSAK 73</td><td>Sewa <span class="mono" style="color:var(--ink-faint)">IFRS 16</span></td><td class="note">Right-of-use asset and lease liability</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>Two of those decide behaviour, not presentation.</strong>
+      <strong>PSAK 115</strong> separates recognition from invoicing — goods delivered in
+      December and invoiced in January are December's revenue, which is one of the
+      legitimate causes of an Ekualisasi difference. <strong>PSAK 109</strong> requires an
+      expected credit loss allowance on receivables, which this product does not yet
+      produce at all.
+    </div>
+
+    <h3>Tax authority, separately</h3>
+    <p>
+      Accounting standards and tax rules do not move together, and the product must not
+      pretend they do. Positions come from UU HPP and the regulations under it; rates change
+      by PMK and KMK on their own schedule. Every rate belongs in a table with an effective
+      date rather than in code — so a prior period can still be recomputed on the rules that
+      actually applied to it.
+    </p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="contacts">
+    <h2>Contacts — a shared master, not a module</h2>
+    <p class="lede">
+      Contacts posts nothing to the general ledger, so under the product's own rule it does
+      not earn a door on the hub. It is not a small module; it is a different kind of thing —
+      a master record every module reads.
+    </p>
+
+    <h3>Where it belongs</h3>
+    <p>
+      It is configuration, and it lives where configuration lives: an icon in the hub navbar,
+      an entry in the account menu, and a row under Settings. It appears in no module sidebar
+      at all — repeating it four times would imply four lists, when the whole point is that
+      there is one.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:22%">Reached from</th>
+            <th style="width:30%">As</th>
+            <th style="width:48%">Because</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Hub navbar</td>
+            <td class="note">Icon, beside notifications</td>
+            <td class="note">One click from anywhere, without pretending to be a fifth module</td>
+          </tr>
+          <tr>
+            <td class="name">Settings</td>
+            <td class="note">Company → Contacts</td>
+            <td class="note">Where the record is maintained. <code>/dashboard/contacts</code> resolves to the Settings sidebar, not to whichever module you arrived from.</td>
+          </tr>
+          <tr>
+            <td class="name">Inside a document</td>
+            <td class="note">A picker on the invoice, bill or payslip</td>
+            <td class="note">Choosing a counterparty is part of the document, not a trip to a list</td>
+          </tr>
+          <tr>
+            <td class="name">Tax</td>
+            <td class="note">Surfaced by NPWP coverage, never as a menu row</td>
+            <td class="note">The module needs to know which counterparties would block a faktur, not to own the list</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note good">
+      <strong>Done.</strong> Contacts has moved out of the Accounting sidebar into the hub
+      navbar and Settings, and the route resolves to Settings — so the chrome you land on
+      matches what the screen actually is.
+    </div>
+
+    <h3>One party, several relationships</h3>
+    <p>
+      The model cannot express this today. <code>ContactType</code> is an exclusive enum —
+      <code>Customer</code>, <code>Vendor</code>, <code>Both</code> — which already needed a
+      special value to cover two roles and has nowhere to put a third.
+    </p>
+
+    <div class="note warn">
+      <strong>Pihak A sells to you and buys from you.</strong> <code>Both</code> covers that.
+      <strong>Pihak B is an employee who also invoices you as a consultant.</strong> Nothing
+      covers that, and adding <code>CustomerVendorEmployee</code> to the enum is how an enum
+      becomes a combinatorial mess.
+    </div>
+
+    <h4>Proposed change</h4>
+    <p>
+      Replace the exclusive type with independent role flags on the contact, each carrying the
+      fields that role needs. Roles are additive and a contact may hold any combination.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:20%">Role</th>
+            <th style="width:38%">Adds</th>
+            <th style="width:42%">Used by</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Customer</td>
+            <td class="note">Receivable account, credit limit, payment terms</td>
+            <td class="note">Sales invoices, aged receivables, PPN Keluaran</td>
+          </tr>
+          <tr>
+            <td class="name">Vendor</td>
+            <td class="note">Payable account, payment terms, withholding profile</td>
+            <td class="note">Purchase bills, aged payables, PPN Masukan, PPh 23 / 26</td>
+          </tr>
+          <tr>
+            <td class="name">Employee</td>
+            <td class="note">NIK, PTKP status, BPJS numbers, salary component set</td>
+            <td class="note">Payroll runs, PPh 21, BPJS reporting</td>
+          </tr>
+          <tr>
+            <td class="name">Tax party</td>
+            <td class="note">NPWP, name on the tax document, PKP status</td>
+            <td class="note">Faktur pajak, bukti potong, Ekualisasi coverage</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.25rem">
+      <span class="chip plain">Migration</span> The existing enum maps cleanly:
+      <code>Customer</code> → customer flag, <code>Vendor</code> → vendor flag,
+      <code>Both</code> → both flags. Nothing is lost and no contact needs re-entering.
+    </p>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="accounting">
+    <h2>Accounting</h2>
+    <p class="lede">
+      The ledger itself, and everything that writes directly into it. This is the module the
+      other four post through; it is the product, and the rest are additions to it.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:24%">Feature</th>
+            <th style="width:52%">What it does</th>
+            <th style="width:24%">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Journal entries</td>
+            <td class="note">Draft, Posted, Void. Dr = Cr enforced exactly on save. Idempotency key against double submission.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Chart of accounts</td>
+            <td class="note">Five-level hierarchy, normal balance side, account groups, 76 seeded Indonesian accounts.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">General ledger</td>
+            <td class="note">Every posting by account with a running balance, paginated and virtualised.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Approvals</td>
+            <td class="note">Draft entries reviewed before they reach the ledger.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Batch posting</td>
+            <td class="note">Post many drafts in one pass rather than one at a time.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Recurring entries</td>
+            <td class="note">Scheduled templates with a next-run date; they generate nothing until run.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Period lock</td>
+            <td class="note">A company-level lock date; every posting path validates against it.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Void &amp; reverse</td>
+            <td class="note">Corrections that leave a trail. Reversal lands as a draft with a <code>REV-</code> prefix.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Audit trail</td>
+            <td class="note">Append-only record of every mutation.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Sales invoices</td>
+            <td class="note">Issue, post, track receivable. Posts on issue.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Expenses</td>
+            <td class="note">Cash or payable expense capture. Posts on save.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Purchase bills</td>
+            <td class="note">Recorded, but never posted. The payable and PPN Masukan never reach the ledger.</td>
+            <td><span class="chip missing">Posts nothing</span></td>
+          </tr>
+          <tr>
+            <td class="name">Payments &amp; receipts</td>
+            <td class="note">Settle an invoice or bill; partial settlement; allocation across documents.</td>
+            <td><span class="chip missing">Not built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Bank reconciliation</td>
+            <td class="note">Import a statement, match against the ledger, explain the difference, post what is missing.</td>
+            <td><span class="chip missing">Not built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Adjusting entries</td>
+            <td class="note">Accruals, prepayments, deferrals — flagged so statements can be shown with and without them.</td>
+            <td><span class="chip partial">Flag exists, no workflow</span></td>
+          </tr>
+          <tr>
+            <td class="name">Period close</td>
+            <td class="note">A checklist that ends in locking the period: everything posted, reconciled, depreciated, counted.</td>
+            <td><span class="chip missing">Not built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Year-end close</td>
+            <td class="note">Roll profit or loss into retained earnings and open the new year.</td>
+            <td><span class="chip missing">Not built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Multi-currency</td>
+            <td class="note">Transaction currency with a rate; period-end revaluation of monetary items (PSAK 221).</td>
+            <td><span class="chip partial">Rates exist, no revaluation</span></td>
+          </tr>
+          <tr><td class="name">Down payments and advances</td><td class="note">Uang muka received is a liability and uang muka paid is an asset &mdash; never revenue or expense. PPN falls due on the advance, and settling it against the eventual invoice has to relieve both sides.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Petty cash and cash advances</td><td class="note">Kas kecil on an imprest float; advances issued, settled and the balance returned. The most common source of unrecorded expense in a small company.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Expense claims</td><td class="note">An employee submits, someone approves, it posts, it is reimbursed. Distinct from a supplier bill because the counterparty is staff.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Fund transfers</td><td class="note">Moving money between the company own accounts. A <code>FundTransfer</code> model exists with no controller and no screen. It is neither income nor expense and must never be able to look like one.</td><td><span class="chip missing">Model only</span></td></tr>
+          <tr><td class="name">Post-dated cheques</td><td class="note">Giro received and giro issued, held until the clearing date. Recorded on receipt, cash only on clearing, and visible as its own balance until then.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Prepayments and accruals</td><td class="note">A schedule that releases a prepaid cost or builds an accrual across periods, with the option to reverse automatically at the start of the next one.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Bad debt write-off</td><td class="note">Removing a receivable that will not be collected, separately from the expected credit loss allowance that anticipated it.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Document numbering</td><td class="note">Per document type, per year, with gap detection. A <code>DocumentNumberSequence</code> model exists; sequence control does not. A missing number in a numbered series is a question an auditor will ask.</td><td><span class="chip missing">Model only</span></td></tr>
+          <tr><td class="name">Rounding differences</td><td class="note">A designated account for the sub-rupiah residue that allocation and conversion produce, so it never lands wherever it happens to fall.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Drill-down</td><td class="note">From a figure on a statement to the accounts behind it, to the entries behind those, to the document behind the entry. The most-used feature in mature accounting software, and the fastest way to make a number trustworthy.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Bulk operations</td><td class="note">Post, void or approve many entries in one transaction, returning what succeeded and what did not.</td><td><span class="chip partial">Batch posting only</span></td></tr>
+          <tr><td class="name">Keyboard-first entry</td><td class="note">A bookkeeper enters hundreds of lines a day and never reaches for the mouse. Tab order, account-code autocomplete, and an amount field that balances the entry on the last line.</td><td><span class="chip missing">Not built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What Accounting posts</h3>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Sales invoice issued</span>
+        <span class="je-trigger">Trigger · invoice leaves Draft</span>
+        <span class="chip built">Built</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-1200</td><td>Trade Receivables</td><td class="num dr">Total</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">4-1000</td><td class="indent">Product Sales</td><td class="num">—</td><td class="num cr">DPP</td></tr>
+            <tr><td class="acct indent">2-1300</td><td class="indent">PPN Keluaran</td><td class="num">—</td><td class="num cr">PPN</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        The receivable account comes from the customer where one is set, otherwise the company
+        default. PPN is only credited when the invoice carries tax.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Purchase bill received</span>
+        <span class="je-trigger">Trigger · bill leaves Draft</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-1300</td><td>Inventory <span class="mono" style="color:var(--ink-faint)">— stock items</span></td><td class="num dr">DPP</td><td class="num">—</td></tr>
+            <tr><td class="acct">6-xxxx</td><td>Expense <span class="mono" style="color:var(--ink-faint)">— non-stock items</span></td><td class="num dr">DPP</td><td class="num">—</td></tr>
+            <tr><td class="acct">1-1400</td><td>PPN Masukan</td><td class="num dr">PPN</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">2-1100</td><td class="indent">Trade Payables</td><td class="num">—</td><td class="num cr">Total</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        The line's product decides whether it debits inventory or an expense. Where withholding
+        applies, the credit splits between the payable and the PPh liability — see Tax.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Customer receipt</span>
+        <span class="je-trigger">Trigger · payment allocated to an invoice</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-1100</td><td>Cash &amp; Cash Equivalents</td><td class="num dr">Amount</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-1200</td><td class="indent">Trade Receivables</td><td class="num">—</td><td class="num cr">Amount</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Partial settlement is the normal case, not the exception: one invoice may be closed by
+        several receipts, and one receipt may span several invoices.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Year-end close</span>
+        <span class="je-trigger">Trigger · closing the financial year</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">4-xxxx</td><td>All revenue accounts <span class="mono" style="color:var(--ink-faint)">— closed out</span></td><td class="num dr">Balance</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">5-xxxx, 6-xxxx, 8-xxxx</td><td class="indent">All cost and expense accounts</td><td class="num">—</td><td class="num cr">Balance</td></tr>
+            <tr><td class="acct indent">3-2000</td><td class="indent">Retained Earnings</td><td class="num dr">or</td><td class="num cr">Net result</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Posted on the last day of the year, then the period is locked. The entry is a normal
+        journal entry so it voids and reverses like any other.
+      </div>
+    </div>
+
+    <h3>Bank reconciliation — what it has to survive</h3>
+    <p>
+      This is the single biggest daily pain for anyone keeping books, and it fails on details
+      rather than on concept. The specification is the list of things that break it:
+    </p>
+    <ul class="plain">
+      <li>Indonesian number format in imported files — <code>1.234.567,89</code>, not <code>1,234,567.89</code>.</li>
+      <li>Import de-duplication, so re-importing an overlapping statement does not double the ledger.</li>
+      <li>Timing differences: a cheque written on the 30th and cleared on the 3rd is not a discrepancy.</li>
+      <li>Bank-side sign convention, which is the mirror of the book side.</li>
+      <li>Transfer fees deducted by the bank and never recorded as an expense.</li>
+      <li>Statement continuity — a gap between one import's closing balance and the next one's opening.</li>
+      <li>Virtual account numbers buried in free-text descriptions, which is how a receipt is matched to a customer.</li>
+    </ul>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="tax">
+    <h2>Tax</h2>
+    <p class="lede">
+      The defensible moat, and the module where language matters most. Everything here
+      records, reconciles, tracks and exports. Nothing here decides the tax treatment of a
+      transaction — that is professional judgement, and a product that guessed would be
+      moving someone else's liability onto itself.
+    </p>
+
+    <h3>Rekonsiliasi PPN</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Reconciliation</th><th style="width:50%">Two sides, read independently</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">PPN Keluaran vs peredaran usaha</td>
+            <td class="note">Ledger revenue on the Sales accounts against the DPP on issued faktur, month by month. The first check a pemeriksa runs.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">PPN Masukan vs pembelian</td>
+            <td class="note">Ledger purchases and expenses against the DPP on bills carrying PPN Masukan. Blocked until bills post.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">PPN payable vs the ledger</td>
+            <td class="note">Net PPN per the SPT Masa against the movement on the PPN Keluaran and Masukan accounts. Catches a return filed on figures the books never carried.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">Faktur coverage</td>
+            <td class="note">Taxed documents with no faktur number, and counterparties with no NPWP. Neither can be exported to the DJP system.</td>
+            <td><span class="chip partial">NPWP gap tracked</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Rekonsiliasi PPh</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Reconciliation</th><th style="width:50%">What it compares</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Expenses vs objek pot-put</td>
+            <td class="note">Expense accounts flagged as withholding objects against the bukti potong actually issued. An unwithheld payment is a cost you may lose and a penalty you will pay.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">Salary expense vs SPT PPh 21</td>
+            <td class="note">Payroll cost in the ledger against the gross reported across twelve SPT Masa PPh 21.</td>
+            <td><span class="chip missing">Needs Payroll</span></td>
+          </tr>
+          <tr>
+            <td class="name">PPh 23 / 26 payable</td>
+            <td class="note">Withheld amounts in the ledger against what was deposited and reported.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">PPh 25 instalments</td>
+            <td class="note">Monthly instalments paid against the instalment base from the prior year's return.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Corporate tax computation</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Feature</th><th style="width:50%">What it does</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Rekonsiliasi fiskal</td>
+            <td class="note">Commercial profit to fiscal profit through corrections classified on each account. Positive corrections add back, negative take out.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Debt to equity</td>
+            <td class="note">PMK-169: average interest-bearing debt against average equity, 4:1 cap, and the share of interest that falls outside it.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Fiscal depreciation</td>
+            <td class="note">A second schedule on the tax useful lives and groups, run beside the commercial one. The difference is a timing correction.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">Loss carry-forward</td>
+            <td class="note">Fiscal losses tracked by year of origin and consumed oldest first, within the five-year window.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">Deferred tax</td>
+            <td class="note">PSAK 212. Temporary differences between carrying amount and tax base, and the asset or liability they create.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">Faktur pajak numbering</td>
+            <td class="note">Sequential range control, gap detection, and the number printed on the document.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">e-Faktur export</td>
+            <td class="note">The import format the DJP application accepts, generated from issued invoices.</td>
+            <td><span class="chip missing">To build</span></td>
+          </tr>
+          <tr>
+            <td class="name">Coretax readiness</td>
+            <td class="note">Whatever the current DJP platform requires, tracked as it changes rather than assumed stable.</td>
+            <td><span class="chip missing">Watch</span></td>
+          </tr>
+          <tr><td class="name">PKP status</td><td class="note">Whether the company is a Pengusaha Kena Pajak, and from what date. It decides whether PPN is charged at all and whether input tax is creditable. There is no such field anywhere in the model today, so the product cannot tell a PKP company from one that is not.</td><td><span class="chip missing">Absent from the model</span></td></tr>
+          <tr><td class="name">PPh 4(2) final</td><td class="note">Rent of land and buildings, construction services and the other final categories. A different mechanism from PPh 23: final means not creditable against the annual return, and treating it as creditable overstates the refund.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">PPh 22</td><td class="note">Import and certain domestic purchases &mdash; collected rather than withheld, and creditable.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Non-creditable input VAT</td><td class="note">PPN Masukan that cannot be credited: an incomplete faktur, a purchase unrelated to the business, a period before PKP registration. It becomes part of the cost, not a receivable.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Faktur pajak reference</td><td class="note">Recording the NSFP that was assigned in the DJP system against the invoice it belongs to, and flagging taxed documents that carry none. The number is captured here, never generated here.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Replacement and cancellation</td><td class="note">When a faktur is replaced or cancelled in the DJP system, the books follow: the reference updated, the period effect visible, the reconciliation still tying.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Deemed supplies</td><td class="note">PPN on own use and on goods given free of charge. Real, routinely missed, and it produces output tax with no sales invoice behind it.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Tax payments</td><td class="note">Kode billing, the SSP, and matching a payment to the liability it settles &mdash; so the tax accounts clear instead of accumulating forever.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Withholding exemptions</td><td class="note">SKB and similar certificates that remove an obligation to withhold, held against the counterparty with their validity dates.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Tax assessments</td><td class="note">Recording an STP or SKPKB with its penalty &mdash; a cost, and almost always a non-deductible one, which makes it a fiscal correction too.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">NPWP validation</td><td class="note">Format and check-digit validation at entry. A malformed NPWP fails at the DJP rather than here, and by then the document has been issued.</td><td><span class="chip missing">Not built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What Tax posts</h3>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">PPh 23 withheld on a vendor payment</span>
+        <span class="je-trigger">Trigger · bill for a withholding-object service</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">6-1700</td><td>Professional Fees</td><td class="num dr">DPP</td><td class="num">—</td></tr>
+            <tr><td class="acct">1-1400</td><td>PPN Masukan</td><td class="num dr">PPN</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">2-1100</td><td class="indent">Trade Payables</td><td class="num">—</td><td class="num cr">Net of PPh</td></tr>
+            <tr><td class="acct indent">2-1450</td><td class="indent">Hutang PPh 23</td><td class="num">—</td><td class="num cr">2% × DPP</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        The rate and whether the payment is an object at all come from the vendor's withholding
+        profile, set by the accountant. The product applies what was configured; it does not
+        classify the service.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Monthly PPN settlement</span>
+        <span class="je-trigger">Trigger · SPT Masa PPN period closed</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">2-1300</td><td>PPN Keluaran</td><td class="num dr">Period total</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-1400</td><td class="indent">PPN Masukan</td><td class="num">—</td><td class="num cr">Period total</td></tr>
+            <tr><td class="acct indent">2-1400</td><td class="indent">PPN Kurang Bayar</td><td class="num">—</td><td class="num cr">Net payable</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Where the net is lebih bayar the balance debits a receivable instead. The entry closes
+        the period's PPN accounts so the next month starts clean — which is also what makes the
+        third reconciliation above possible.
+      </div>
+    </div>
+
+    <h3>Where this module stops</h3>
+    <p>
+      BalanceIO is not a PJAP. It is not certified to issue tax documents and does not try to
+      be, and that boundary is a design constraint rather than a gap to close later.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:34%">Not ours</th><th style="width:66%">What we do instead</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Issuing a faktur pajak</td>
+            <td class="note">Record the reference assigned in the DJP system against the invoice, and prepare the data for import there. The number is captured, never generated.</td>
+          </tr>
+          <tr>
+            <td class="name">Allocating NSFP ranges</td>
+            <td class="note">Nothing. Ranges are requested and consumed in the DJP system.</td>
+          </tr>
+          <tr>
+            <td class="name">Issuing bukti potong</td>
+            <td class="note">Record the withholding on the bill that created it, and prepare the data for e-Bupot.</td>
+          </tr>
+          <tr>
+            <td class="name">Filing a return</td>
+            <td class="note">Reconcile the period so the figures being filed are defensible, and track the deadline. The filing is done by whoever holds that responsibility.</td>
+          </tr>
+          <tr>
+            <td class="name">Deciding a tax treatment</td>
+            <td class="note">Apply what the accountant classified on the account or the counterparty. The judgement stays with the person who is answerable for it.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <strong>Vocabulary is a specification, not a style guide.</strong> Safe verbs: track,
+      record, organise, reconcile, export, support. Unsafe: determine, calculate your tax,
+      decide, issue, file for you. The distinction is the difference between a tool and a
+      liability, and it is the reason the boundary above is written down rather than assumed.
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="fx">
+    <h2>Exchange rates</h2>
+    <p class="lede">
+      A company that transacts in foreign currency needs two different rates on the same
+      day, for the same transaction, and they will not agree. Treating that as one number
+      is the mistake. The gap between them is a real reconciling item, not an error to
+      smooth over.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:20%">Rate</th>
+            <th style="width:16%">Set by</th>
+            <th style="width:16%">Cadence</th>
+            <th style="width:48%">Used for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Kurs BI — JISDOR</td>
+            <td class="note">Bank Indonesia</td>
+            <td class="note">Daily, business days</td>
+            <td class="note">The spot rate for recognising and retranslating under PSAK 221. IDR/USD, built from interbank transactions through SISMONTAVAR.</td>
+          </tr>
+          <tr>
+            <td class="name">Kurs BI — middle rate</td>
+            <td class="note">Bank Indonesia</td>
+            <td class="note">Daily</td>
+            <td class="note">The average of the buy and sell quote, for currencies other than USD.</td>
+          </tr>
+          <tr>
+            <td class="name">Kurs Pajak — KMK</td>
+            <td class="note">Kementerian Keuangan</td>
+            <td class="note">Weekly, Wednesday to Tuesday</td>
+            <td class="note">Mandatory on tax documents: faktur pajak, PPN and PPnBM, bea masuk and bea keluar, and PPh on import and export. Set from the previous week average.</td>
+          </tr>
+          <tr>
+            <td class="name">Contract rate</td>
+            <td class="note">The parties</td>
+            <td class="note">Per agreement</td>
+            <td class="note">Where a contract fixes a rate. Recorded as entered, never overwritten by a feed.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <strong>They are different numbers on the same day, and both are correct.</strong>
+      A USD invoice recognised at the JISDOR rate and reported on a faktur pajak at the KMK
+      rate produces two different rupiah figures for one sale. That difference is precisely
+      what the PPN equalisation surfaces, and a product that quietly used one rate for both
+      would hide it.
+    </div>
+
+    <h3>How each is retrieved</h3>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:22%">Source</th><th style="width:44%">Method</th><th style="width:34%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">Kurs Pajak (KMK)</td>
+            <td class="note">Read the published KMK from fiskal.kemenkeu.go.id weekly and store the KMK number alongside the rate. Runs on Wednesday; a missed week stays visible rather than being carried forward silently.</td>
+            <td><span class="chip partial">Scraper exists</span></td>
+          </tr>
+          <tr>
+            <td class="name">Kurs BI (JISDOR)</td>
+            <td class="note">Bank Indonesia published series, read daily. Weekend and holiday gaps are real — the rate does not exist on those dates and must not be interpolated.</td>
+            <td><span class="chip missing">Not built</span></td>
+          </tr>
+          <tr>
+            <td class="name">Market indicative</td>
+            <td class="note">A public aggregator, for a working estimate only. Never for a tax document.</td>
+            <td><span class="chip built">Built · relabelled</span></td>
+          </tr>
+          <tr>
+            <td class="name">Manual entry</td>
+            <td class="note">Always available, always wins over a feed, always attributed to whoever entered it.</td>
+            <td><span class="chip built">Built</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note stop">
+      <strong>A defect found while writing this.</strong> The sync labelled
+      <em>Bank Indonesia</em> was calling a third-party aggregator and storing what came back
+      as <code>ExchangeRateSource.BankIndonesia</code>, with a buy/sell spread of ±0.3%
+      invented in code and shown as though a bank had quoted it. A rate decides a figure in
+      the statements; if it is ever questioned, the answer has to be the rate actually used,
+      from the source it actually came from. It is now recorded as an indicative market rate
+      with no invented spread. <strong>Provenance is part of the number.</strong>
+    </div>
+
+    <h3>Rules the rate table has to hold</h3>
+    <ul class="plain">
+      <li><strong>Never overwrite a rate a posted entry used.</strong> A retrieved rate corrects the table going forward; it does not rewrite history.</li>
+      <li><strong>A missing rate is an error, not a zero.</strong> Posting into a date with no rate must refuse rather than value the transaction at nothing.</li>
+      <li><strong>Store the source on every row</strong> — BI, KMK, market, manual, contract — and the KMK number where one applies.</li>
+      <li><strong>Do not interpolate across a gap.</strong> A rate that was never published cannot be produced by averaging the days either side of it.</li>
+      <li><strong>Published rates are global; the election is the company's.</strong> The same KMK applies to everyone. Which rate a company applies, and to what, is its own accounting policy and belongs in its settings.</li>
+    </ul>
+
+    <h3>What foreign currency posts</h3>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Realised exchange difference on settlement</span>
+        <span class="je-trigger">Trigger · foreign currency receivable settled</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-1100</td><td>Cash &amp; Cash Equivalents</td><td class="num dr">At the settlement rate</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-1200</td><td class="indent">Trade Receivables</td><td class="num">—</td><td class="num cr">At the rate it was booked</td></tr>
+            <tr><td class="acct indent">7-2000</td><td class="indent">Foreign Exchange Gain / Loss</td><td class="num dr">or loss</td><td class="num cr">or gain</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        The receivable leaves at its original rupiah carrying amount. The difference is the
+        currency moving, not the customer paying a different amount.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Period-end retranslation</span>
+        <span class="je-trigger">Trigger · month end · PSAK 221 · monetary items only</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-1200</td><td>Trade Receivables <span class="mono" style="color:var(--ink-faint)">— currency balances</span></td><td class="num dr">Movement</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">7-2000</td><td class="indent">Foreign Exchange Gain <span class="mono" style="color:var(--ink-faint)">— unrealised</span></td><td class="num">—</td><td class="num cr">Movement</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Monetary items only: cash, receivables, payables, borrowings. Inventory and fixed
+        assets stay at the rate on the day they were acquired. Retranslating them is the most
+        common error in this area, and it moves figures that should never move.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="inventory">
+    <h2>Inventory</h2>
+    <p class="lede">
+      Inventory is on the hub because it produces cost of goods sold. Right now it produces
+      none — quantities move and the ledger never hears about it. Everything in this section
+      is downstream of fixing that.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:24%">Feature</th><th style="width:52%">What it does</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Items</td><td class="note">Products with SKU, unit, reorder level, and the accounts they post to.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Categories &amp; units</td><td class="note">Classification and units of measure.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Warehouses</td><td class="note">Where stock is held.</td><td><span class="chip partial">Screen exists, no per-location quantity</span></td></tr>
+          <tr><td class="name">Stock opname</td><td class="note">Count the shelf against the book; differences recorded per line.</td><td><span class="chip partial">Counts, posts nothing</span></td></tr>
+          <tr><td class="name">Adjustments</td><td class="note">Movements that are neither a sale nor a purchase — write-off, breakage, sample.</td><td><span class="chip partial">Screen exists, posts nothing</span></td></tr>
+          <tr><td class="name">Costing method</td><td class="note">PSAK 202 permits FIFO or weighted average, not LIFO. The method must be chosen, stored, and applied consistently.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Goods receipt</td><td class="note">Receiving against a purchase order, which is what should move stock in.</td><td><span class="chip missing">Model only</span></td></tr>
+          <tr><td class="name">Delivery order</td><td class="note">Issuing against a sales order, which is what should move stock out.</td><td><span class="chip missing">Model only</span></td></tr>
+          <tr><td class="name">Net realisable value</td><td class="note">PSAK 202 measures inventory at the lower of cost and NRV. A write-down is an expense, and a reversal is capped at the original cost.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Inventory ageing</td><td class="note">How long stock has sat, which is the input to any write-down conversation.</td><td><span class="chip partial">Report exists</span></td></tr>
+          <tr><td class="name">Stock reservation</td><td class="note">Quantity committed to an open order but not yet issued. Without it, available and on-hand are the same figure, and the second customer is promised stock that is already sold.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Reorder suggestions</td><td class="note">What to buy, from the reorder level, lead time and open orders. The reorder level is already recorded and nothing reads it.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Purchase price history</td><td class="note">Last and average purchase price per item per supplier &mdash; the basis for noticing that a cost has moved.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Consignment</td><td class="note">Stock held that is not owned, and stock owned that is not held. It sits on the wrong balance sheet if the distinction is not modelled.</td><td><span class="chip missing">Not built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What Inventory must post</h3>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Goods sold — cost recognition</span>
+        <span class="je-trigger">Trigger · delivery, or invoice where delivery is not tracked</span>
+        <span class="chip missing">To build · highest priority</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">5-0000</td><td>Cost of Sales</td><td class="num dr">Cost of quantity issued</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-1300</td><td class="indent">Inventory</td><td class="num">—</td><td class="num cr">Same</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        The cost comes from the costing method, not from the sales price. Until this entry
+        exists, every gross margin the product reports is revenue with no cost against it.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Stock opname processed</span>
+        <span class="je-trigger">Trigger · opname moves to Processed</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-1300</td><td>Inventory <span class="mono" style="color:var(--ink-faint)">— count above book</span></td><td class="num dr">Difference</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">5-9000</td><td class="indent">Inventory Variance</td><td class="num">—</td><td class="num cr">Difference</td></tr>
+            <tr><td colspan="4" style="color:var(--ink-faint);font-size:.8em">Reversed when the count is below book.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        A variance account rather than straight to COGS: a count difference is a control
+        finding and deserves to be visible as one.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Write-down to net realisable value</span>
+        <span class="je-trigger">Trigger · NRV below cost at period end · PSAK 202</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">5-9100</td><td>Inventory Write-down</td><td class="num dr">Cost less NRV</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-1350</td><td class="indent">Allowance for Inventory Write-down</td><td class="num">—</td><td class="num cr">Same</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        A contra-asset allowance rather than crediting inventory directly, so the original cost
+        stays visible and a reversal has something to reverse against.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="assets">
+    <h2>Assets</h2>
+    <p class="lede">
+      The register at cost, and the charges it produces. This module now posts — depreciation
+      and amortisation both write a balanced journal entry through one engine — which leaves
+      the acquisition and disposal ends of the life cycle to close.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:24%">Feature</th><th style="width:52%">What it does</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Asset register</td><td class="note">Cost, accumulated charge, carrying amount, useful life, method, category, location.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Depreciation</td><td class="note">Straight line over the useful life; one posted entry per period run.</td><td><span class="chip built">Built · posts</span></td></tr>
+          <tr><td class="name">Amortisation</td><td class="note">The same engine for intangibles, driven by an intangible flag on the category.</td><td><span class="chip built">Built · posts</span></td></tr>
+          <tr><td class="name">Categories</td><td class="note">Default useful life and method; the intangible flag lives here.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Disposal</td><td class="note">Retire, sell or write off, and close the charge.</td><td><span class="chip partial">Screen exists, posts nothing</span></td></tr>
+          <tr><td class="name">Revaluation</td><td class="note">PSAK 216 revaluation model. Restate the carrying amount; the surplus goes to OCI, not to profit.</td><td><span class="chip partial">Screen exists, posts nothing</span></td></tr>
+          <tr><td class="name">Acquisition</td><td class="note">Capitalising an asset from a purchase bill rather than entering it twice.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Impairment</td><td class="note">PSAK 236. Carrying amount above recoverable amount is written down through profit or loss.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Component depreciation</td><td class="note">PSAK 216 requires significant parts with different useful lives to be depreciated separately.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Fiscal register</td><td class="note">The tax useful lives and groups beside the commercial ones — the input to the fiscal reconciliation.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Labels</td><td class="note">Printable asset tags for the physical register.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Maintenance log</td><td class="note">Service history against the asset, and whether a cost was capitalised or expensed &mdash; an accounting decision, not an operational note. A <code>maintenance-log</code> component exists and is reachable from nothing.</td><td><span class="chip partial">Component orphaned</span></td></tr>
+          <tr><td class="name">Insurance and warranty</td><td class="note">Cover, sum insured and expiry against the asset. A claim produces an entry of its own.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Asset transfer</td><td class="note">Moving an asset between locations, departments or dimensions, which changes where its depreciation lands.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Physical count</td><td class="note">The asset equivalent of a stock opname: confirming the register against what is actually on site, and recording what is not.</td><td><span class="chip missing">Not built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What Assets posts</h3>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Periodic charge</span>
+        <span class="je-trigger">Trigger · depreciation or amortisation run · one entry per run</span>
+        <span class="chip built">Built</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">6-1600</td><td>Depreciation / Amortisation Expense</td><td class="num dr">Period charge</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-2200</td><td class="indent">Accumulated Depreciation / Amortisation</td><td class="num">—</td><td class="num cr">Same</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Reference <code>DEP-yyyyMM</code> or <code>AMT-yyyyMM</code>. Assets with no accounts set
+        are skipped by name with the reason, rather than half-posting the run.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Disposal by sale</span>
+        <span class="je-trigger">Trigger · asset disposed with proceeds</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-1100</td><td>Cash &amp; Cash Equivalents</td><td class="num dr">Proceeds</td><td class="num">—</td></tr>
+            <tr><td class="acct">1-2200</td><td>Accumulated Depreciation</td><td class="num dr">To date</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-2100</td><td class="indent">Fixed Assets at cost</td><td class="num">—</td><td class="num cr">Acquisition cost</td></tr>
+            <tr><td class="acct indent">7-3000</td><td class="indent">Gain on Asset Disposal</td><td class="num dr">or loss</td><td class="num cr">or gain</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Depreciation is charged up to the disposal date first, so the accumulated figure removed
+        is the real one.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Revaluation surplus</span>
+        <span class="je-trigger">Trigger · revaluation upward · PSAK 216</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">1-2100</td><td>Fixed Assets at cost</td><td class="num dr">Increase</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">3-6000</td><td class="indent">Revaluation Surplus <span class="mono" style="color:var(--ink-faint)">— OCI</span></td><td class="num">—</td><td class="num cr">Increase</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        The surplus is equity through other comprehensive income, not profit — which is why the
+        Statement of Profit or Loss <em>and Other Comprehensive Income</em> has to be one
+        statement with two sections rather than a profit and loss with an appendix.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="payroll">
+    <h2>Payroll</h2>
+    <p class="lede">
+      Not built, and it qualifies twice over: it produces salary expense, and PPh 21 and BPJS
+      are compliance problems with deadlines. The hub carries a greyed card for it, which is
+      the honest state until the entries below exist.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:24%">Feature</th><th style="width:52%">What it does</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Employees</td><td class="note">Contacts holding the employee role: NIK, PTKP status, BPJS numbers, bank account.</td><td><span class="chip missing">Needs contact roles</span></td></tr>
+          <tr><td class="name">Salary components</td><td class="note">Basic, allowances, deductions — each flagged taxable or not, and BPJS base or not.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Payroll run</td><td class="note">A period run producing a payslip per employee and one posted journal entry.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">PPh 21</td><td class="note">Withholding per employee against the PTKP status and rates configured, with the bukti potong it produces.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">BPJS</td><td class="note">Kesehatan and Ketenagakerjaan, split between the employer's cost and the employee's deduction.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">THR &amp; bonus</td><td class="note">Irregular income, which is taxed differently from regular income and cannot simply be added to a month.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Year-end reconciliation</td><td class="note">December recomputation across the year, and the annual bukti potong.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Payslips</td><td class="note">A document per employee per period, from the same figures that posted.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Overtime</td><td class="note">Lembur at the statutory multipliers. Taxable, and part of the BPJS base.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Employee loans</td><td class="note">Kasbon issued and recovered by instalment from pay. A receivable from the employee, not an expense.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Severance</td><td class="note">Pesangon, on its own final PPh 21 rates rather than the regular brackets. Expensive to get wrong in either direction.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Non-employee withholding</td><td class="note">PPh 21 for bukan pegawai &mdash; freelancers, commissioners, event workers &mdash; which is a different computation from an employee.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Pay periods</td><td class="note">Monthly, weekly and daily, because harian and borongan workers are paid on a different cycle and taxed on a different basis.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Leave affecting pay</td><td class="note">Unpaid leave and its effect on the period. The product does not manage leave; it reads the days that changed the pay.</td><td><span class="chip missing">Not built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What Payroll must post</h3>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Payroll run</span>
+        <span class="je-trigger">Trigger · period run · one entry for the whole run</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">6-1100</td><td>Salaries &amp; Wages</td><td class="num dr">Gross</td><td class="num">—</td></tr>
+            <tr><td class="acct">6-1150</td><td>BPJS — employer share</td><td class="num dr">Employer cost</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">2-1500</td><td class="indent">Employee Payable <span class="mono" style="color:var(--ink-faint)">— net pay</span></td><td class="num">—</td><td class="num cr">Take-home</td></tr>
+            <tr><td class="acct indent">2-1420</td><td class="indent">Hutang PPh 21</td><td class="num">—</td><td class="num cr">Withheld</td></tr>
+            <tr><td class="acct indent">2-1520</td><td class="indent">Hutang BPJS</td><td class="num">—</td><td class="num cr">Both shares</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Gross is the expense; PPh 21 and the employee's BPJS share are deductions from it, not
+        additional costs. The employer's BPJS share is a separate expense line — conflating the
+        two is the most common payroll posting error.
+      </div>
+    </div>
+
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">Net pay disbursed</span>
+        <span class="je-trigger">Trigger · salary transfer executed</span>
+        <span class="chip missing">To build</span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th style="width:16%">Account</th><th style="width:44%">Name</th><th class="num" style="width:20%">Debit</th><th class="num" style="width:20%">Credit</th></tr></thead>
+          <tbody>
+            <tr><td class="acct">2-1500</td><td>Employee Payable</td><td class="num dr">Take-home</td><td class="num">—</td></tr>
+            <tr><td class="acct indent">1-1100</td><td class="indent">Cash &amp; Cash Equivalents</td><td class="num">—</td><td class="num cr">Take-home</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="je-foot">
+        Separate from the run on purpose: the accrual and the payment fall in different periods
+        often enough that merging them hides an unpaid payroll.
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>PPh 21 rates are configuration, not code.</strong> TER categories, PTKP amounts and
+      brackets change by regulation. They belong in a table with an effective date, so a rate
+      change is data entry rather than a deployment — and so a prior period can still be
+      recomputed on the rates that applied to it.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="statements">
+    <h2>Financial statements</h2>
+    <p class="lede">
+      PSAK 201 names them and requires a complete set. Twenty-six report screens exist today;
+      what follows is the set measured against the standard rather than against the file list.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:34%">Statement</th><th style="width:42%">Requirement</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Statement of Financial Position (SoFP)</td><td class="note">Current and non-current split; comparative period.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Statement of Profit or Loss and Other Comprehensive Income (SoCI)</td><td class="note">One statement, two sections. OCI is where revaluation surplus and some FX land.</td><td><span class="chip partial">P&amp;L built, no OCI section</span></td></tr>
+          <tr><td class="name">Statement of Changes in Equity (SoCE)</td><td class="note">Opening to closing by component: capital, retained earnings, revaluation surplus.</td><td><span class="chip partial">Equity report exists</span></td></tr>
+          <tr><td class="name">Statement of Cash Flows (SoCF)</td><td class="note">Operating, investing, financing. Indirect method is the norm here; direct method is permitted.</td><td><span class="chip partial">Built, indirect only</span></td></tr>
+          <tr><td class="name">Notes to the Financial Statements</td><td class="note">Accounting policies and the schedules the statements refer to.</td><td><span class="chip partial">Screen exists</span></td></tr>
+          <tr><td class="name">Trial balance</td><td class="note">Working paper, not a statement — but the first thing anyone opens.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Comparatives</td><td class="note">PSAK 201 requires the prior period alongside. Every statement, not just the SoFP.</td><td><span class="chip partial">Uneven</span></td></tr>
+          <tr><td class="name">Consolidation</td><td class="note">PSAK 110, where a company has subsidiaries. Multi-company exists; consolidation does not.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Interim reporting</td><td class="note">A statement for a period shorter than a year, on the same recognition basis as the annual one.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Multi-period trend</td><td class="note">Three or five years side by side. What a bank asks for, and what a director actually reads.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Export with structure intact</td><td class="note">Excel that arrives as rows and columns a reviewer can pivot, not a picture of a table.</td><td><span class="chip partial">Uneven</span></td></tr>
+          <tr><td class="name">Scheduled delivery</td><td class="note">The monthly pack sent to whoever needs it, on the day it is due, without anyone having to remember.</td><td><span class="chip missing">Not built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note good">
+      <strong>Every statement is drawn from posted entries only.</strong> Drafts are excluded, and
+      adjusting entries are flagged so a statement can be presented before and after them. That
+      flag exists on the model and is not yet used by the report layer.
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="platform">
+    <h2>Platform — access, accountability, isolation</h2>
+    <p class="lede">
+      In accounting software these are not administrative extras. Who may post, who may
+      approve, who changed a figure and when — that is the difference between a set of books
+      and a spreadsheet with more colours. An auditor asks these questions before they ask
+      about the ledger.
+    </p>
+
+    <h3>Roles and permissions</h3>
+    <p>
+      Four roles and twenty-nine permissions exist and are enforced by attribute on the
+      controllers. The structure is sound; what it lacks is segregation of duties — nothing
+      currently prevents the person who creates an entry from being the person who approves
+      it.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:16%">Role</th>
+            <th style="width:40%">Holds</th>
+            <th style="width:44%">Intended for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Owner</td><td class="note">Everything, including users, settings and the audit trail</td><td class="note">The person answerable for the books</td></tr>
+          <tr><td class="name">Manager</td><td class="note">Create, edit, approve and post; reports; no user management</td><td class="note">Finance lead, external accountant</td></tr>
+          <tr><td class="name">Staff</td><td class="note">Create and edit; cannot approve or post</td><td class="note">Bookkeeper, admin</td></tr>
+          <tr><td class="name">Viewer</td><td class="note">Read only</td><td class="note">Owner-director, investor, auditor with read access</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Feature</th><th style="width:50%">What it does</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Permission catalogue</td><td class="note">29 named permissions across finance, sales, purchases, inventory, assets, contacts, settings, users and audit.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Role to permission map</td><td class="note">Fixed sets per role, resolved once per request and cached.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Enforcement</td><td class="note"><code>[RequiresPermission]</code> on the endpoints that carry it.</td><td><span class="chip partial">Uneven coverage</span></td></tr>
+          <tr><td class="name">Custom roles</td><td class="note">A company defining its own role from the permission catalogue rather than choosing one of four.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Segregation of duties</td><td class="note">The creator of an entry cannot approve it. The core internal control in any accounting system, and the reason the approvals screen exists.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Approval thresholds</td><td class="note">Entries above an amount need a second approver.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Per-module entitlement</td><td class="note">Which modules the company's plan opens, enforced by the API, not only drawn in the UI.</td><td><span class="chip built">Built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Activity log</h3>
+    <p>
+      Append-only, written by the context on every tracked mutation, and it already captures
+      more than most products at this stage: who, what, which record, from which address,
+      on which device and operating system.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Recorded</th><th style="width:50%">Detail</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Actor and action</td><td class="note">User, action verb, target entity, free-text detail.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Origin</td><td class="note">IP address, user agent, device class, operating system.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Automatic capture</td><td class="note">Written from <code>SaveChanges</code>, so a mutation cannot be made without one.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Before and after values</td><td class="note">What the field held and what it holds now. Detail is a sentence today, not a diff.</td><td><span class="chip partial">Text only</span></td></tr>
+          <tr><td class="name">Company scoping</td><td class="note">Which company the action belonged to.</td><td><span class="chip missing">Absent from the model</span></td></tr>
+          <tr><td class="name">Retention and export</td><td class="note">Logs kept for a defined period and exportable for an auditor.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Immutability guarantee</td><td class="note">No API path may edit or delete a log row, and the database should not permit it either.</td><td><span class="chip partial">No write path exists, not enforced</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note stop">
+      <strong>The activity log leaks, and it leaks the one thing it exists to protect.</strong>
+      <code>AuditLog</code> carries no <code>CompanyId</code> and has no query filter, and
+      <code>/api/audit-logs</code> checks only that you are signed in — the
+      <code>Audit.View</code> permission exists but is not applied. Tested live: a Staff-role
+      user reads the whole table, including other users&rsquo; email addresses, IP addresses
+      and actions. In a multi-tenant deployment that is one company reading another
+      company&rsquo;s activity. The controller&rsquo;s own comment admits it: <em>&ldquo;In a
+      real app, strict role check here.&rdquo;</em>
+    </div>
+
+    <h4>What has to change</h4>
+    <ul class="plain">
+      <li>Add <code>CompanyId</code> to the log and a fail-closed query filter, like every other tenant table.</li>
+      <li>Apply <code>Audit.View</code> to the endpoint, so Staff and Viewer cannot read it.</li>
+      <li>Backfill existing rows from the actor's company membership, and mark rows that cannot be attributed rather than guessing.</li>
+      <li>Record the before and after value, not a sentence describing it. A reviewer needs the figure that changed.</li>
+    </ul>
+
+    <h3>Identity and access</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Control</th><th style="width:50%">How</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Password storage</td><td class="note">Argon2id. Not a fast hash, which is the point.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Two-factor</td><td class="note">TOTP, per user, with the secret stored against the account.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Session</td><td class="note">JWT with issuer, audience and lifetime validation.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Signing key</td><td class="note">From the environment. Production refuses to start on a missing key, or on one that was ever committed to this repository.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Tenant isolation</td><td class="note">Global query filters, fail closed — no company context means no rows, never all rows. Membership is verified before a company scope is accepted.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Endpoint authorisation</td><td class="note">Sixteen controllers had none and were reachable unauthenticated; all now require a token, and the diagnostic and backup endpoints require SuperAdmin.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Enforced 2FA</td><td class="note">A company requiring it of every user, rather than leaving it optional per person.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Session revocation</td><td class="note">Signing a user out everywhere. A stateless JWT stays valid until it expires; removing a user does not currently end their session.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Login throttling</td><td class="note">Lockout after repeated failures, and a notification when it happens.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Key rotation</td><td class="note">The JWT signing key and the SMTP password are in this repository's git history and must be rotated, whatever the current configuration says.</td><td><span class="chip missing">Outstanding</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <strong>RepairController is anonymous and executes raw DDL.</strong> It is gated by the
+      literal string <code>BalanceIO_Fix_2026</code> in the source, which means the key is
+      public to anyone holding the repository, and the endpoint runs <code>ALTER TABLE</code>.
+      It is left open deliberately — it may be the only route back into a production database
+      whose schema is broken — but that is a decision to make on purpose, not by omission.
+    </div>
+
+    <h3>Data protection</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Feature</th><th style="width:50%">What it does</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Backup export</td><td class="note">The whole ledger as a JSON archive. SuperAdmin only, and it no longer carries the SMTP password.</td><td><span class="chip built">Built</span></td></tr>
+          <tr><td class="name">Scheduled backup</td><td class="note">Automatic, retained, and restorable — not a button somebody has to remember.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Restore</td><td class="note">Reading an archive back. An export nobody can restore is a comfort blanket.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Evidence attachment</td><td class="note">The scan of the bill, filed against the entry that records it. An auditor asks for the document, not the number.</td><td><span class="chip partial">File storage exists, not linked to entries</span></td></tr>
+          <tr><td class="name">Encryption of secrets at rest</td><td class="note">SMTP password and TOTP secrets are stored in plain text today.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Document templates and letterhead</td><td class="note">Printed invoices, statements and payslips carrying the company identity. A <code>DocumentTemplate</code> model exists behind a screen that does not use it.</td><td><span class="chip partial">Model only</span></td></tr>
+          <tr><td class="name">Soft delete for drafts</td><td class="note">Deleting a draft should be recoverable for a period. Posted entries are already immutable; drafts have no safety net at all.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Two-person rule on sensitive settings</td><td class="note">Changing the period lock, the costing method or a tax rate should need a second pair of eyes, the way approving an entry does.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Saved views</td><td class="note">A filter someone uses every day, kept rather than rebuilt. Small, and it is what makes a list screen feel like a tool.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Resilience on a poor connection</td><td class="note">A submission that survives a dropped request without double-posting. The idempotency key exists on journal entries and belongs on every posting path.</td><td><span class="chip partial">Journals only</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="adoption">
+    <h2>What decides whether anyone actually switches</h2>
+    <p class="lede">
+      Everything above makes the product correct. None of it makes a company move five years
+      of books into it. These four do — and the first one is a live defect rather than a
+      missing feature.
+    </p>
+
+    <h3>PPN at twelve per cent</h3>
+
+    <div class="note stop">
+      <strong>The rate in this product no longer exists in the regulation.</strong> Seven
+      models default <code>TaxRate</code> to <code>11</code>, and invoicing computes
+      <code>PPN = net × 11%</code>. Under PMK 131/2024 the rate is <strong>12%</strong>, and
+      for non-luxury goods the base is a <em>DPP nilai lain</em> of <strong>11/12</strong> of
+      the selling price — which is what makes the effective rate 11%.
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Case</th><th style="width:22%">Rate</th><th style="width:26%">Base</th><th style="width:26%">Effective</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Non-luxury goods and services</td><td class="note">12%</td><td class="note">DPP nilai lain = 11/12 × price</td><td class="note">11% of price</td></tr>
+          <tr><td class="name">Luxury goods subject to PPnBM</td><td class="note">12%</td><td class="note">Full DPP</td><td class="note">12% of price</td></tr>
+          <tr><td class="name">Export of goods</td><td class="note">0%</td><td class="note">Full DPP</td><td class="note">Nil, but still reported</td></tr>
+          <tr><td class="name">Besaran tertentu</td><td class="note">Various</td><td class="note">Per the regulation for that sector</td><td class="note">Set by PMK</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      For ordinary goods the money is unchanged, so nothing looks broken. Two things are:
+    </p>
+    <ul class="plain">
+      <li><strong>The faktur pajak is wrong.</strong> It must state a 12% rate against the DPP nilai lain. A document showing 11% against the full price states a rate that is not in the law, and e-Faktur will not take it.</li>
+      <li><strong>Luxury goods are under-collected by a full percentage point.</strong> There is no way to express &ldquo;12% on the full DPP&rdquo; in the model at all, so a company selling BKP mewah collects 11% and owes 12%. That is a liability, not a display bug.</li>
+    </ul>
+
+    <h4>What the model needs</h4>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Change</th><th style="width:74%">Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">A DPP scheme on every taxable line</td><td class="note">Standard, nilai lain 11/12, besaran tertentu, or zero-rated. The rate alone cannot express the difference.</td></tr>
+          <tr><td class="name">Rates in a table with an effective date</td><td class="note">A rate change is then data entry, and a prior period can still be recomputed on the rules that applied to it — which is exactly what an amended return needs.</td></tr>
+          <tr><td class="name">A PPnBM flag on the product</td><td class="note">It decides both the DPP scheme and whether a second tax applies at all.</td></tr>
+          <tr><td class="name">Rate and base printed on the document</td><td class="note">The faktur has to show what was applied, not just the result.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Migrating in</h3>
+    <p>
+      The obstacle to adoption is never the feature list. It is five years of history in
+      Accurate, Jurnal, Zahir, MYOB or a spreadsheet, and the fear of losing it. A product
+      that cannot take that data in is a product for companies founded this month.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Import</th><th style="width:50%">What it has to handle</th><th style="width:24%">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Chart of accounts</td><td class="note">Their numbering, their hierarchy, mapped to account types rather than forced onto ours.</td><td><span class="chip partial">CoA import exists</span></td></tr>
+          <tr><td class="name">Opening balances</td><td class="note">One dated journal entry that must balance exactly, with the prior-year retained earnings as the plug the user confirms rather than one we invent.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Contacts</td><td class="note">Customers and suppliers that are frequently the same party under two codes, merged on NPWP where present.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Open items</td><td class="note">Unpaid invoices and bills with their original dates, so ageing starts correct rather than starting today.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Inventory and assets</td><td class="note">Quantities with their cost basis; assets with accumulated depreciation to date, not from new.</td><td><span class="chip missing">Not built</span></td></tr>
+          <tr><td class="name">Historical transactions</td><td class="note">Optional, and usually a mistake to insist on. Most companies want balances, not five years of lines.</td><td><span class="chip missing">Not built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>Every import previews before it commits, and every import is reversible.</strong>
+      A migration that half-lands is worse than one that refuses. The import runs as a single
+      batch with its own reference, so undoing it is one operation rather than an
+      archaeological dig.
+    </div>
+
+    <h3>Cash flow projection</h3>
+    <p>
+      The first question an owner asks is not what the profit was. It is whether there will
+      be enough money next month. The data is already in the system — receivable and payable
+      due dates, recurring entries, the depreciation schedule — and nothing reads it forward.
+    </p>
+    <ul class="plain">
+      <li>Receivables by due date, weighted by how that customer has actually paid before rather than by when they promised.</li>
+      <li>Payables by due date, with the ones that carry a penalty for lateness marked.</li>
+      <li>Recurring entries and payroll, which are known in advance and are usually the largest line.</li>
+      <li>Tax deadlines with their amounts: PPN on the last day of the following month, PPh 21, PPh 25 instalments.</li>
+      <li>The point at which the balance goes negative, stated as a date rather than a chart to interpret.</li>
+    </ul>
+    <p>
+      This is the one report in the product that is about the future, which is precisely why
+      it should say what it assumes on the same screen as the number.
+    </p>
+
+    <h3>Dimensions on the journal line</h3>
+    <p>
+      A company with two branches, three projects or four departments cannot run on a ledger
+      with one axis. <code>ProjectId</code> exists on the journal entry — the header, not the
+      line — which means a single entry cannot split a cost across two projects, and that is
+      the ordinary case rather than the exception.
+    </p>
+    <ul class="plain">
+      <li>Dimensions on the <strong>line</strong>: project, department, branch, cost centre.</li>
+      <li>Defined per company, not fixed in code — the axes that matter differ by business.</li>
+      <li>Required or optional per account, so a cost account can insist on a cost centre while a bank account does not.</li>
+      <li>Every statement filterable by any dimension, which is what turns a ledger into management reporting.</li>
+    </ul>
+
+    <h3>Documents and evidence</h3>
+    <p>
+      File storage exists and is not attached to anything that posts. An auditor does not ask
+      for the figure; they ask for the document behind it. The scan of the bill, the contract,
+      the bukti potong, the bank slip — filed against the entry, visible from the entry, and
+      exported with it.
+    </p>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="horizons">
+    <h2>Extended scope</h2>
+    <p class="lede">
+      Everything above brings the product to correct and adoptable. This is what takes it
+      further — organised by horizon, because a long engagement needs to know what is
+      foundation and what is depth. Nothing here breaks the scope rule: each item either
+      posts to the ledger or reports what was posted.
+    </p>
+
+    <h3>Horizon one — the transaction cycles closed properly</h3>
+    <p>
+      Five models exist with no controller and no screen behind them:
+      <code>SalesOrder</code>, <code>DeliveryOrder</code>, <code>GoodsReceipt</code>,
+      <code>CreditNote</code>, <code>DebitNote</code>, plus the voucher pair. Finishing them
+      is the cheapest capability in the product, and it is what turns invoicing into a real
+      order-to-cash and procure-to-pay cycle.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Capability</th><th style="width:50%">What it adds</th><th style="width:24%">Posts</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Order to cash</td><td class="note">Sales order → delivery order → invoice → receipt, each stage carrying forward what the last one committed, with partial delivery and partial payment as the normal case.</td><td class="note">COGS at delivery, revenue at invoice, cash at receipt</td></tr>
+          <tr><td class="name">Procure to pay</td><td class="note">Purchase order → goods receipt → bill → payment, with a three-way match that flags a bill for more than was received.</td><td class="note">Inventory at receipt, payable at bill, cash at payment</td></tr>
+          <tr><td class="name">Credit and debit notes</td><td class="note">Returns, price corrections and allowances against an original document, with the faktur pajak pengganti or retur that follows.</td><td class="note">Reverses revenue or cost, and the PPN with it</td></tr>
+          <tr><td class="name">Landed cost</td><td class="note">Freight, insurance, duty and clearing allocated across the goods they brought in, so inventory carries its true cost.</td><td class="note">Capitalised into inventory, not expensed</td></tr>
+          <tr><td class="name">Multi-warehouse and transfers</td><td class="note">Quantity per location and movement between locations, which is a stock movement and not a sale.</td><td class="note">Inventory to inventory, no profit</td></tr>
+          <tr><td class="name">Batch, lot and expiry</td><td class="note">Traceability for food, pharmaceutical and chemical stock, with FEFO issue and expiry write-off.</td><td class="note">Write-off on expiry</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Horizon two — management accounting</h3>
+    <p>
+      The ledger answers what happened. These answer whether it was supposed to, and what
+      happens next. This is the horizon that turns a compliance tool into something an owner
+      opens on a Monday.
+    </p>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Capability</th><th style="width:74%">What it needs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Budget and variance</td><td class="note">A budget per account per period per dimension, and every statement able to show budget, actual and variance side by side. The budget is data, not a spreadsheet someone keeps separately.</td></tr>
+          <tr><td class="name">Cash flow projection</td><td class="note">Forward from receivable and payable due dates, recurring entries, payroll and tax deadlines, to the date the balance turns negative.</td></tr>
+          <tr><td class="name">Job and project costing</td><td class="note">Cost and revenue accumulated against a job, work in progress carried on the balance sheet, and recognition on completion or by stage under PSAK 115.</td></tr>
+          <tr><td class="name">Ratio analysis</td><td class="note">Liquidity, solvency, profitability and activity, computed from the statements rather than typed. Including the DER already built, which belongs to both this and Tax.</td></tr>
+          <tr><td class="name">Segment reporting</td><td class="note">Results by dimension where a company reports by segment, which needs dimensions on the line first.</td></tr>
+          <tr><td class="name">Custom report builder</td><td class="note">Choosing accounts, periods, dimensions and comparatives without a developer. A screen exists; the builder behind it does not.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Horizon three — group and standards depth</h3>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Capability</th><th style="width:18%">Standard</th><th style="width:56%">What it needs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Consolidation</td><td class="mono">PSAK 110</td><td class="note">Group statements with intercompany balances and transactions eliminated, and non-controlling interest presented separately. Multi-company exists; elimination does not.</td></tr>
+          <tr><td class="name">Intercompany</td><td class="mono">PSAK 110</td><td class="note">A transaction posted in one company that creates its mirror in another, matched and eliminated on consolidation.</td></tr>
+          <tr><td class="name">Foreign operations</td><td class="mono">PSAK 221</td><td class="note">Translating a subsidiary with a different functional currency, with the translation difference in other comprehensive income rather than profit.</td></tr>
+          <tr><td class="name">Leases</td><td class="mono">PSAK 116</td><td class="note">Right-of-use asset and lease liability, with the interest and depreciation split that replaces a rent expense.</td></tr>
+          <tr><td class="name">Provisions</td><td class="mono">PSAK 257</td><td class="note">Recognition when an obligation is probable and measurable, with the disclosure where it is not.</td></tr>
+          <tr><td class="name">Expected credit loss</td><td class="mono">PSAK 109</td><td class="note">An allowance against receivables built from an ageing matrix and actual loss history, not a flat percentage.</td></tr>
+          <tr><td class="name">Related parties</td><td class="mono">PSAK 224</td><td class="note">Flagging a contact as related and disclosing the transactions with it — which is also a transfer pricing input.</td></tr>
+          <tr><td class="name">Events after reporting</td><td class="mono">PSAK 210</td><td class="note">Adjusting and non-adjusting events between the period end and the date the statements are authorised.</td></tr>
+          <tr><td class="name">Restatement</td><td class="mono">PSAK 208</td><td class="note">Correcting a prior period without editing a posted entry — restated comparatives and the note that explains them.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Horizon three — Indonesian compliance, in full</h3>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Capability</th><th style="width:74%">What it needs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">e-Faktur</td><td class="note">Faktur pajak numbering with range control and gap detection, the document itself, and the import format the DJP application accepts.</td></tr>
+          <tr><td class="name">e-Bupot</td><td class="note">Bukti potong for PPh 23, 26 and 4(2), generated from the withholding already recorded on the bill rather than typed again.</td></tr>
+          <tr><td class="name">Coretax</td><td class="note">Whatever the current DJP platform requires, tracked as it changes. Treated as a moving target, never as a stable contract.</td></tr>
+          <tr><td class="name">SPT Masa PPN</td><td class="note">The return assembled from the period's documents, reconciled to the ledger before it is exported.</td></tr>
+          <tr><td class="name">SPT Tahunan Badan</td><td class="note">Built from the fiscal reconciliation, the fiscal asset register, loss carry-forward and PPh 25 instalments already in the product.</td></tr>
+          <tr><td class="name">PPh Final UMKM</td><td class="note">0,5% of turnover for eligible small businesses — a different computation entirely, not a rate change, and it applies to a large share of the target market.</td></tr>
+          <tr><td class="name">Fiscal asset groups</td><td class="note">Kelompok 1 to 4 with their own lives and methods, run beside the commercial register. The difference is a timing correction in the reconciliation.</td></tr>
+          <tr><td class="name">Transfer pricing</td><td class="note">Related party transaction totals against the documentation thresholds, so a company knows when it has crossed one.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Horizon four — platform</h3>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Capability</th><th style="width:74%">What it needs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Bank feeds</td><td class="note">Statement import first, direct connection second. The reconciliation matters more than the plumbing that fills it.</td></tr>
+          <tr><td class="name">Document capture</td><td class="note">Reading a bill or receipt into a draft entry. A draft that a human confirms — never a posting made by a machine reading a photograph.</td></tr>
+          <tr><td class="name">Public API and webhooks</td><td class="note">The same contract the frontend uses, with keys, scopes and rate limits, so a company can connect its own systems.</td></tr>
+          <tr><td class="name">Approval workflows</td><td class="note">Thresholds, multiple approvers, delegation while someone is away, and the segregation of duties that makes any of it meaningful.</td></tr>
+          <tr><td class="name">Notifications</td><td class="note">Deadlines that matter — SPT Masa, an overdue receivable, an unposted period — reaching a person rather than waiting on a screen.</td></tr>
+          <tr><td class="name">Enterprise identity</td><td class="note">SSO, enforced two-factor, session revocation, and an access review an auditor can read.</td></tr>
+          <tr><td class="name">Observability</td><td class="note">Structured logs, request tracing and error reporting. A ledger that silently fails is worse than one that stops.</td></tr>
+          <tr><td class="name">Localisation</td><td class="note">Indonesian and English across the whole interface, not only the navigation. Regulatory terms stay Indonesian in both.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <strong>Two things stay out, deliberately.</strong> <strong>Manufacturing</strong> —
+      bills of material, work orders and production variance — qualifies under the scope rule
+      but is a product in its own right, and a shallow version would damage trust in the deep
+      modules. <strong>CRM</strong> does not qualify at all: a sales pipeline generates no
+      journal. Both are listed here so the answer is on record rather than rediscovered.
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="orders">
+    <h2>Work orders for the five defects</h2>
+    <p class="lede">
+      Spelled out to the file, because these are wrong in shipped code and none of them
+      should wait on a design conversation. Each one names what to change, what to migrate,
+      and what has to be true before it is called done. The acceptance criteria are the same
+      list the review will use.
+    </p>
+
+    <!-- ── D1 ────────────────────────────────────────────────── -->
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">D1 · Scope and guard the activity log</span>
+        <span class="je-trigger">Security · tenancy</span>
+        <span class="chip missing">Open</span>
+      </div>
+      <div class="je-foot" style="border-top:0;background:transparent">
+        <p style="margin-bottom:.75rem">
+          <code>AuditLog</code> has no <code>CompanyId</code>, no query filter, and
+          <code>/api/audit-logs</code> requires only a token. A Staff user reads every row,
+          across tenants. The <code>Audit.View</code> permission already exists and is never
+          applied.
+        </p>
+
+        <div class="scroll" style="margin:0">
+          <table>
+            <thead><tr><th style="width:34%">File</th><th style="width:66%">Change</th></tr></thead>
+            <tbody>
+              <tr><td class="acct">Models/AuditLog.cs</td><td class="note">Add <code>Guid? CompanyId</code>. Nullable, because system-level actions such as a login belong to no company.</td></tr>
+              <tr><td class="acct">Data/ApplicationDbContext.cs</td><td class="note">Add the fail-closed query filter alongside the other sixteen. Set <code>CompanyId</code> from <code>CurrentCompanyId</code> in <code>ToAuditLog()</code>, next to where the user is read from the token.</td></tr>
+              <tr><td class="acct">Controllers/AuditLogsController.cs</td><td class="note">Add <code>[RequiresPermission(Permissions.AuditView)]</code>. Delete the comment that says a real app would check the role.</td></tr>
+              <tr><td class="acct">Program.cs</td><td class="note">Schema patch in both provider lists, and a one-time backfill from the actor&rsquo;s company membership. Rows that cannot be attributed stay null — never guessed.</td></tr>
+              <tr><td class="acct">Security/RolePermissions.cs</td><td class="note">Confirm <code>Audit.View</code> sits with Owner and Manager only.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="margin:.9rem 0 .4rem"><strong>Done when</strong></p>
+        <ul class="plain" style="margin:0">
+          <li>A Staff token receives <code>403</code> from <code>/api/audit-logs</code>.</li>
+          <li>An Owner of company A sees no row belonging to company B, proven with two companies in the database.</li>
+          <li>A login with no company context still writes a row, with a null <code>CompanyId</code>.</li>
+          <li>No API path can update or delete a log row.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ── D2 ────────────────────────────────────────────────── -->
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">D2 · Inventory posts cost of goods sold</span>
+        <span class="je-trigger">Correctness · largest gap</span>
+        <span class="chip missing">Open</span>
+      </div>
+      <div class="je-foot" style="border-top:0;background:transparent">
+        <p style="margin-bottom:.75rem">
+          Quantities move and nothing reaches the ledger, so every gross margin the product
+          reports is revenue with no cost against it. This is the biggest single piece on
+          either list and needs a costing method before it needs a posting.
+        </p>
+
+        <div class="scroll" style="margin:0">
+          <table>
+            <thead><tr><th style="width:34%">Step</th><th style="width:66%">Detail</th></tr></thead>
+            <tbody>
+              <tr><td class="name">Choose and store the method</td><td class="note">PSAK 202 permits FIFO or weighted average, never LIFO. Store it per company, apply it consistently, and refuse to change it mid-period.</td></tr>
+              <tr><td class="name">Build the cost layer</td><td class="note">A movement table: date, product, quantity in or out, unit cost, and the running balance the method produces. This is the record COGS is read from — never the sales price.</td></tr>
+              <tr><td class="name">Post on issue</td><td class="note">Dr Cost of Sales, Cr Inventory, at the cost the method returns, triggered by delivery — or by invoice where delivery is not tracked.</td></tr>
+              <tr><td class="name">Post the opname</td><td class="note">Difference against an Inventory Variance account, not straight to COGS. A count difference is a control finding and should read as one.</td></tr>
+              <tr><td class="name">Backfill or draw a line</td><td class="note">Existing quantities have no cost history. Either import a cost basis or start the layer from a dated opening balance — and say which, in the note on the entry.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="margin:.9rem 0 .4rem"><strong>Done when</strong></p>
+        <ul class="plain" style="margin:0">
+          <li>Selling a tracked item produces a balanced entry debiting COGS and crediting inventory.</li>
+          <li>The Statement of Profit or Loss shows a gross profit that is not equal to revenue.</li>
+          <li>Inventory on the Statement of Financial Position equals the sum of the cost layer, exactly.</li>
+          <li>Processing an opname with a difference posts to the variance account and moves the book quantity to the counted one.</li>
+          <li>An item with no inventory account is refused with a named reason, not posted somewhere convenient.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ── D3 ────────────────────────────────────────────────── -->
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">D3 · PPN at twelve per cent with DPP nilai lain</span>
+        <span class="je-trigger">Compliance · money on luxury goods</span>
+        <span class="chip missing">Open</span>
+      </div>
+      <div class="je-foot" style="border-top:0;background:transparent">
+        <p style="margin-bottom:.75rem">
+          Seven models default <code>TaxRate</code> to <code>11</code> and invoicing computes
+          <code>net × 11%</code>. Under PMK 131/2024 the rate is 12% against a DPP nilai lain
+          of 11/12 for non-luxury goods. Ordinary sales come to the same money and a wrong
+          document; luxury goods come to the wrong money.
+        </p>
+
+        <div class="scroll" style="margin:0">
+          <table>
+            <thead><tr><th style="width:34%">File or concept</th><th style="width:66%">Change</th></tr></thead>
+            <tbody>
+              <tr><td class="acct">New: TaxRate table</td><td class="note">Rate, DPP scheme, effective from, effective to. Every computation reads the rate that applied on the document date — which is what an amended return needs.</td></tr>
+              <tr><td class="acct">SalesInvoiceLine, PurchaseBillLine</td><td class="note">Add the DPP scheme per line: <code>Standard</code>, <code>NilaiLain11Over12</code>, <code>BesaranTertentu</code>, <code>ZeroRated</code>.</td></tr>
+              <tr><td class="acct">Models/Product.cs</td><td class="note">Add a PPnBM flag. It decides both the DPP scheme and whether a second tax applies.</td></tr>
+              <tr><td class="acct">SalesInvoicesController.cs</td><td class="note">Compute DPP from the scheme, then PPN from the rate on the DPP. Never rate × price directly.</td></tr>
+              <tr><td class="acct">Invoice document</td><td class="note">Print the rate, the DPP scheme and the DPP, not only the resulting PPN.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="margin:.9rem 0 .4rem"><strong>Done when</strong></p>
+        <ul class="plain" style="margin:0">
+          <li>A non-luxury sale of Rp 1.000.000 shows rate 12%, DPP Rp 916.667, PPN Rp 110.000.</li>
+          <li>A luxury sale of Rp 1.000.000 shows rate 12%, DPP Rp 1.000.000, PPN Rp 120.000.</li>
+          <li>An invoice dated before the change still computes on the rate that applied then.</li>
+          <li>Existing invoices are untouched. A rate table correcting the future never rewrites a posted document.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ── D4 ────────────────────────────────────────────────── -->
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">D4 · Purchase bills post</span>
+        <span class="je-trigger">Correctness · unblocks the PPN input reconciliation</span>
+        <span class="chip missing">Open</span>
+      </div>
+      <div class="je-foot" style="border-top:0;background:transparent">
+        <p style="margin-bottom:.75rem">
+          <code>PurchaseBillsController</code> contains no <code>new JournalEntry</code>.
+          Payables and PPN Masukan never reach the statements. Mirror what
+          <code>SalesInvoicesController</code> already does on issue.
+        </p>
+        <p style="margin:0 0 .4rem"><strong>Done when</strong></p>
+        <ul class="plain" style="margin:0">
+          <li>Issuing a bill posts a balanced entry: inventory or expense, PPN Masukan, and the payable.</li>
+          <li>The line&rsquo;s product decides whether it debits inventory or an expense.</li>
+          <li>Aged payables agrees with the payable account balance in the general ledger, to the rupiah.</li>
+          <li>Voiding a bill reverses the entry rather than deleting it.</li>
+          <li>The period lock refuses a bill dated inside a closed period.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ── D5 ────────────────────────────────────────────────── -->
+    <div class="je">
+      <div class="je-head">
+        <span class="je-title">D5 · Rotate the committed secrets</span>
+        <span class="je-trigger">Security · operational, not code</span>
+        <span class="chip missing">Open</span>
+      </div>
+      <div class="je-foot" style="border-top:0;background:transparent">
+        <p style="margin:0 0 .4rem">
+          The JWT signing key and the SMTP password are in this repository&rsquo;s history.
+          The code already reads both from the environment and Production refuses to start on
+          a burned key — but the values themselves are still exposed to anyone with a clone.
+          No commit fixes this; only rotation does.
+        </p>
+        <ul class="plain" style="margin:.6rem 0 0">
+          <li>Generate a new signing key and set it in the production environment. Every existing session ends, which is the point.</li>
+          <li>Change the SMTP password at the provider.</li>
+          <li>Add the new key&rsquo;s hash to the burned list only if it is ever committed — the list exists to prevent reuse, not to record rotations.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="done">
+    <h2>Definition of done, and how the work will be reviewed</h2>
+    <p class="lede">
+      This section is the contract. It is written before the work so it cannot be argued
+      after it, and the review will use exactly these checks — not a different, stricter list
+      invented on the day.
+    </p>
+
+    <h3>Every change, without exception</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:26%">Check</th><th style="width:74%">What proves it</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">It builds</td><td class="note"><code>dotnet build</code> with zero warnings introduced, <code>npx tsc --noEmit</code> clean, <code>npm run build</code> exporting every route it did before.</td></tr>
+          <tr><td class="name">It was run</td><td class="note">The endpoint called against the running API and the real response pasted into the pull request — not described. A screen loaded, not assumed to load.</td></tr>
+          <tr><td class="name">It posts, and it balances</td><td class="note">Where the change writes to the ledger: the entry, its lines, and the ledger total before and after. Debits equal credits exactly.</td></tr>
+          <tr><td class="name">It is scoped</td><td class="note">Any new table has <code>CompanyId</code> and a fail-closed filter. Any new endpoint has <code>[Authorize]</code> and a permission where one applies.</td></tr>
+          <tr><td class="name">It honours the lock</td><td class="note">A posting path refuses a date inside a closed period, and the refusal is shown, not swallowed.</td></tr>
+          <tr><td class="name">It reconciles</td><td class="note">The figure the feature produces ties to a statement. A number that agrees with nothing is not finished.</td></tr>
+          <tr><td class="name">It survives both themes</td><td class="note">Light and dark, no raw hex, no shadow on an in-flow card, no horizontal overflow at 1280 and 1440.</td></tr>
+          <tr><td class="name">It fails visibly</td><td class="note">Error and empty states are designed, not left to a spinner. Content never depends on an animation completing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What the review will look for</h3>
+    <p>
+      Beyond the checklist, the review targets the specific ways this codebase has broken
+      before. Expect these to be probed on every submission:
+    </p>
+    <ul class="plain">
+      <li><strong>Tenancy.</strong> Two companies in the database, and every new list queried as both. A leak here outranks every other finding.</li>
+      <li><strong>Silent drops.</strong> Header accounts, draft documents, void documents, uncategorised rows — anything a filter excludes gets counted and compared against the unfiltered total.</li>
+      <li><strong>Decimal handling.</strong> Any <code>float</code>, any tolerance, any <code>SumAsync</code> over money, any rounding that is not Bankers.</li>
+      <li><strong>Provenance.</strong> A stored figure that claims a source it does not have — the reason the Bank Indonesia rate was found to be an aggregator.</li>
+      <li><strong>Claims in copy.</strong> A screen that says the product determined, calculated or filed something. Safe verbs: track, record, reconcile, organise, export.</li>
+      <li><strong>Partial writes.</strong> A run that posts some rows and abandons others without saying which, or a loop of one HTTP request per record where one transaction belongs.</li>
+      <li><strong>Half-states.</strong> Blocked items reported as complete — the depreciation screen once said every asset was charged while two could not be charged at all.</li>
+    </ul>
+
+    <div class="note">
+      <strong>How to submit.</strong> One pull request per work order, with the acceptance
+      criteria copied in and each line answered with evidence — a response body, a ledger
+      total, a screenshot. &ldquo;Tested locally&rdquo; is not evidence. The review will
+      reproduce anything it doubts, so an honest &ldquo;not covered&rdquo; costs less than a
+      claim that does not hold.
+    </div>
+
+    <div class="note good">
+      <strong>What will not be treated as a finding.</strong> Style preferences, naming that
+      follows the existing convention, and anything this document specified. If the plan is
+      wrong, that is a plan defect and gets fixed here first — the implementer should not be
+      caught between a document and a reviewer.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section id="sequence">
+    <h2>Build order</h2>
+    <p class="lede">
+      Two lists, because they are two different kinds of work. The first is wrong now, in
+      shipped code, on screens people can already open. The second is what the product does
+      not yet do.
+    </p>
+
+    <h3>Defects, before anything new</h3>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:6%">#</th><th style="width:28%">Defect</th><th style="width:66%">What it costs today</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">D1</td>
+            <td class="name">Audit log is unscoped and unguarded</td>
+            <td class="note">No <code>CompanyId</code>, no query filter, and <code>Audit.View</code> is never applied. A Staff user reads every action, address and email in the table — across tenants. Verified live, not inferred.</td>
+          </tr>
+          <tr>
+            <td class="mono">D2</td>
+            <td class="name">Inventory posts no COGS</td>
+            <td class="note">A module on the hub that produces no cost of sales makes every gross margin in the product wrong, and it is the module's whole justification for existing.</td>
+          </tr>
+          <tr>
+            <td class="mono">D3</td>
+            <td class="name">PPN modelled as a flat 11%</td>
+            <td class="note">The faktur pajak states a rate that is not in the regulation, and luxury goods are under-collected by a full percentage point. Money, not presentation.</td>
+          </tr>
+          <tr>
+            <td class="mono">D4</td>
+            <td class="name">Purchase bills post nothing</td>
+            <td class="note">Payables and PPN Masukan never reach the statements, and the input side of the PPN reconciliation cannot be built until they do.</td>
+          </tr>
+          <tr>
+            <td class="mono">D5</td>
+            <td class="name">Secrets in git history</td>
+            <td class="note">The JWT signing key and the SMTP password were committed. Rotation is the only fix; the code change already made does not undo it.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Then, in this order</h3>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th style="width:6%">#</th><th style="width:28%">Work</th><th style="width:66%">Why here</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">1</td><td class="name">Payments and receipts</td><td class="note">Without settlement, receivables and payables only ever grow. The ageing reports are already built and currently describe a fiction.</td></tr>
+          <tr><td class="mono">2</td><td class="name">Contact roles</td><td class="note">Small, and it unblocks Payroll, vendor withholding profiles and the PPh reconciliations. Cheapest item here with the widest reach.</td></tr>
+          <tr><td class="mono">3</td><td class="name">Migration import</td><td class="note">Opening balances, contacts and open items. This is what decides whether a company with history can use the product at all.</td></tr>
+          <tr><td class="mono">4</td><td class="name">Kurs BI and Kurs Pajak</td><td class="note">Two rates, two sources, one table with provenance on every row. Any company invoicing in foreign currency needs both on the same day.</td></tr>
+          <tr><td class="mono">5</td><td class="name">Bank reconciliation</td><td class="note">The biggest daily pain for anyone keeping books, and the feature most likely to be why someone chooses this product.</td></tr>
+          <tr><td class="mono">6</td><td class="name">Segregation of duties</td><td class="note">The creator of an entry cannot approve it. The approvals screen exists; the control it implies does not.</td></tr>
+          <tr><td class="mono">7</td><td class="name">Evidence attachment</td><td class="note">File storage exists and is attached to nothing. An auditor asks for the document, not the figure.</td></tr>
+          <tr><td class="mono">8</td><td class="name">Cash flow projection</td><td class="note">The data is already here. It is the question an owner actually asks, and nothing in the product answers it.</td></tr>
+          <tr><td class="mono">9</td><td class="name">Withholding and the PPh reconciliations</td><td class="note">Depends on contact roles. This is where the compliance moat starts paying.</td></tr>
+          <tr><td class="mono">10</td><td class="name">Dimensions on the journal line</td><td class="note">Project, department, branch. Any company with more than one unit needs a second axis before it needs anything below this line.</td></tr>
+          <tr><td class="mono">11</td><td class="name">Period and year-end close</td><td class="note">The lock exists; the checklist that earns it does not. Close is what turns a ledger into a set of statements.</td></tr>
+          <tr><td class="mono">12</td><td class="name">Payroll</td><td class="note">A module in its own right and the largest single item here. Worth starting only once contacts carry roles.</td></tr>
+          <tr><td class="mono">13</td><td class="name">Faktur pajak, e-Faktur, e-Bupot</td><td class="note">The export nobody else will do properly. Sequencing and gap control first, format second.</td></tr>
+          <tr><td class="mono">14</td><td class="name">Deferred tax, impairment, consolidation</td><td class="note">Real requirements under PSAK 212, 236 and 110, but for companies further along than the ones this product serves first.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>One test applies to every item on both lists.</strong> Before a feature is
+      called done: does it post, is the entry exactly balanced, does it respect the period
+      lock, is it scoped to one company, and can the figure it produces be reconciled to a
+      statement? A feature that fails any of those is a screen, not an accounting feature.
+    </div>
+  </section>
+
+
+  <footer class="end">
+    BalanceIO · Implementation plan and review contract · Accounting-first, ledger-bound,
+    Indonesian compliance as the moat. Every status in this document was read from the
+    running code, not from memory: what it says is <em>Built</em> was called, and what it
+    says is missing was searched for and not found.
+  </footer>
+
+</div>

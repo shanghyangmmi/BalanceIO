@@ -1,0 +1,85 @@
+#!/bin/sh
+#
+# Blocks a commit that would put a secret back into a tracked file.
+#
+# This exists because Jwt.Key sat in appsettings.json for the life of the
+# repository and nothing ever objected. Moving the key out is only half
+# the fix; the other half is making the mistake loud the next time.
+#
+# Install once per clone:
+#     git config core.hooksPath .githooks
+#
+# Bypass, deliberately and rarely:
+#     git commit --no-verify
+
+fail=0
+
+note() {
+    if [ "$fail" -eq 0 ]; then
+        echo ""
+        echo "  COMMIT BLOCKED - a secret appears to be staged."
+        echo ""
+    fi
+    fail=1
+    echo "  $1"
+}
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+# 1. Non-empty secret fields in any tracked appsettings file. These keys
+#    must be empty strings in git; real values come from the environment.
+for f in $staged; do
+    case "$f" in
+        *appsettings*.json)
+            # Local override files are gitignored, but check anyway in
+            # case one was force-added.
+            body=$(git show ":$f" 2>/dev/null) || continue
+            echo "$body" \
+                | grep -nEi '"(Key|Password|SecretKey|AccessKey|ApiKey|Token|ClientSecret)"[[:space:]]*:[[:space:]]*"[^"]+"' \
+                | while read -r line; do
+                    echo "SECRET_FIELD|$f|$line"
+                done
+            ;;
+    esac
+done > "$(git rev-parse --git-dir)/secret-scan.tmp"
+
+if [ -s "$(git rev-parse --git-dir)/secret-scan.tmp" ]; then
+    while IFS='|' read -r _ file rest; do
+        note "$file: secret field has a value - $rest"
+    done < "$(git rev-parse --git-dir)/secret-scan.tmp"
+    note ""
+    note "  appsettings secret fields must be \"\" in git. Put the real"
+    note "  value in appsettings.Local.json (gitignored) or an environment"
+    note "  variable. See SECRETS.md."
+fi
+rm -f "$(git rev-parse --git-dir)/secret-scan.tmp"
+
+# 2. The specific keys that were already committed and are burned. If one
+#    reappears anywhere, someone has copied it back out of git history.
+#    Added lines only - the commit that *removes* these keys must pass.
+#
+#    The needle is assembled from two halves so this file never contains
+#    the literal itself. Without that the hook matched its own source and
+#    blocked the very commit that introduced it.
+burned="BalanceIO_Super""_Secret_Key"
+if git diff --cached -U0 | grep -E '^\+' | grep -qF "$burned"; then
+    note "A burned JWT signing key from git history is being re-added."
+    note "  That key is public. Generate a new one; do not reuse it."
+fi
+
+# 3. Generic high-signal patterns across every staged file.
+if git diff --cached -U0 --diff-filter=ACM \
+    | grep -nE '^\+' \
+    | grep -qE 'BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY|AKIA[0-9A-Z]{16}|xox[baprs]-[0-9A-Za-z-]{10,}|gh[pousr]_[0-9A-Za-z]{30,}'; then
+    note "A private key or provider credential pattern is being added."
+fi
+
+if [ "$fail" -ne 0 ]; then
+    echo ""
+    echo "  Nothing was committed. Fix the above, or use --no-verify if"
+    echo "  you are certain this is a false positive."
+    echo ""
+    exit 1
+fi
+
+exit 0

@@ -1,0 +1,6 @@
+@BalanceIO.API_HostAddress = http://localhost:5210
+
+GET {{BalanceIO.API_HostAddress}}/api/users/me
+Accept: application/json
+
+###

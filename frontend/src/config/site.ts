@@ -1,0 +1,58 @@
+export const siteConfig = {
+    name: "BalanceIO",
+    description: "Professional Accounting Suite",
+    version: "0.1.0",
+
+    // Master Connection Config (For Static Export)
+    api: {
+        baseUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5210/api",
+        timeout: 30000,
+    },
+
+    // Brand Identity
+    brand: {
+        companyName: "BalanceIO",
+        shortName: "BalanceIO",
+        logo: "/logo.png",
+        supportEmail: "support@balanceio.id",
+    },
+
+    // Marketing content
+    marketing: {
+        slogan: "Financial Logic. Perfected.",
+        description: "BalanceIO is the Native Accounting Engine designed for scale. We replaced manual entries with precision engineering and automated integrity.",
+        trustBadge: "Enterprise Grade Security",
+        trustBadgeSecondary: "ISO 27001 Ready",
+    },
+
+    // Feature Flags (Toggle functionality)
+    features: {
+        multiCurrency: false,
+        inventory: true,
+        fixedAssets: true,
+        taxCenter: true,
+    },
+
+    links: {
+        github: "https://github.com/shanghyangmmi/BalanceIO",
+        docs: "https://docs.balanceIO.com",
+    },
+
+    contacts: {
+        whatsapp: "https://wa.me/6281212968668", // Official WhatsApp
+        email: "support@balanceio.id", // Support Email
+        instagram: "https://instagram.com/balanceIO", // Official Instagram
+        linkedin: "https://linkedin.com/company/balanceIO", // Official LinkedIn
+        twitter: "https://twitter.com/balanceIO", // Official Twitter/X
+    },
+
+    // Demo Account Settings
+    demo: {
+        email: "demo@balanceio.id",
+        password: "password123",
+        userPrefix: "BIO", // Prefix for demo user IDs like BIO-8823
+        domain: "balanceio.id", // Default email domain for demo users
+    },
+}
+
+export type SiteConfig = typeof siteConfig

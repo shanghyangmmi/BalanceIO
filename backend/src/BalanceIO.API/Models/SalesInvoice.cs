@@ -1,0 +1,118 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace BalanceIO.API.Models;
+
+/// <summary>
+/// Sales Invoice entity.
+/// </summary>
+public class SalesInvoice
+{
+    public Guid Id { get; set; }
+
+    [Required]
+    [MaxLength(50)]
+    public string InvoiceNumber { get; set; } = string.Empty;
+
+    [Required]
+    public DateOnly InvoiceDate { get; set; }
+
+    public DateOnly DueDate { get; set; }
+
+    // Multi-Tenancy
+    [Required]
+    public Guid CompanyId { get; set; }
+
+    [ForeignKey("CompanyId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Company? Company { get; set; }
+
+    // Customer
+    [Required]
+    public Guid ContactId { get; set; }
+
+    [ForeignKey("ContactId")]
+    public Contact? Contact { get; set; }
+
+    // Billing Address (snapshot from contact)
+    [MaxLength(500)]
+    public string? BillingAddress { get; set; }
+
+    // Currency
+    [Required]
+    [MaxLength(3)]
+    public string Currency { get; set; } = "IDR";
+
+    [Column(TypeName = "decimal(19,6)")]
+    public decimal ExchangeRate { get; set; } = 1;
+
+    // Totals
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal Subtotal { get; set; } = 0;
+
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal DiscountAmount { get; set; } = 0;
+
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal DiscountPercent { get; set; } = 0;
+
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal TaxAmount { get; set; } = 0;
+
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal Total { get; set; } = 0;
+
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal AmountPaid { get; set; } = 0;
+
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal AmountDue { get; set; } = 0;
+
+    // Status
+    [Required]
+    public InvoiceStatus Status { get; set; } = InvoiceStatus.Draft;
+
+    // Reference
+    [MaxLength(100)]
+    public string? ReferenceNumber { get; set; } // Customer PO number
+
+    [MaxLength(500)]
+    public string? Notes { get; set; }
+
+    [MaxLength(500)]
+    public string? Terms { get; set; }
+
+    public Guid? ProjectId { get; set; }
+    [ForeignKey("ProjectId")]
+    public Project? Project { get; set; }
+
+
+    // Template
+    [MaxLength(50)]
+    public string TemplateName { get; set; } = "classic";
+
+    // Journal Link (auto-generated on post)
+    public Guid? JournalEntryId { get; set; }
+
+    [ForeignKey("JournalEntryId")]
+    public JournalEntry? JournalEntry { get; set; }
+
+    // Navigation
+    public List<SalesInvoiceLine> Lines { get; set; } = new();
+
+    // Audit
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
+    public DateTime? PostedAt { get; set; }
+    public DateTime? VoidedAt { get; set; }
+}
+
+public enum InvoiceStatus
+{
+    Draft,
+    Sent,
+    PartiallyPaid,
+    Paid,
+    Overdue,
+    Void
+}

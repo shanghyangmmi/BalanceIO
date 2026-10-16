@@ -1,0 +1,41 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted # Requires Runner on VPS
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # --- BACKEND BUILD ---
+    # Note: Relying on pre-installed .NET 8 on the VPS
+    - name: Restore Backend
+      run: dotnet restore backend/src/BalanceIO.API/BalanceIO.API.csproj
+
+    - name: Publish Backend
+      run: dotnet publish backend/src/BalanceIO.API/BalanceIO.API.csproj -c Release -o ./publish/api
+
+    # --- FRONTEND BUILD ---
+    # Note: Relying on pre-installed Node.js on the VPS
+    - name: Install Frontend Dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Build Frontend
+      run: |
+        cd frontend
+        set NEXT_PUBLIC_API_URL=https://api.balanceio.id/api
+        npm run build
+        # Copy output to staging
+        xcopy /E /I out ..\publish\client
+
+    # --- DEPLOYMENT ---
+    - name: Execute Deployment Script
+      run: |
+        powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1 -SourcePath .

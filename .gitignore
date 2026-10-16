@@ -1,0 +1,57 @@
+# .NET
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vscode/
+.vs/
+
+# Node.js / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Deploy Scripts & Executables
+scripts/
+*.bat
+*.cmd
+*.exe
+publish/
+restart.trigger
+
+# Logs
+*.log
+
+# Database & SQLite files
+*.db
+*.db-shm
+*.db-wal
+**/balanceio.db
+backend/src/BalanceIO.API/balanceio.db
+backend/src/BalanceIO.API/backups/
+
+# Secrets — never commit. See SECRETS.md.
+appsettings.Local.json
+**/appsettings.Local.json
+**/appsettings.*.local.json
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+secrets.json
+
+# Design Sync temp artifacts
+frontend/.design-sync/
+frontend/.ds-sync/
+frontend/ds-bundle/
+frontend/tsconfig.tsbuildinfo
+
