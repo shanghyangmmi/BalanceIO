@@ -98,25 +98,28 @@ public class AdminSystemController : ControllerBase
 
         try
         {
-            try { _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"IsAdmin\" DROP DEFAULT;"); } catch { }
-            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"IsAdmin\" TYPE boolean USING \"IsAdmin\"::boolean;");
-            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"IsAdmin\" SET DEFAULT false;");
+            // Single transaction: a failure part-way leaves the schema as it was.
+            await using var tx = await _context.Database.BeginTransactionAsync();
 
-            try { _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"TwoFactorEnabled\" DROP DEFAULT;"); } catch { }
-            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"TwoFactorEnabled\" TYPE boolean USING \"TwoFactorEnabled\"::boolean;");
-            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"TwoFactorEnabled\" SET DEFAULT false;");
+            foreach (var column in new[] { "IsAdmin", "TwoFactorEnabled" })
+            {
+                _context.Database.ExecuteSqlRaw($"ALTER TABLE \"Users\" ALTER COLUMN \"{column}\" DROP DEFAULT;");
+                _context.Database.ExecuteSqlRaw($"ALTER TABLE \"Users\" ALTER COLUMN \"{column}\" TYPE boolean USING \"{column}\"::boolean;");
+                _context.Database.ExecuteSqlRaw($"ALTER TABLE \"Users\" ALTER COLUMN \"{column}\" SET DEFAULT false;");
+            }
 
-            try { _context.Database.ExecuteSqlRaw("ALTER TABLE \"AuditLogs\" DROP CONSTRAINT \"FK_AuditLogs_Users_UserId\";"); } catch { }
-            try { _context.Database.ExecuteSqlRaw("ALTER TABLE \"UserCompanies\" DROP CONSTRAINT \"FK_UserCompanies_Users_UserId\";"); } catch { }
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"AuditLogs\" DROP CONSTRAINT IF EXISTS \"FK_AuditLogs_Users_UserId\";");
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"UserCompanies\" DROP CONSTRAINT IF EXISTS \"FK_UserCompanies_Users_UserId\";");
 
             _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"Id\" TYPE uuid USING \"Id\"::uuid;");
             _context.Database.ExecuteSqlRaw("ALTER TABLE \"AuditLogs\" ALTER COLUMN \"Id\" TYPE uuid USING \"Id\"::uuid;");
             _context.Database.ExecuteSqlRaw("ALTER TABLE \"AuditLogs\" ALTER COLUMN \"UserId\" TYPE uuid USING \"UserId\"::uuid;");
             _context.Database.ExecuteSqlRaw("ALTER TABLE \"UserCompanies\" ALTER COLUMN \"UserId\" TYPE uuid USING \"UserId\"::uuid;");
 
-            try { _context.Database.ExecuteSqlRaw("ALTER TABLE \"AuditLogs\" ADD CONSTRAINT \"FK_AuditLogs_Users_UserId\" FOREIGN KEY (\"UserId\") REFERENCES \"Users\" (\"Id\");"); } catch { }
-            try { _context.Database.ExecuteSqlRaw("ALTER TABLE \"UserCompanies\" ADD CONSTRAINT \"FK_UserCompanies_Users_UserId\" FOREIGN KEY (\"UserId\") REFERENCES \"Users\" (\"Id\") ON DELETE CASCADE;"); } catch { }
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"AuditLogs\" ADD CONSTRAINT \"FK_AuditLogs_Users_UserId\" FOREIGN KEY (\"UserId\") REFERENCES \"Users\" (\"Id\");");
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"UserCompanies\" ADD CONSTRAINT \"FK_UserCompanies_Users_UserId\" FOREIGN KEY (\"UserId\") REFERENCES \"Users\" (\"Id\") ON DELETE CASCADE;");
 
+            await tx.CommitAsync();
             await AuditAsync("DB_SCHEMA_FIX", "Database", "Booleans and UUIDs corrected.");
             return Ok(new { message = "Schema repair applied: booleans and UUIDs corrected." });
         }
