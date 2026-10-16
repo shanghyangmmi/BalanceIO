@@ -101,12 +101,12 @@ public class AdminSystemController : ControllerBase
             // Single transaction: a failure part-way leaves the schema as it was.
             await using var tx = await _context.Database.BeginTransactionAsync();
 
-            foreach (var column in new[] { "IsAdmin", "TwoFactorEnabled" })
-            {
-                _context.Database.ExecuteSqlRaw($"ALTER TABLE \"Users\" ALTER COLUMN \"{column}\" DROP DEFAULT;");
-                _context.Database.ExecuteSqlRaw($"ALTER TABLE \"Users\" ALTER COLUMN \"{column}\" TYPE boolean USING \"{column}\"::boolean;");
-                _context.Database.ExecuteSqlRaw($"ALTER TABLE \"Users\" ALTER COLUMN \"{column}\" SET DEFAULT false;");
-            }
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"IsAdmin\" DROP DEFAULT;");
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"IsAdmin\" TYPE boolean USING \"IsAdmin\"::boolean;");
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"IsAdmin\" SET DEFAULT false;");
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"TwoFactorEnabled\" DROP DEFAULT;");
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"TwoFactorEnabled\" TYPE boolean USING \"TwoFactorEnabled\"::boolean;");
+            _context.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ALTER COLUMN \"TwoFactorEnabled\" SET DEFAULT false;");
 
             _context.Database.ExecuteSqlRaw("ALTER TABLE \"AuditLogs\" DROP CONSTRAINT IF EXISTS \"FK_AuditLogs_Users_UserId\";");
             _context.Database.ExecuteSqlRaw("ALTER TABLE \"UserCompanies\" DROP CONSTRAINT IF EXISTS \"FK_UserCompanies_Users_UserId\";");

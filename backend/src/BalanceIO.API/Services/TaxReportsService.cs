@@ -85,7 +85,7 @@ public class TaxReportsService
                 CounterpartyName = inv.Contact?.Name ?? "Pelanggan Umum",
                 CounterpartyNpwp = inv.Contact?.TaxId,
                 CounterpartyNik = inv.Contact?.Nik,
-                FakturPajakNumber = inv.ReferenceNumber ?? $"010.000-{year}.{inv.InvoiceNumber}",
+                FakturPajakNumber = inv.ReferenceNumber,
                 DppAmount = invDpp,
                 TaxRate = effectiveRate,
                 PpnAmount = invPpn,
@@ -136,7 +136,7 @@ public class TaxReportsService
                 CounterpartyName = bill.Contact?.Name ?? "Supplier",
                 CounterpartyNpwp = bill.Contact?.TaxId,
                 CounterpartyNik = bill.Contact?.Nik,
-                FakturPajakNumber = bill.VendorInvoiceNumber ?? $"010.000-{year}.{bill.BillNumber}",
+                FakturPajakNumber = bill.VendorInvoiceNumber,
                 DppAmount = billDpp,
                 TaxRate = effectiveRate,
                 PpnAmount = billPpn,
@@ -263,8 +263,7 @@ public class TaxReportsService
                     GrossDppAmount = dpp,
                     EffectiveTaxRate = effectiveRate,
                     TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false,
-                    BuktiPotongNumber = $"BP23-{year}{month:D2}-{bill.BillNumber}"
+                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
                 });
             }
             else if (withholdingType == "PPH4(2)" || withholdingType == "PPH42" || withholdingType == "PPH 4(2)")
@@ -284,8 +283,7 @@ public class TaxReportsService
                     GrossDppAmount = dpp,
                     EffectiveTaxRate = effectiveRate,
                     TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false,
-                    BuktiPotongNumber = $"BP42-{year}{month:D2}-{bill.BillNumber}"
+                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
                 });
             }
             else if (withholdingType == "PPH22" || withholdingType == "PPH 22")
@@ -305,45 +303,16 @@ public class TaxReportsService
                     GrossDppAmount = dpp,
                     EffectiveTaxRate = effectiveRate,
                     TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false,
-                    BuktiPotongNumber = $"BP22-{year}{month:D2}-{bill.BillNumber}"
+                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
                 });
             }
         }
 
-        // 2. Fetch Employees for PPh 21 TER Scheme (PP 58/2023)
-        var employees = await _context.Contacts
-            .AsNoTracking()
-            .Where(c => c.CompanyId == companyId && c.IsEmployee)
-            .ToListAsync();
-
-        foreach (var emp in employees)
-        {
-            var ptkp = emp.PtkpStatus ?? "TK/0";
-            var terCategory = GetTerCategory(ptkp);
-            var sampleGross = 12500000m; // Sample employee monthly payroll
-            var terRate = GetTerMonthlyRate(terCategory, sampleGross);
-            var taxWithheld = Math.Round(sampleGross * (terRate / 100m), 2);
-
-            pph21Lines.Add(new WithholdingTaxLineDto
-            {
-                Id = emp.Id,
-                TaxType = "PPh 21",
-                KodeObjekPajak = "21-100-01", // Pegawai Tetap
-                CounterpartyName = emp.Name,
-                CounterpartyNpwp = emp.TaxId,
-                CounterpartyNik = emp.Nik,
-                PtkpStatus = ptkp,
-                TerCategory = terCategory,
-                ReferenceDocument = $"PAY-{year}{month:D2}",
-                TransactionDate = endDate,
-                GrossDppAmount = sampleGross,
-                EffectiveTaxRate = terRate,
-                TaxWithheldAmount = taxWithheld,
-                HasWithholdingExemption = false,
-                BuktiPotongNumber = $"BP21-{year}{month:D2}-{emp.Nik ?? emp.Name.Replace(" ", "")}"
-            });
-        }
+        // PPh 21 is computed from payroll, which this product does not have yet.
+        // It used to emit one line per employee contact with an invented gross
+        // salary of Rp 12.500.000, which put fabricated withholding into a
+        // report destined for e-Bupot. Until payroll exists the section is
+        // empty and says so.
 
         return new WithholdingSummaryResponse
         {
@@ -358,7 +327,8 @@ public class TaxReportsService
             Pph21Lines = pph21Lines,
             Pph23Lines = pph23Lines,
             Pph42Lines = pph42Lines,
-            Pph22Lines = pph22Lines
+            Pph22Lines = pph22Lines,
+            Pph21Note = "PPh 21 is not computed: payroll is not implemented."
         };
     }
 
@@ -505,9 +475,26 @@ public class TaxReportsService
         }
 
         var ppnKeluaranAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "2-1300");
-        var ppnMasukanAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "1-1400");
+        // PPN Masukan is "VAT In" (1-1700) in the default chart, and is what purchase
+        // bills debit. 1-1400 is Inventory: closing input VAT against it credited stock.
+        var ppnMasukanAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "1-1700");
         var ppnKurangBayarAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "2-1400");
         var ppnLebihBayarAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "1-1450");
+
+        var netToSettle = spt.TotalPpnKeluaran - spt.TotalPpnMasukanDapatDikreditkan;
+        var missing = new List<string>();
+        if (spt.TotalPpnKeluaran > 0 && ppnKeluaranAcc is null) missing.Add("2-1300 (PPN Keluaran)");
+        if (spt.TotalPpnMasukanDapatDikreditkan > 0 && ppnMasukanAcc is null) missing.Add("1-1700 (PPN Masukan)");
+        if (netToSettle > 0 && ppnKurangBayarAcc is null) missing.Add("2-1400 (PPN Kurang Bayar)");
+        if (netToSettle < 0 && ppnLebihBayarAcc is null) missing.Add("1-1450 (PPN Lebih Bayar)");
+        if (missing.Count > 0)
+        {
+            return new PpnSettlementResult
+            {
+                Success = false,
+                Message = $"The settlement cannot be posted: this company's chart of accounts has no {string.Join(", ", missing)}."
+            };
+        }
 
         var journalEntry = new JournalEntry
         {
@@ -530,7 +517,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnKeluaranAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnKeluaranAcc!.Code,
                 Debit = spt.TotalPpnKeluaran,
                 Credit = 0,
                 Description = $"Closing PPN Keluaran Masa {request.Month:D2}/{request.Year}"
@@ -544,7 +531,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnMasukanAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnMasukanAcc!.Code,
                 Debit = 0,
                 Credit = spt.TotalPpnMasukanDapatDikreditkan,
                 Description = $"Closing PPN Masukan Masa {request.Month:D2}/{request.Year}"
@@ -562,7 +549,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnKurangBayarAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnKurangBayarAcc!.Code,
                 Debit = 0,
                 Credit = netDelta,
                 Description = $"PPN Kurang Bayar Masa {request.Month:D2}/{request.Year}"
@@ -577,7 +564,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnLebihBayarAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnLebihBayarAcc!.Code,
                 Debit = overpayment,
                 Credit = 0,
                 Description = $"PPN Lebih Bayar Masa {request.Month:D2}/{request.Year}"

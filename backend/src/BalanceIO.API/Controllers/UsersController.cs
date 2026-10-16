@@ -18,10 +18,13 @@ public class UsersController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly AuditService _auditService;
 
-    public UsersController(ApplicationDbContext context, AuditService auditService)
+    private readonly ILogger<UsersController> _logger;
+
+    public UsersController(ApplicationDbContext context, AuditService auditService, ILogger<UsersController> logger)
     {
         _context = context;
         _auditService = auditService;
+        _logger = logger;
     }
 
     [HttpGet("me")]
@@ -57,58 +60,23 @@ public class UsersController : ControllerBase
                 })
                 .ToListAsync();
 
-            // 3. If no companies, create a default one and link it
+            // 3. A user with no company gets a company of their own. They are
+            // never attached to an existing one: membership is granted by an
+            // invitation from that company, not by being first in the table.
             if (!userCompanies.Any())
             {
-                // Check if ANY company exists first (maybe from legacy seed)
-                var existingCompany = await _context.Companies.FirstOrDefaultAsync();
-                
-                if (existingCompany == null)
+                var company = new Company
                 {
-                    existingCompany = new Company
-                    {
-                        Name = "Sam Company",
-                        Currency = "IDR",
-                        Address = "Default Address"
-                    };
-                    _context.Companies.Add(existingCompany);
-                    await _context.SaveChangesAsync();
-                }
-                else
+                    Name = $"{user.Name}'s company",
+                    Currency = "IDR",
+                };
+                _context.Companies.Add(company);
+                _context.UserCompanies.Add(new UserCompany { UserId = user.Id, CompanyId = company.Id, Role = RolePermissions.RoleOwner });
+                await _context.SaveChangesAsync();
+
+                return Ok(new[]
                 {
-                    // Ensure default company has a Name if it was created empty (legacy fix)
-                    if (string.IsNullOrEmpty(existingCompany.Name))
-                    {
-                        existingCompany.Name = "Sam Company";
-                        // Don't save yet, do it in transaction or with link
-                    }
-                }
-
-                // Link User to Company
-                // Check if link already exists (defensive)
-                var exists = await _context.UserCompanies
-                    .AnyAsync(uc => uc.UserId == user.Id && uc.CompanyId == existingCompany.Id);
-
-                if (!exists) 
-                {
-                    var link = new UserCompany
-                    {
-                        UserId = user.Id,
-                        CompanyId = existingCompany.Id,
-                        Role = "Owner"
-                    };
-                    _context.UserCompanies.Add(link);
-                    await _context.SaveChangesAsync();
-                }
-
-                // Refetch logic inline to avoid recursion depth issues
-                 return Ok(new[] { 
-                    new { 
-                        existingCompany.Id, 
-                        existingCompany.Name, 
-                        existingCompany.Currency, 
-                        Role = "Owner" 
-                    } 
+                    new { company.Id, company.Name, company.Currency, Role = RolePermissions.RoleOwner },
                 });
             }
 
@@ -116,7 +84,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-             return StatusCode(500, new { message = ex.Message, stack = ex.StackTrace });
+             _logger.LogError(ex, "Failed to load companies for the current user.");
+             return StatusCode(500, new { message = "Could not load companies." });
         }
     }
 
@@ -124,6 +93,10 @@ public class UsersController : ControllerBase
     [RequiresPermission(Permissions.UsersView)]
     public async Task<IActionResult> GetCompanyUsers(Guid companyId)
     {
+        // The permission was checked for the company in scope, so that is the
+        // only company whose members may be listed.
+        if (companyId != _context.CurrentCompanyId) return Forbid();
+
         var users = await _context.UserCompanies
             .Include(uc => uc.User)
             .Where(uc => uc.CompanyId == companyId)

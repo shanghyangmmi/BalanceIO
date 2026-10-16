@@ -94,6 +94,9 @@ public class WithholdingSummaryResponse
     public List<WithholdingTaxLineDto> Pph23Lines { get; set; } = new();
     public List<WithholdingTaxLineDto> Pph42Lines { get; set; } = new();
     public List<WithholdingTaxLineDto> Pph22Lines { get; set; } = new();
+
+    /// <summary>Why Pph21Lines is empty.</summary>
+    public string? Pph21Note { get; set; }
 }
 
 public class WithholdingTaxLineDto
@@ -112,6 +115,7 @@ public class WithholdingTaxLineDto
     public decimal EffectiveTaxRate { get; set; }
     public decimal TaxWithheldAmount { get; set; }
     public bool HasWithholdingExemption { get; set; }
+    /// <summary>Assigned by Coretax when the bukti potong is issued; never generated here.</summary>
     public string? BuktiPotongNumber { get; set; }
 }
 
