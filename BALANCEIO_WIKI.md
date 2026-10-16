@@ -46,9 +46,10 @@ action with `[RequiresPermission(Permissions.X)]`.
 `JournalLines` (`AccountId` string, `Debit`, `Credit`, both `decimal(19,4)`).
 Reports aggregate lines by account code.
 
-Invariants are enforced in `ApplicationDbContext.SaveChangesAsync`
-(balance of Posted entries, plan quota, audit rows) and in controllers
-(period lock, immutability, segregation of duties). See `CLAUDE.md`.
+Invariants are enforced in `ApplicationDbContext.SaveChangesAsync` (tenant
+stamp, account resolution, balance, immutability, plan quota, audit rows), by
+PostgreSQL constraint triggers (balance), and in controllers (period lock,
+segregation of duties). See `CLAUDE.md`.
 
 `POST /api/JournalEntries` honours `X-Idempotency-Key`.
 

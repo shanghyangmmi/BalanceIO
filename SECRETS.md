@@ -16,6 +16,7 @@ values being present.
 |---|---|---|
 | `BALANCEIO_JWT_KEY` | `Jwt:Key` | **Startup fails.** |
 | `BALANCEIO_DB_CONNECTION` | `ConnectionStrings:DefaultConnection` | **Startup fails.** |
+| `BALANCEIO_ADMIN_EMAIL` + `BALANCEIO_ADMIN_PASSWORD` | platform admin account | No admin is created (warning). Password: 12+ characters; setting only one of the two stops startup |
 | `BALANCEIO_SMTP_USER` | `SmtpSettings:User` | Warning; email disabled |
 | `BALANCEIO_SMTP_PASSWORD` | `SmtpSettings:Password` | Warning; email disabled |
 | `BALANCEIO_AWS_ACCESS_KEY` | `AWS:AccessKey` | Warning; upload disabled |
@@ -173,9 +174,8 @@ $newKey = [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Max 25
 Restart the service. `SecretsBootstrap` refuses to start in Production on a
 missing, burned or sub-32-byte key.
 
-### Repair endpoints
+### Maintenance endpoints
 
-`GET /api/repair/check-schema` returns 404 in Production. The
-`SuperAdmin` endpoints `POST /api/admin/system/reset-database` (refused in
-Production) and `force-schema-fix` (PostgreSQL only, requires a typed
-confirmation) exist; the latter is enabled in Production.
+`RepairController` was removed. `POST /api/admin/system/reset-database` (refused in
+Production) and `force-schema-fix` (PostgreSQL only, typed confirmation, one
+transaction) remain under `SuperAdmin`; schema changes belong in migrations.

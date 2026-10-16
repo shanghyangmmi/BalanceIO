@@ -19,19 +19,23 @@ SECRETS.md                   environment variables, rotation
 dotnet build backend/BalanceIO.sln
 cd backend/src/BalanceIO.API && dotnet run --launch-profile http
 
+# backend tests (xUnit, real pipeline on a throwaway SQLite file)
+dotnet test backend/tests/BalanceIO.API.Tests
+# add the PostgreSQL migration/trigger tests (they skip when this is unset):
+BALANCEIO_TEST_POSTGRES="Host=localhost;Username=postgres;Password=..." dotnet test backend/tests/BalanceIO.API.Tests
+
 # frontend (http://localhost:3000; API base is NEXT_PUBLIC_API_URL, default http://localhost:5210/api)
 cd frontend && npm ci && npm run dev
+npm test           # node:test, money arithmetic
 npm run build      # static export to frontend/out
-npm run lint
+npm run lint       # currently failing, see Known issues
 ```
 
 There is no launcher script in the repo (`*.bat` is gitignored). In
-Development the API calls `EnsureCreated()`, patches missing columns with raw
-SQL, and seeds two known-password users (`Program.cs`). Do not rely on that
-path to exercise migrations; it never runs them.
-
-Baseline as of this audit: `dotnet build` is clean; `next build` passes;
-`npm run lint` fails with 453 errors, 414 of them `no-explicit-any`.
+Development the API calls `EnsureCreated()` and seeds two known-password users
+(`DatabaseInitializer`); it never runs migrations, and it does not alter an
+existing `balanceio.db`, so delete the file after pulling model changes.
+CI (`.github/workflows/ci.yml`) runs the backend tests against PostgreSQL 16.
 
 ## Scope rule
 
@@ -63,13 +67,19 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
 
 | Concern | Where | Covers |
 |---|---|---|
-| Balance of Posted entries, journal quota, audit rows | `ApplicationDbContext.SaveChangesAsync` | every writer |
-| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (15 files) |
-| Tenant scope | `CompanyScopeMiddleware` + query filters | reads; writes depend on the writer setting `CompanyId` |
-| Permissions | `[RequiresPermission]` → `PermissionFilter` | per action |
-| Plan limit → 402 | `PlanLimitMiddleware` catches `PlanLimitExceededException` | |
+| Tenant stamp, account resolution, balance, immutability, status transitions | `ApplicationDbContext.SaveChangesAsync` → `ApplicationDbContext.LedgerGuards.cs` | every writer; throws `LedgerIntegrityException` (400 with a `code`) |
+| Journal quota, audit rows | same method | every writer |
+| Balance of Posted entries in the database | PostgreSQL deferred constraint triggers (`EnforceLedgerBalanceInDatabase`) | anything, including raw SQL. Not present on SQLite |
+| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (15 files). Throws `PeriodLockedException` (400 `PERIOD_LOCKED`) |
+| Tenant scope | `CompanyScopeMiddleware` + query filters | reads. `Companies` has no filter: look it up by `CurrentCompanyId` |
+| Permissions | `[RequiresPermission]` → `PermissionFilter` | per action. Most controllers still have only `[Authorize]` |
+| Plan limit → 402 | `PlanLimitMiddleware` | |
+| Exceptions → JSON | `ApiExceptionMiddleware` | no stack trace outside Development |
 
-A new posting path must call the period lock itself and set `CompanyId`.
+A new posting path must call the period lock itself. `JournalLine.AccountId`
+is stored as the account **Code**; the choke point converts an account Id to
+its Code and rejects unknown or foreign accounts. Do not call the synchronous
+`SaveChanges()` on ledger entities (it throws): the guards are async.
 
 ### Audit trail
 
@@ -81,12 +91,20 @@ but the `AuditPrune` scheduled job deletes rows older than
 
 ## Migrations
 
-Production runs `Database.Migrate()` at boot; a failure is logged and boot
-continues. Development uses `EnsureCreated()`. `Program.cs` additionally runs
-idempotent raw DDL (`ADD COLUMN`, `CREATE TABLE IF NOT EXISTS`) at every
-boot on both providers. See the audit report for why this is a liability.
-Policy for new schema: add an EF migration generated against Npgsql
-(`dotnet ef migrations add`), never a new raw DDL patch.
+Production runs `MigrateAsync()` at boot and stops if it fails. Migrations are
+PostgreSQL-only. Generate them with the Npgsql provider, never in
+Development (that is how the snapshot once came to carry SQLite types):
+
+```bash
+ASPNETCORE_ENVIRONMENT=Production BALANCEIO_JWT_KEY=<32+ chars> \
+BALANCEIO_DB_CONNECTION="Host=localhost;Database=scratch;Username=postgres;Password=..." \
+dotnet ef migrations add <Name> --project backend/src/BalanceIO.API
+```
+
+`MigrationDriftTests` fails when the model and the snapshot differ. Do not add
+DDL to `Program.cs` or a controller. Reference rows go in
+`ReferenceDataSeeder`. The first platform admin comes from
+`BALANCEIO_ADMIN_EMAIL` / `BALANCEIO_ADMIN_PASSWORD` (see `SECRETS.md`).
 
 ## Tax module state
 
@@ -97,7 +115,8 @@ ekualisasi PPN, rekonsiliasi fiskal, DER test (PMK-169). Product-level
 Not implemented: Coretax integration, faktur pajak numbering (NSFP is
 entered, never generated), real bukti potong numbers, payroll-driven PPh 21.
 Several outputs are derived from bills at report time rather than from the
-ledger. Tax logic needs practitioner review before reliance.
+ledger. Missing faktur numbers and bukti potong numbers are reported as
+missing, never generated. Tax logic needs practitioner review before reliance.
 
 ## Frontend conventions
 
@@ -132,17 +151,18 @@ controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 
 ## Known issues
 
+Details and evidence: `docs/AUDIT-2026-10.md`.
+
 | Issue | Where |
 |---|---|
-| Runtime DDL and swallowed migration failure | `Program.cs`, `JournalEntriesController` (GET), `RepairController`, `AdminSystemController` |
-| Journal create/update binds the entity; no server-stamped `CompanyId` | `JournalEntriesController` |
-| Sales invoice, purchase bill, stock opname, recurring journal create entries without `CompanyId` | those controllers |
-| `JournalLine.AccountId` holds an account Code in some writers and an account Id in others; reports key on Code | writers vs `ReportsController` |
-| Production seeds `admin@balanceio.id` with a hard-coded password when absent | `Program.cs` |
-| 500 handler returns `ex.ToString()`; period-lock violations surface as 500 | `Program.cs` |
-| PPh 21 summary uses a fixed sample salary per employee | `TaxReportsService` |
-| Deploy workflow sets the API URL with `set` on a self-hosted Windows runner | `.github/workflows/deploy.yml` |
+| Most controllers lack `[RequiresPermission]` (Accounts, Reports, BankReconciliation, RecurringJournalEntries, Products, ...) | `Controllers/` |
+| Invoice-level and bill-level discount unbalances the journal; refused with `UNBALANCED` | `SalesInvoicesController`, `PurchaseBillsController` |
+| Withholding (PPh 22/23/4(2)) is not journaled; reports derive from bills | `TaxReportsService` |
+| PPN: luxury goods/PPnBM never computed, `TaxRates` table unused, rounding rule unconfirmed, kurang/lebih bayar accounts unconfirmed | tax services |
+| PPh 21 not computed (no payroll) | `TaxReportsService` |
+| Historical journal lines may hold an account Id instead of a Code and be invisible to reports | database (detection query in the audit report) |
+| `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
+| 91 files fetch with `useEffect` instead of TanStack Query | frontend |
+| `npm run lint` fails: 451 errors, 414 of them `no-explicit-any` | frontend |
 | `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
-| `components/landing/ledger-core.tsx` is unreferenced | frontend |
 | i18n covers navigation labels only | frontend |
-| `lint` baseline fails (see above) | frontend |
