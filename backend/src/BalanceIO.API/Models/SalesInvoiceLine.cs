@@ -14,6 +14,7 @@ public class SalesInvoiceLine
     public Guid SalesInvoiceId { get; set; }
 
     [ForeignKey("SalesInvoiceId")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public SalesInvoice? SalesInvoice { get; set; }
 
     public int LineNumber { get; set; } = 1;

@@ -109,6 +109,7 @@ public class PurchaseBillLine
 
     [Required]
     public Guid PurchaseBillId { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
     public PurchaseBill? PurchaseBill { get; set; }
 
     public int LineNumber { get; set; }

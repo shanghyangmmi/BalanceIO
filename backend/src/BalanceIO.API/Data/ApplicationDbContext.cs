@@ -8,7 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 
 namespace BalanceIO.API.Data;
 
-public class ApplicationDbContext : DbContext
+public partial class ApplicationDbContext : DbContext
 {
     private readonly IHttpContextAccessor? _httpContextAccessor;
 
@@ -262,6 +262,13 @@ public class ApplicationDbContext : DbContext
         // --- Indexes for Performance ---
         modelBuilder.Entity<JournalEntry>().HasIndex(e => new { e.CompanyId, e.Date });
         modelBuilder.Entity<JournalEntry>().HasIndex(e => e.ProjectId);
+
+        // Idempotency is decided by this index, not by a check-then-insert in
+        // the controller. NULL keys are distinct in both SQLite and
+        // PostgreSQL, so entries without a key are unaffected.
+        modelBuilder.Entity<JournalEntry>()
+            .HasIndex(e => new { e.CompanyId, e.IdempotencyKey })
+            .IsUnique();
         
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.AccountId);
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.JournalEntryId);
@@ -292,9 +299,25 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ExchangeRate>().HasIndex(e => new { e.ValidFrom, e.ValidTo, e.FromCurrency });
     }
 
+    /// <summary>
+    /// The synchronous overload skips every async ledger guard, so it may not
+    /// be used for anything that touches the ledger.
+    /// </summary>
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        if (ChangeTracker.Entries().Any(e => e.State != EntityState.Unchanged && e.State != EntityState.Detached
+                                             && (e.Entity is JournalEntry || e.Entity is JournalLine)))
+        {
+            throw new InvalidOperationException("Ledger writes must use SaveChangesAsync so the ledger guards run.");
+        }
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        ValidateJournalEntryBalances();
+        StampTenantScope();
+        await EnforceLedgerInvariantsAsync(cancellationToken);
         await EnforceJournalQuotaAsync(cancellationToken);
         StampAuditLogCompanyScope();
         var auditEntries = OnBeforeSaveChanges();
@@ -387,27 +410,6 @@ public class ApplicationDbContext : DbContext
             if (!entry.Entity.CompanyId.HasValue)
             {
                 entry.Entity.CompanyId = CurrentCompanyId.Value;
-            }
-        }
-    }
-
-    private void ValidateJournalEntryBalances()
-    {
-        var postedEntries = ChangeTracker.Entries<JournalEntry>()
-            .Where(e => (e.State == EntityState.Added || e.State == EntityState.Modified) && e.Entity.Status == JournalEntryStatus.Posted)
-            .Select(e => e.Entity);
-
-        foreach (var journal in postedEntries)
-        {
-            var lines = journal.Lines;
-            if (lines != null && lines.Count > 0)
-            {
-                var totalDebit = lines.Sum(l => l.Debit);
-                var totalCredit = lines.Sum(l => l.Credit);
-                if (totalDebit != totalCredit)
-                {
-                    throw new InvalidOperationException($"ERR_409: Database Balance Guard Fault — Journal Entry '{journal.ReferenceNumber}' is unbalanced! Total Debit ({totalDebit}) != Total Credit ({totalCredit}). Saved transaction aborted.");
-                }
             }
         }
     }
