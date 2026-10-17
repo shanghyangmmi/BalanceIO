@@ -19,9 +19,8 @@ import { Edit } from "lucide-react"
  *
  * Typed locally rather than against `FixedAsset` in @/lib/types/assets:
  * that interface describes a shape the API has never sent (purchaseDate,
- * cost, salvageValue, a string status) and is still what the mock data in
- * lib/data/assets-data.ts and two report pages are built on. Correcting it
- * is its own job; this file answers to the wire.
+ * cost, salvageValue, a string status). Correcting it is its own job;
+ * this file answers to the wire.
  */
 
 interface AssetRow {
