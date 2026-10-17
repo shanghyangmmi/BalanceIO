@@ -14,7 +14,7 @@ const translations: Record<Language, Record<string, string>> = {
     en: {
         // Navigation Groups
         "nav.modules": "Modules",
-        "nav.moduleHub": "Module hub",
+        "nav.moduleHub": "Financial operations",
         "nav.dailyWork": "Daily work",
         "nav.records": "Records",
         "nav.tax": "Tax",
@@ -133,7 +133,7 @@ const translations: Record<Language, Record<string, string>> = {
     id: {
         // Navigation Groups
         "nav.modules": "Modul",
-        "nav.moduleHub": "Peta modul",
+        "nav.moduleHub": "Operasi keuangan",
         "nav.dailyWork": "Kerja harian",
         "nav.records": "Data",
         "nav.tax": "Pajak",

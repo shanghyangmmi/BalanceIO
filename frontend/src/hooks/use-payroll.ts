@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import { retryUnlessClientError } from "@/lib/query-retry"
+import { useCompany } from "@/contexts/company-context"
 
 /** Types mirror DTOs/PayrollDTOs.cs. */
 
@@ -127,35 +128,48 @@ export interface PayrollOverview {
 
 const KEY = ["payroll"] as const
 
+/** Payroll queries wait for a company and are cached per company. */
+function useScope() {
+  const { company } = useCompany()
+  return { id: company?.id ?? null, ready: !!company }
+}
+
 export function usePayrollOverview() {
+  const scope = useScope()
   return useQuery({
-    queryKey: [...KEY, "overview"],
+    queryKey: [...KEY, scope.id, "overview"],
+    enabled: scope.ready,
     queryFn: () => apiClient.get<PayrollOverview>("/Payroll/overview"),
     retry: retryUnlessClientError,
   })
 }
 
 export function usePayrollEmployees() {
+  const scope = useScope()
   return useQuery({
-    queryKey: [...KEY, "employees"],
+    queryKey: [...KEY, scope.id, "employees"],
+    enabled: scope.ready,
     queryFn: () => apiClient.get<PayrollEmployee[]>("/Payroll/employees"),
     retry: retryUnlessClientError,
   })
 }
 
 export function usePayrollRuns() {
+  const scope = useScope()
   return useQuery({
-    queryKey: [...KEY, "runs"],
+    queryKey: [...KEY, scope.id, "runs"],
+    enabled: scope.ready,
     queryFn: () => apiClient.get<PayrollRunSummary[]>("/Payroll/runs"),
     retry: retryUnlessClientError,
   })
 }
 
 export function usePayrollRun(id: string | null) {
+  const scope = useScope()
   return useQuery({
-    queryKey: [...KEY, "run", id],
+    queryKey: [...KEY, scope.id, "run", id],
     queryFn: () => apiClient.get<PayrollRunDetail>(`/Payroll/runs/${id}`),
-    enabled: !!id,
+    enabled: scope.ready && !!id,
     retry: retryUnlessClientError,
   })
 }
@@ -194,8 +208,9 @@ export function useCreatePayrollRun() {
 export function usePayrollRunAction(id: string) {
   const invalidate = useInvalidate()
   const client = useQueryClient()
+  const scope = useScope()
   const settle = (run: PayrollRunDetail) => {
-    client.setQueryData([...KEY, "run", id], run)
+    client.setQueryData([...KEY, scope.id, "run", id], run)
     return invalidate()
   }
 
@@ -220,7 +235,7 @@ export function usePayrollRunAction(id: string) {
     remove: useMutation({
       mutationFn: () => apiClient.delete<void>(`/Payroll/runs/${id}`),
       onSuccess: () => {
-        client.removeQueries({ queryKey: [...KEY, "run", id] })
+        client.removeQueries({ queryKey: [...KEY, scope.id, "run", id] })
         return invalidate()
       },
     }),

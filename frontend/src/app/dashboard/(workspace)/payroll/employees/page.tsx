@@ -93,7 +93,7 @@ export default function PayrollEmployeesPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3 font-mono text-[12px]">
-                      {e.ptkpStatus ?? "—"} <span className="text-muted-foreground">· {e.terCategory}</span>
+                      {e.ptkpStatus || "—"} <span className="text-muted-foreground">· {e.terCategory}</span>
                     </td>
                     <td className="px-3 py-3 text-right">{e.compensation ? formatModuleMoney(e.compensation.baseSalary, "IDR") : "—"}</td>
                     <td className="px-3 py-3 text-right">{e.compensation ? formatModuleMoney(e.compensation.fixedAllowance, "IDR") : "—"}</td>

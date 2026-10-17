@@ -139,9 +139,9 @@ export default function PayrollModulePage() {
                     <Figure label="Gross earnings" value={formatModuleMoney(latest.totalGross, data!.currency)} />
                     <Figure label="PPh 21 withheld" value={formatModuleMoney(latest.totalPph21, data!.currency)} />
                     <Figure
-                      label="BPJS"
+                      label="Employer BPJS"
                       value={formatModuleMoney(latest.totalEmployerBpjs, data!.currency)}
-                      note={`Employer · ${formatModuleMoney(latest.totalEmployeeBpjs, data!.currency)} employee`}
+                      note={`${formatModuleMoney(latest.totalEmployeeBpjs, data!.currency)} from employees`}
                     />
                     <Figure label="Net pay" value={formatModuleMoney(latest.totalNetPay, data!.currency)} />
                   </>

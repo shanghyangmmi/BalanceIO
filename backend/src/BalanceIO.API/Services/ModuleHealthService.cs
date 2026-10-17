@@ -1380,8 +1380,8 @@ public class ModuleHealthService
 
         module.Figures.Add(lastPosted is null
             ? Count("Employees", employees)
-            : Money("Net pay, " + PayrollService.PeriodLabel(lastPosted.Year, lastPosted.Month), lastPosted.TotalNetPay, currency));
-        module.Figures.Add(Count("Runs awaiting approval", drafts));
+            : Money("Last net pay", lastPosted.TotalNetPay, currency));
+        module.Figures.Add(Count("Awaiting approval", drafts));
 
         if (!previousPosted && employees > 0)
         {
