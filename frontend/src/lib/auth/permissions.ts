@@ -30,6 +30,11 @@ export const PERMISSIONS = {
     AssetsManage: "Assets.Manage",
     AssetsDepreciate: "Assets.Depreciate",
 
+    // Payroll
+    PayrollView: "Payroll.View",
+    PayrollManage: "Payroll.Manage",
+    PayrollApprove: "Payroll.Approve",
+
     // Contacts
     ContactsView: "Contacts.View",
     ContactsManage: "Contacts.Manage",
