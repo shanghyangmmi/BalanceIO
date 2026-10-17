@@ -16,6 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { downloadAttachment, useAttachmentBlob } from "@/hooks/use-attachment-blob";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export interface EvidenceAttachment {
     id: string;
@@ -52,6 +54,7 @@ export function EvidenceAttachmentPanel({
     allowVerification = false,
     onAttachmentCountChange
 }: EvidenceAttachmentPanelProps) {
+    const can = useCan();
     const [attachments, setAttachments] = React.useState<EvidenceAttachment[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
     const [uploadOpen, setUploadOpen] = React.useState(false);
@@ -186,7 +189,7 @@ export function EvidenceAttachmentPanel({
                     </h4>
                 </div>
 
-                {!readOnly && (
+                {!readOnly && can(PERMISSIONS.FinanceCreate) && (
                     <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                         <DialogTrigger asChild>
                             <Button size="sm" variant="outline" className="h-7 text-xs font-mono gap-1">
@@ -347,7 +350,7 @@ export function EvidenceAttachmentPanel({
                                         <Download className="h-3.5 w-3.5" />
                                     </button>
 
-                                    {allowVerification && !att.isVerified && (
+                                    {allowVerification && !att.isVerified && can(PERMISSIONS.FinanceEdit) && (
                                         <Button
                                             size="sm"
                                             variant="outline"
@@ -358,7 +361,7 @@ export function EvidenceAttachmentPanel({
                                         </Button>
                                     )}
 
-                                    {!readOnly && (
+                                    {!readOnly && can(PERMISSIONS.FinanceEdit) && (
                                         <Button
                                             size="icon"
                                             variant="ghost"

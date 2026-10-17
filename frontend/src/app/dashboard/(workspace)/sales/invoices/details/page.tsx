@@ -7,8 +7,11 @@ import React, { useState, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Wallet } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 function InvoiceDetailContent() {
+    const can = useCan();
     const searchParams = useSearchParams();
     const id = searchParams.get("id");
 
@@ -20,12 +23,12 @@ function InvoiceDetailContent() {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex justify-end print:hidden">
-                <Button
+                {can(PERMISSIONS.SalesCreate) && <Button
                     onClick={() => setIsPaymentOpen(true)}
                     className="bg-emerald-600 hover:bg-emerald-700"
                 >
                     <Wallet className="h-4 w-4 mr-2" /> Receive Payment
-                </Button>
+                </Button>}
             </div>
 
             <InvoicePreview invoice={invoice} />

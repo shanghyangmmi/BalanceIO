@@ -25,6 +25,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { RecurringEntryForm } from "@/components/accounting/recurring-entry-form"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // Types
 interface RecurringEntry {
@@ -47,6 +49,7 @@ const frequencyLabels: Record<number, string> = {
 }
 
 export default function RecurringEntriesPage() {
+    const can = useCan();
   const [entries, setEntries] = useState<RecurringEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -118,11 +121,11 @@ export default function RecurringEntriesPage() {
           if (!val) setEditingEntry(null)
           setIsSheetOpen(val)
         }}>
-          <SheetTrigger asChild>
+          {can(PERMISSIONS.FinanceCreate) && <SheetTrigger asChild>
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" /> New Template
             </Button>
-          </SheetTrigger>
+          </SheetTrigger>}
           <SheetContent className="sm:max-w-2xl overflow-y-auto">
             <SheetHeader>
               <SheetTitle>{editingEntry ? "Edit Template" : "New Recurring Template"}</SheetTitle>
@@ -168,18 +171,18 @@ export default function RecurringEntriesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleProcess(entry.id)}>
+                {can(PERMISSIONS.FinanceCreate) && <Button variant="outline" size="sm" onClick={() => handleProcess(entry.id)}>
                   <Play className="h-3 w-3 mr-2" /> Run Now
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => {
+                </Button>}
+                {can(PERMISSIONS.FinanceEdit) && <Button variant="ghost" size="icon" onClick={() => {
                   setEditingEntry(entry)
                   setIsSheetOpen(true)
                 }}>
                   <Pencil className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(entry.id)}>
+                </Button>}
+                {can(PERMISSIONS.FinanceDelete) && <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(entry.id)}>
                   <Trash2 className="h-4 w-4" />
-                </Button>
+                </Button>}
               </div>
             </div>
           </Card>

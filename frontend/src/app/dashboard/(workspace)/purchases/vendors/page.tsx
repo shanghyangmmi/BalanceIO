@@ -28,8 +28,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function VendorsPage() {
+    const can = useCan();
+    const canManageContacts = can(PERMISSIONS.ContactsManage);
     const [vendors, setVendors] = useState<Contact[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -175,7 +179,8 @@ export default function VendorsPage() {
                             <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.code)}>
                                 Copy Code
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
+                            {canManageContacts && (<>
+                          <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => {
                                 setEditingVendor(row.original);
                                 setIsSheetOpen(true);
@@ -185,12 +190,13 @@ export default function VendorsPage() {
                             <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original)}>
                                 <Trash className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
+                        </>)}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )
             },
         },
-    ], []);
+    ], [canManageContacts]);
 
     const totalVendors = vendors.length;
     const corporateVendors = vendors.filter(c => c.category === 1).length;
@@ -215,11 +221,11 @@ export default function VendorsPage() {
                         if (!val) setEditingVendor(null);
                         setIsSheetOpen(val);
                     }}>
-                        <SheetTrigger asChild>
+                        {can(PERMISSIONS.ContactsManage) && <SheetTrigger asChild>
                             <Button>
                                 <PlusCircle className="mr-2 h-4 w-4" /> New Vendor
                             </Button>
-                        </SheetTrigger>
+                        </SheetTrigger>}
                         <SheetContent className="sm:max-w-xl overflow-y-auto">
                             <SheetHeader>
                                 <SheetTitle>{editingVendor ? "Edit Vendor" : "Add New Vendor"}</SheetTitle>

@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils/formatter";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface AssetSummary {
   totalAssets: number;
@@ -21,6 +23,7 @@ interface AssetSummary {
 }
 
 export default function AssetsPage() {
+    const can = useCan();
   const [assets, setAssets] = useState<any[]>([]);
   const [summary, setSummary] = useState<AssetSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,11 +66,11 @@ export default function AssetsPage() {
           <Button variant="outline">
             <Calculator className="mr-2 h-4 w-4" /> Run Depreciation
           </Button>
-          <Link href="/dashboard/assets/new">
+          {can(PERMISSIONS.AssetsManage) && <Link href="/dashboard/assets/new">
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" /> New Asset
             </Button>
-          </Link>
+          </Link>}
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

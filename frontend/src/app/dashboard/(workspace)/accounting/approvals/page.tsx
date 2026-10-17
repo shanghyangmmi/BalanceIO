@@ -21,6 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EvidenceAttachmentPanel } from "@/components/documents/evidence-attachment-panel";
 import { toast } from "sonner";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface JournalLineItem {
     id?: string;
@@ -64,6 +66,7 @@ function parseJwt(token: string) {
 }
 
 export default function JournalApprovalsPage() {
+    const can = useCan();
     const { company } = useCompanyData();
     const [journals, setJournals] = React.useState<PendingJournal[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -377,13 +380,13 @@ export default function JournalApprovalsPage() {
                                 <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">
                                     {selectedIds.length} Terpilih
                                 </span>
-                                <Button
+                                {can(PERMISSIONS.FinanceCreate) && <Button
                                     size="sm"
                                     onClick={() => setBatchApproveOpen(true)}
                                     className="text-xs font-mono h-8 gap-1.5"
                                 >
                                     <CheckCircle2 className="h-3.5 w-3.5" /> Setujui Terpilih ({selectedIds.length})
-                                </Button>
+                                </Button>}
                             </>
                         )}
                     </div>
@@ -534,21 +537,21 @@ export default function JournalApprovalsPage() {
                                                             </Tooltip>
                                                         ) : (
                                                             <>
-                                                                <Button
+                                                                {can(PERMISSIONS.FinanceCreate) && <Button
                                                                     size="sm"
                                                                     onClick={() => setApproveModal({ isOpen: true, journal: j })}
                                                                     className="h-7 text-xs font-mono gap-1"
                                                                 >
                                                                     <CheckCircle2 className="h-3 w-3" /> Setujui
-                                                                </Button>
-                                                                <Button
+                                                                </Button>}
+                                                                {can(PERMISSIONS.FinanceEdit) && <Button
                                                                     size="sm"
                                                                     variant="ghost"
                                                                     onClick={() => setRejectModal({ isOpen: true, journal: j })}
                                                                     className="h-7 text-xs font-mono text-destructive hover:bg-destructive/10"
                                                                 >
                                                                     Tolak
-                                                                </Button>
+                                                                </Button>}
                                                             </>
                                                         )}
                                                     </div>
@@ -644,7 +647,7 @@ export default function JournalApprovalsPage() {
                             <Button variant="outline" onClick={() => setInspectJournal(null)}>Tutup</Button>
                             {inspectJournal && !checkIsSelfCreated(inspectJournal) && (
                                 <>
-                                    <Button 
+                                    {can(PERMISSIONS.FinanceEdit) && <Button 
                                         variant="outline" 
                                         className="text-destructive border-destructive/30 hover:bg-destructive/10"
                                         onClick={() => {
@@ -654,8 +657,8 @@ export default function JournalApprovalsPage() {
                                         }}
                                     >
                                         Tolak Jurnal
-                                    </Button>
-                                    <Button 
+                                    </Button>}
+                                    {can(PERMISSIONS.FinanceCreate) && <Button 
                                         onClick={() => {
                                             const j = inspectJournal;
                                             setInspectJournal(null);
@@ -663,7 +666,7 @@ export default function JournalApprovalsPage() {
                                         }}
                                     >
                                         Setujui Jurnal
-                                    </Button>
+                                    </Button>}
                                 </>
                             )}
                         </DialogFooter>

@@ -45,6 +45,9 @@ import {
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { useCan, NoPermission } from "@/components/auth/rbac-guard";
+import { usePermission } from "@/contexts/permission-context";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // Lightweight in-browser CSV parser
 function parseCSV(text: string): Record<string, string>[] {
@@ -108,6 +111,7 @@ function formatIDR(amount: number) {
 }
 
 export default function MigrationHubPage() {
+    const can = useCan();
   const [activeTab, setActiveTab] = useState("opening-balances");
   const [conversionDate, setConversionDate] = useState("2025-01-01");
   const [plugAccount, setPlugAccount] = useState("3-2000");
@@ -257,6 +261,13 @@ export default function MigrationHubPage() {
       setIsRollingBack(false);
     }
   };
+
+  // Every import step posts or stages ledger data; without Finance.Create the
+  // page has nothing it can do.
+  const { isReady } = usePermission();
+  if (isReady && !can(PERMISSIONS.FinanceCreate)) {
+    return <NoPermission permission={PERMISSIONS.FinanceCreate} />;
+  }
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -1001,7 +1012,7 @@ export default function MigrationHubPage() {
                             )}
                           </td>
                           <td className="py-2 px-3 text-right">
-                            {b.status === 0 && (
+                            {b.status === 0 && can(PERMISSIONS.FinanceEdit) && (
                               <Button
                                 variant="destructive"
                                 size="sm"

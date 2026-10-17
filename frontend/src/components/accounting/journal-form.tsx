@@ -48,6 +48,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { motion } from "framer-motion"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // --- UTILS ---
 // --- UTILS ---
@@ -138,6 +140,11 @@ interface JournalFormProps {
 }
 
 export function JournalForm({ initialData }: JournalFormProps) {
+    const can = useCan();
+    // Saving an existing entry is an edit; posting needs Finance.Create as well.
+    // Without either, the form is a read-only view.
+    const canSave = initialData ? can(PERMISSIONS.FinanceEdit) : can(PERMISSIONS.FinanceCreate);
+    const canPost = canSave && can(PERMISSIONS.FinanceCreate);
     const [isSaving, setIsSaving] = useState(false);
     const queryClient = useQueryClient();
     // One key per submission attempt. A retry of the same submission (network
@@ -253,6 +260,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
 
     // Default handler for Form (Enter key) - Defaults to Posted (1)
     async function onSubmit(data: JournalFormValues) {
+        if (!canPost) return;
         await processSubmit(data, true);
     }
 
@@ -650,7 +658,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
 
                                 {/* Main Action Buttons */}
                                 <div className="flex flex-col gap-3 mt-4">
-                                    <Button
+                                    {canPost && <Button
                                         type="button"
                                         onClick={() => form.handleSubmit((data) => processSubmit(data, true))()}
                                         disabled={!isBalanced || isSaving}
@@ -666,9 +674,9 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                         ) : (
                                             <><Save className="w-5 h-5 mr-2" /> {initialData ? "Update & Post" : "Post Entry"}</>
                                         )}
-                                    </Button>
+                                    </Button>}
 
-                                    <Button
+                                    {canSave && <Button
                                         type="button"
                                         onClick={() => form.handleSubmit((data) => processSubmit(data, false))()}
                                         disabled={isSaving}
@@ -676,7 +684,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                         className="w-full h-10 border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600"
                                     >
                                         <FileText className="w-4 h-4 mr-2" /> Save as Draft
-                                    </Button>
+                                    </Button>}
 
                                     <div className="text-center">
                                         <Button variant="link" type="button" onClick={() => window.history.back()} className={cn("text-xs h-auto p-0 opacity-60 hover:opacity-100", isBalanced ? "text-blue-200" : "text-slate-500")}>

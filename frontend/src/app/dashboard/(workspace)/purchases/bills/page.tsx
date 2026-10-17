@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { PayBillModal } from "@/components/purchases/pay-bill-modal"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // Define helper types locally or import if available
 interface PurchaseBill {
@@ -45,6 +47,7 @@ const billStatusLabels: Record<number, string> = {
 }
 
 export default function BillsPage() {
+    const can = useCan();
     const [bills, setBills] = useState<PurchaseBill[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedBillForPayment, setSelectedBillForPayment] = useState<PurchaseBill | null>(null)
@@ -129,7 +132,7 @@ export default function BillsPage() {
                                 Copy Bill #
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            {row.original.status !== 4 && row.original.status !== 9 && row.original.amountDue > 0 && (
+                            {can(PERMISSIONS.PurchasesCreate) && row.original.status !== 4 && row.original.status !== 9 && row.original.amountDue > 0 && (
                                 <DropdownMenuItem className="text-emerald-600 font-medium" onClick={() => setSelectedBillForPayment(row.original)}>
                                     <Wallet className="mr-2 h-4 w-4" /> Pay Bill
                                 </DropdownMenuItem>
@@ -137,9 +140,9 @@ export default function BillsPage() {
                             <DropdownMenuItem>
                                 <Eye className="mr-2 h-4 w-4" /> View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.id)}>
+                            {can(PERMISSIONS.PurchasesDelete) && <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.id)}>
                                 <Trash className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
+                            </DropdownMenuItem>}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )
@@ -181,11 +184,11 @@ export default function BillsPage() {
                     <h2 className="text-3xl font-bold tracking-tight text-gradient">Purchase Bills</h2>
                     <p className="text-muted-foreground">Manage your incoming bills and expenses.</p>
                 </div>
-                <Link href="/dashboard/purchases/bills/new">
+                {can(PERMISSIONS.PurchasesCreate) && <Link href="/dashboard/purchases/bills/new">
                     <Button>
                         <PlusCircle className="mr-2 h-4 w-4" /> New Bill
                     </Button>
-                </Link>
+                </Link>}
             </div>
 
             <DataTable

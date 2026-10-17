@@ -10,6 +10,8 @@ import { useCompanyData } from "@/hooks/use-company-data";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useCan, RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface Plan {
     id: string;
@@ -36,7 +38,8 @@ interface CurrentSubscription {
     autoRenew: boolean;
 }
 
-export default function BillingPage() {
+function BillingPageContent() {
+    const can = useCan();
     const { company } = useCompanyData();
     const [plans, setPlans] = useState<Plan[]>([]);
     const [currentSub, setCurrentSub] = useState<CurrentSubscription | null>(null);
@@ -198,14 +201,14 @@ export default function BillingPage() {
                                         ))}
                                     </ul>
 
-                                    <Button
+                                    {can(PERMISSIONS.SettingsManage) && <Button
                                         className={`w-full ${plan.isPopular ? "bg-emerald-500 hover:bg-emerald-600" : ""}`}
                                         variant={plan.isPopular ? "default" : "outline"}
                                         disabled={isCurrentPlan}
                                         onClick={() => handleUpgrade(plan.id)}
                                     >
                                         {isCurrentPlan ? "Current Plan" : plan.priceMonthly === 0 ? "Get Started" : "Upgrade"}
-                                    </Button>
+                                    </Button>}
                                 </CardContent>
                             </Card>
                         </motion.div>
@@ -214,4 +217,14 @@ export default function BillingPage() {
             </div>
         </div>
     );
+}
+
+// The page's data is readable only with Settings.View; without it, say so
+// rather than firing requests the API refuses.
+export default function BillingPage() {
+  return (
+    <RBACGuard permission={PERMISSIONS.SettingsView} fallback={<NoPermission permission={PERMISSIONS.SettingsView} />}>
+      <BillingPageContent />
+    </RBACGuard>
+  );
 }

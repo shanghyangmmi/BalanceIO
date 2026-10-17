@@ -30,6 +30,8 @@ import { useCompanyData, updateCompanyData } from "@/hooks/use-company-data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersList } from "@/components/settings/users-list";
 import { AuditLogViewer } from "@/components/settings/audit-log-viewer";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // ... (Schema and Form definitions remain same)
 const profileSchema = z.object({
@@ -49,6 +51,7 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function SettingsPage() {
+    const can = useCan();
   const { company, isLoading, refetch } = useCompanyData();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -334,10 +337,10 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex justify-start">
-                  <Button type="submit" disabled={isSaving}>
+                  {can(PERMISSIONS.SettingsManage) && <Button type="submit" disabled={isSaving}>
                     {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2 h-4 w-4" />}
                     Save Changes
-                  </Button>
+                  </Button>}
                 </div>
               </form>
             </Form>

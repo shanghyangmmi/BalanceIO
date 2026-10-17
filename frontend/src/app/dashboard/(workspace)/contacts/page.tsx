@@ -28,8 +28,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function ContactsPage() {
+    const can = useCan();
+    const canManageContacts = can(PERMISSIONS.ContactsManage);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -196,6 +200,7 @@ export default function ContactsPage() {
               <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.code)}>
                 Copy Code
               </DropdownMenuItem>
+              {canManageContacts && (<>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => {
                 setEditingContact(row.original);
@@ -206,12 +211,13 @@ export default function ContactsPage() {
               <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original)}>
                 <Trash className="mr-2 h-4 w-4" /> Delete
               </DropdownMenuItem>
+            </>)}
             </DropdownMenuContent>
           </DropdownMenu>
         )
       },
     },
-  ], []);
+  ], [canManageContacts]);
 
   const totalContacts = contacts.length;
   const customers = contacts.filter(c => c.isCustomer || c.type === 0 || c.type === 2).length;
@@ -237,11 +243,11 @@ export default function ContactsPage() {
             if (!val) setEditingContact(null);
             setIsSheetOpen(val);
           }}>
-            <SheetTrigger asChild>
+            {can(PERMISSIONS.ContactsManage) && <SheetTrigger asChild>
               <Button>
                 <UserPlus className="mr-2 h-4 w-4" /> New Contact
               </Button>
-            </SheetTrigger>
+            </SheetTrigger>}
             <SheetContent className="sm:max-w-xl overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>{editingContact ? "Edit Contact" : "Add New Contact"}</SheetTitle>

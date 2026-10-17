@@ -17,6 +17,7 @@ export const PERMISSIONS = {
     FinanceView: "Finance.View",
     FinanceCreate: "Finance.Create",
     FinanceEdit: "Finance.Edit",
+    FinanceDelete: "Finance.Delete",
     FinanceReport: "Finance.Report",
 
     // Inventory

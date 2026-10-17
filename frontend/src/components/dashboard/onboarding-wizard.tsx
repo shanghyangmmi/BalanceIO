@@ -31,8 +31,8 @@ export function OnboardingWizard() {
     const [isLoading, setIsLoading] = useState(false)
     // Completing setup needs Settings.Manage. Without it the dialog, which cannot
     // be dismissed, would trap Staff and Viewers behind a form the API refuses.
-    const { hasPermission, isLoading: permissionsLoading } = usePermission()
-    const canCompleteSetup = !permissionsLoading && hasPermission("Settings.Manage")
+    const { hasPermission, isReady } = usePermission()
+    const canCompleteSetup = isReady && hasPermission("Settings.Manage")
 
     useEffect(() => {
         if (!canCompleteSetup) return;

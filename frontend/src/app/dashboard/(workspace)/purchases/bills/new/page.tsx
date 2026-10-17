@@ -1,6 +1,8 @@
 "use client"
 
 import { BillForm } from "@/components/purchases/bill-form"
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function NewBillPage() {
   return (
@@ -8,7 +10,9 @@ export default function NewBillPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-gradient">Create Purchase Bill</h2>
       </div>
-      <BillForm />
+      <RBACGuard permission={PERMISSIONS.PurchasesCreate} fallback={<NoPermission permission={PERMISSIONS.PurchasesCreate} />}>
+<BillForm />
+</RBACGuard>
     </div>
   )
 }

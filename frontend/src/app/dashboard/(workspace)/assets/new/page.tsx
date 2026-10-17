@@ -1,5 +1,7 @@
 import { AssetForm } from "@/components/assets/asset-form";
 import { Suspense } from "react";
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function NewAssetPage() {
   return (
@@ -15,7 +17,9 @@ export default function NewAssetPage() {
         </p>{" "}
       </div>{" "}
       <Suspense fallback={<div>Loading...</div>}>
-        <AssetForm />
+        <RBACGuard permission={PERMISSIONS.AssetsManage} fallback={<NoPermission permission={PERMISSIONS.AssetsManage} />}>
+<AssetForm />
+</RBACGuard>
       </Suspense>
     </div>
   );

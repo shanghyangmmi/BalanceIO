@@ -9,8 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils/formatter";
 import Link from "next/link";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function PurchasesPage() {
+    const can = useCan();
   const [bills, setBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,11 +48,11 @@ export default function PurchasesPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight text-gradient">Purchases</h2>
         <div className="flex items-center space-x-2">
-          <Link href="/dashboard/purchases/bills/new">
+          {can(PERMISSIONS.PurchasesCreate) && <Link href="/dashboard/purchases/bills/new">
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" /> Record Bill
             </Button>
-          </Link>
+          </Link>}
         </div>
       </div>
       <Tabs defaultValue="bills" className="space-y-4">

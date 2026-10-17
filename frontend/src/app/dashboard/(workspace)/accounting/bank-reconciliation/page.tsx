@@ -20,8 +20,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { formatCurrency, formatDate } from "@/lib/utils/formatter"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function BankReconciliationPage() {
+    const can = useCan();
     const [accounts, setAccounts] = React.useState<any[]>([])
     const [selectedAccountId, setSelectedAccountId] = React.useState<string>("")
     const [asOfDate, setAsOfDate] = React.useState<string>(new Date().toISOString().split('T')[0])
@@ -267,12 +270,12 @@ export default function BankReconciliationPage() {
 
                         {/* Import Statement Dialog */}
                         <Dialog open={importOpen} onOpenChange={setImportOpen}>
-                            <DialogTrigger asChild>
+                            {can(PERMISSIONS.FinanceCreate) && <DialogTrigger asChild>
                                 <Button size="sm" variant="secondary" className="gap-1.5 text-xs font-mono">
                                     <Upload className="h-3.5 w-3.5" />
                                     Impor Rekening Koran
                                 </Button>
-                            </DialogTrigger>
+                            </DialogTrigger>}
                             <DialogContent className="max-w-xl">
                                 <DialogHeader>
                                     <DialogTitle className="font-display">Impor Rekening Koran Bank (CSV)</DialogTitle>
@@ -437,11 +440,11 @@ export default function BankReconciliationPage() {
 
                                 {workspace.isBalanced ? (
                                     <Dialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
-                                        <DialogTrigger asChild>
+                                        {can(PERMISSIONS.FinanceEdit) && <DialogTrigger asChild>
                                             <Button size="sm" className="h-7 text-xs font-mono gap-1">
                                                 <ShieldCheck className="h-3.5 w-3.5" /> Selesaikan
                                             </Button>
-                                        </DialogTrigger>
+                                        </DialogTrigger>}
                                         <DialogContent>
                                             <DialogHeader>
                                                 <DialogTitle className="font-display">Kunci & Selesaikan Rekonsiliasi Bank</DialogTitle>
@@ -479,7 +482,7 @@ export default function BankReconciliationPage() {
                                             </DialogFooter>
                                         </DialogContent>
                                     </Dialog>
-                                ) : (
+                                ) : can(PERMISSIONS.FinanceEdit) && (
                                     <Button size="sm" variant="outline" onClick={handleAutoMatch} disabled={isAutoMatching} className="h-7 text-xs font-mono gap-1">
                                         {isAutoMatching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-emerald-600" />}
                                         Auto Match
@@ -510,7 +513,7 @@ export default function BankReconciliationPage() {
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        {can(PERMISSIONS.FinanceEdit) && <div className="flex items-center gap-2">
                             <Button 
                                 size="sm" 
                                 onClick={handleManualMatch} 
@@ -530,7 +533,7 @@ export default function BankReconciliationPage() {
                                 {isAutoMatching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-emerald-600" />}
                                 Auto Match Semua
                             </Button>
-                        </div>
+                        </div>}
                     </div>
 
                     {/* ── 2-Pane Side-by-Side Matching Workspace ───────────────────────────── */}
@@ -632,7 +635,7 @@ export default function BankReconciliationPage() {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell onClick={(e) => e.stopPropagation()}>
-                                                                {isMatched ? (
+                                                                {isMatched ? can(PERMISSIONS.FinanceEdit) && (
                                                                     <Button
                                                                         size="icon"
                                                                         variant="ghost"
@@ -642,7 +645,7 @@ export default function BankReconciliationPage() {
                                                                     >
                                                                         <Unlink className="h-3.5 w-3.5" />
                                                                     </Button>
-                                                                ) : (
+                                                                ) : can(PERMISSIONS.FinanceCreate) && (
                                                                     <Button
                                                                         size="icon"
                                                                         variant="ghost"

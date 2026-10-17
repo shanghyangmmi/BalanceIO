@@ -18,6 +18,8 @@ import {
   Sep,
   formatIsoDate,
 } from "@/components/dashboard/module/module-primitives"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 /**
  * The periodic charge against the asset register.
@@ -63,6 +65,7 @@ const COPY: Record<ChargeKind, Copy> = {
 }
 
 export function AssetChargeScreen({ kind }: { kind: ChargeKind }) {
+    const can = useCan();
   const copy = COPY[kind]
   const { data, isPending, isError, error, refetch } = useAssetCharge(kind)
   const run = useRunAssetCharge(kind)
@@ -124,7 +127,7 @@ export function AssetChargeScreen({ kind }: { kind: ChargeKind }) {
             </div>
           )}
 
-          <Button
+          {can(PERMISSIONS.AssetsDepreciate) && <Button
             size="sm"
             onClick={() => run.mutate()}
             disabled={!canRun || run.isPending}
@@ -136,7 +139,7 @@ export function AssetChargeScreen({ kind }: { kind: ChargeKind }) {
               <Play className="h-3.5 w-3.5" />
             )}
             Run {data?.period ?? "period"}
-          </Button>
+          </Button>}
         </div>
 
         <div className="h-px bg-foreground/10" />

@@ -128,6 +128,10 @@ missing, never generated. Tax logic needs practitioner review before reliance.
   and audit logs only. The general ledger report is unpaged.
 - Money uses `.font-money` or sits in a `<table>`. Do arithmetic on money in
   integer minor units or a decimal library, not JS floats.
+- Gate every write control with `useCan()(PERMISSIONS.X)` or `<RBACGuard>`
+  (`components/auth/rbac-guard.tsx`), using the permission the endpoint
+  requires. A page that exists only to perform an action uses `NoPermission`
+  as the guard's fallback.
 - `⌘K` palette: `components/command-palette.tsx`, mounted in
   `app/dashboard/layout.tsx`.
 - The module hub exists: `app/dashboard/(hub)`, backed by
@@ -161,7 +165,6 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | PPh 21 not computed (no payroll) | `TaxReportsService` |
 | Historical journal lines may hold an account Id instead of a Code and be invisible to reports | database (detection query in the audit report) |
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
-| Write actions are not hidden by permission (`RBACGuard` exists, unused); a refused click shows a 403 toast | frontend |
 | 91 files fetch with `useEffect` instead of TanStack Query | frontend |
 | `npm run lint` fails: 449 errors, mostly `no-explicit-any` | frontend |
 | `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |

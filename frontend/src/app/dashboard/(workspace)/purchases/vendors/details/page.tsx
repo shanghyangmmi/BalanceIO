@@ -10,8 +10,11 @@ import { formatCurrency } from "@/lib/utils/formatter";
 import React, { Suspense } from "react";
 import { PayBillModal } from "@/components/purchases/pay-bill-modal";
 import { useSearchParams } from "next/navigation";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 function VendorDetailContent() {
+    const can = useCan();
     const searchParams = useSearchParams();
     const id = searchParams.get("id");
 
@@ -52,9 +55,9 @@ function VendorDetailContent() {
                     <Button variant="outline">
                         <Pencil className="mr-2 h-4 w-4" /> Edit Profile
                     </Button>
-                    <Button variant="secondary" onClick={() => setIsPayModalOpen(true)}>
+                    {can(PERMISSIONS.PurchasesCreate) && <Button variant="secondary" onClick={() => setIsPayModalOpen(true)}>
                         Make Payment
-                    </Button>
+                    </Button>}
                     <Button>Record Bill</Button>
                 </div>
             </div>
