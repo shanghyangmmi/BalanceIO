@@ -1,58 +1,25 @@
 "use client";
 
-import { InvoicePreview } from "@/components/sales/invoice-preview";
-import { defaultInvoices } from "@/lib/data/sales-data";
-import { ReceivePaymentModal } from "@/components/sales/receive-payment-modal";
-import React, { useState, Suspense } from "react";
-import { Button } from "@/components/ui/button";
-import { Wallet } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { useCan } from "@/components/auth/rbac-guard";
-import { PERMISSIONS } from "@/lib/auth/permissions";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-function InvoiceDetailContent() {
-    const can = useCan();
-    const searchParams = useSearchParams();
-    const id = searchParams.get("id");
-
-    // Mock fetch
-    const invoice =
-        defaultInvoices.find((i) => i.id === id) || defaultInvoices[0];
-    const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-
-    return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            <div className="flex justify-end print:hidden">
-                {can(PERMISSIONS.SalesCreate) && <Button
-                    onClick={() => setIsPaymentOpen(true)}
-                    className="bg-emerald-600 hover:bg-emerald-700"
-                >
-                    <Wallet className="h-4 w-4 mr-2" /> Receive Payment
-                </Button>}
-            </div>
-
-            <InvoicePreview invoice={invoice} />
-
-            <ReceivePaymentModal
-                isOpen={isPaymentOpen}
-                onClose={() => setIsPaymentOpen(false)}
-                invoiceId={invoice.id}
-                customerName={invoice.contactName || ""}
-                amountDue={invoice.amountDue !== undefined ? invoice.amountDue : invoice.total}
-                currency={invoice.currency || "IDR"}
-                bookedExchangeRate={invoice.exchangeRate || 1}
-                onSuccess={() => {
-                    window.location.reload();
-                }}
-            />
-        </div>
-    );
+/**
+ * Invoice detail used to render a static sample. The real invoice is shown
+ * by the preview page, so this route forwards there with the same id.
+ */
+function Forward() {
+  const router = useRouter();
+  const id = useSearchParams().get("id");
+  useEffect(() => {
+    router.replace(id ? `/dashboard/sales/invoices/preview?id=${id}` : "/dashboard/sales/invoices");
+  }, [router, id]);
+  return null;
 }
 
-export default function InvoiceViewPage() {
-    return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <InvoiceDetailContent />
-        </Suspense>
-    );
+export default function InvoiceDetailsPage() {
+  return (
+    <Suspense fallback={null}>
+      <Forward />
+    </Suspense>
+  );
 }

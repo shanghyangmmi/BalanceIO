@@ -20,13 +20,29 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { defaultProducts } from "@/lib/data/inventory-data"
-import { formatCurrency } from "@/lib/utils/formatter"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { apiClient } from "@/lib/api-client"
+import { retryUnlessClientError } from "@/lib/query-retry"
+import { formatModuleMoney } from "@/lib/utils/module-money"
+import { useCompany } from "@/contexts/company-context"
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard"
+import { PERMISSIONS } from "@/lib/auth/permissions"
+
+interface TrackedProduct {
+    id: string
+    code: string
+    name: string
+    unit: string
+    stockOnHand: number
+    buyPrice: number
+    trackInventory: boolean
+}
 
 const adjustmentSchema = z.object({
     productId: z.string().min(1, "Product is required"),
-    type: z.enum(["IN", "OUT", "ADJUSTMENT"]),
-    quantity: z.number().min(1, "Quantity must be at least 1"),
+    type: z.enum(["IN", "OUT"]),
+    quantity: z.number().positive("Quantity must be more than zero"),
     reason: z.string().min(1, "Reason is required"),
     date: z.string().min(1, "Date is required"),
 })
@@ -34,24 +50,58 @@ const adjustmentSchema = z.object({
 type AdjustmentFormValues = z.infer<typeof adjustmentSchema>
 
 export function StockAdjustmentForm() {
+    return (
+        <RBACGuard permission={PERMISSIONS.InventoryOpname} fallback={<NoPermission permission={PERMISSIONS.InventoryOpname} />}>
+            <AdjustmentForm />
+        </RBACGuard>
+    )
+}
+
+/**
+ * A manual correction to stock on hand. The server records the movement
+ * and posts its value against Inventory Variance (5-9000), so the
+ * quantity and the inventory account stay in step.
+ */
+function AdjustmentForm() {
+    const { company } = useCompany()
+    const queryClient = useQueryClient()
+    const { data: products = [] } = useQuery({
+        queryKey: ["products", company?.id],
+        queryFn: () => apiClient.get<TrackedProduct[]>("/Products"),
+        enabled: !!company,
+        retry: retryUnlessClientError,
+        select: (all) => all.filter((p) => p.trackInventory),
+    })
     const form = useForm<AdjustmentFormValues>({
         resolver: zodResolver(adjustmentSchema),
         defaultValues: {
             productId: "",
-            type: "ADJUSTMENT",
+            type: "IN",
             quantity: 1,
             reason: "",
             date: new Date().toISOString().split('T')[0],
         },
     })
 
+    const adjust = useMutation({
+        mutationFn: (data: AdjustmentFormValues) =>
+            apiClient.post<{ stockOnHand: number; value: number }>(`/Products/${data.productId}/adjust-stock`, {
+                quantity: data.type === "IN" ? data.quantity : -data.quantity,
+                reason: data.reason,
+                date: data.date,
+            }),
+        onSuccess: (res) => {
+            toast.success(`Recorded. Stock on hand ${res.stockOnHand}; ${formatModuleMoney(res.value, "IDR")} posted to the ledger.`)
+            form.reset({ ...form.getValues(), quantity: 1, reason: "" })
+            return queryClient.invalidateQueries({ queryKey: ["products", company?.id] })
+        },
+    })
+
     function onSubmit(data: AdjustmentFormValues) {
-        alert("Stock Adjustment Recorded (Mock)");
+        adjust.mutate(data)
     }
 
-    const handleProductChange = (val: string) => {
-        // Mock logic: Show current stock if needed
-    }
+    const handleProductChange = (_val: string) => undefined
 
     return (
         <Form {...form}>
@@ -86,8 +136,8 @@ export function StockAdjustmentForm() {
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {defaultProducts.map((p) => (
-                                            <SelectItem key={p.id} value={p.id}>{p.code} - {p.name} (Qty: {p.stockOnHand})</SelectItem>
+                                        {products.map((p) => (
+                                            <SelectItem key={p.id} value={p.id}>{p.code} - {p.name} (on hand: {p.stockOnHand} {p.unit})</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -108,9 +158,8 @@ export function StockAdjustmentForm() {
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="IN">Stock In (Purchase/Return)</SelectItem>
-                                        <SelectItem value="OUT">Stock Out (Sale/Damage)</SelectItem>
-                                        <SelectItem value="ADJUSTMENT">Correction (Opname)</SelectItem>
+                                        <SelectItem value="IN">Increase (found, returned)</SelectItem>
+                                        <SelectItem value="OUT">Decrease (damaged, lost)</SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -149,8 +198,8 @@ export function StockAdjustmentForm() {
                     />
                 </div>
 
-                <Button type="submit" className="w-full">
-                    Record Adjustment
+                <Button type="submit" className="w-full" disabled={adjust.isPending}>
+                    {adjust.isPending ? "Recording…" : "Record adjustment"}
                 </Button>
             </form>
         </Form>

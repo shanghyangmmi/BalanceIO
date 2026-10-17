@@ -7,13 +7,14 @@ import * as z from "zod"
 import { CalendarIcon, Plus, Trash2, Save, Loader2, Hash, FileText, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient, ApiError } from "@/lib/api-client"
 import { journalKeys } from "@/hooks/use-journal-entries"
 import { balanceOf, isStorableAmount, minorToNumber } from "@/lib/utils/minor-units"
 import { formatModuleMoney } from "@/lib/utils/module-money"
 import { JournalEntry } from "@/lib/types/accounting"
-import { defaultContacts as CONTACTS } from "@/lib/data/contacts-data"
+import { useCompany } from "@/contexts/company-context"
+import { retryUnlessClientError } from "@/lib/query-retry"
 
 // UI COMPONENTS
 import { Button } from "@/components/ui/button"
@@ -147,6 +148,14 @@ export function JournalForm({ initialData }: JournalFormProps) {
     const canPost = canSave && can(PERMISSIONS.FinanceCreate);
     const [isSaving, setIsSaving] = useState(false);
     const queryClient = useQueryClient();
+    const { company } = useCompany();
+    // The company's own contacts: the id chosen here is stored on the entry.
+    const { data: contacts = [] } = useQuery({
+        queryKey: ["contacts", company?.id],
+        queryFn: () => apiClient.get<{ id: string; name: string; code: string }[]>("/Contacts"),
+        enabled: !!company,
+        retry: retryUnlessClientError,
+    });
     // One key per submission attempt. A retry of the same submission (network
     // drop, double click) reuses it and is de-duplicated by the API; a new
     // entry gets a new key once this one has succeeded.
@@ -362,8 +371,8 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    {CONTACTS.map((contact) => (
-                                                        <SelectItem key={contact.id} value={contact.id}>{contact.name}</SelectItem>
+                                                    {contacts.map((contact) => (
+                                                        <SelectItem key={contact.id} value={contact.id}>{contact.code} · {contact.name}</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>

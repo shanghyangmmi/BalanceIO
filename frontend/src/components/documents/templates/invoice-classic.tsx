@@ -119,10 +119,10 @@ export function ClassicTemplate({ invoice, config }: ClassicTemplateProps) {
                         <span className="text-zinc-600">PPN ({invoice.taxRate ?? 12}%)</span>
                         <span className="font-medium">{formatCurrency(invoice.taxAmount, invoice.currency)}</span>
                     </div>
-                    {invoice.ppnbmAmount && invoice.ppnbmAmount > 0 && (
+                    {(invoice.ppnbmAmount ?? 0) > 0 && (
                         <div className="flex justify-between py-2 border-b text-amber-700 dark:text-amber-400">
                             <span>PPnBM (Luxury Tax)</span>
-                            <span className="font-medium">{formatCurrency(invoice.ppnbmAmount, invoice.currency)}</span>
+                            <span className="font-medium">{formatCurrency(invoice.ppnbmAmount ?? 0, invoice.currency)}</span>
                         </div>
                     )}
                     <div className="flex justify-between py-3 text-lg font-bold" style={{ color: cfg.primaryColor }}>

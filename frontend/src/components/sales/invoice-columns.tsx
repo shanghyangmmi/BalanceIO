@@ -76,7 +76,7 @@ export const invoiceColumns: ColumnDef<SalesInvoice>[] = [
         id: "actions",
         cell: ({ row }) => {
             return (
-                <Link href={`/dashboard/sales/invoices/details/${row.original.id}`}>
+                <Link href={`/dashboard/sales/invoices/preview?id=${row.original.id}`}>
                     <Button variant="ghost" size="icon">
                         <Eye className="h-4 w-4 text-zinc-400" />
                     </Button>

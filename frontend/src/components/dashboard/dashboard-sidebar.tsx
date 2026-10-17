@@ -197,13 +197,13 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                 className="space-y-3"
                             >
                                 <div className="px-1 space-y-1">
-                                    <div className="flex justify-between text-[10px] text-zinc-400">
-                                        <span>Company ID:</span>
-                                        <span className="font-mono text-zinc-600 dark:text-zinc-300 font-semibold">BIO-8823</span>
+                                    <div className="flex justify-between gap-3 text-[10px] text-zinc-400">
+                                        <span>Company</span>
+                                        <span className="truncate font-semibold text-zinc-600 dark:text-zinc-300" title={company?.name}>{company?.name ?? "—"}</span>
                                     </div>
-                                    <div className="flex justify-between text-[10px] text-zinc-400">
-                                        <span>User ID:</span>
-                                        <span className="font-mono text-zinc-600 dark:text-zinc-300 font-semibold">USR-9921</span>
+                                    <div className="flex justify-between gap-3 text-[10px] text-zinc-400">
+                                        <span>Role</span>
+                                        <span className="font-mono font-semibold text-zinc-600 dark:text-zinc-300">{company?.role ?? "—"}</span>
                                     </div>
                                 </div>
                                 <Button

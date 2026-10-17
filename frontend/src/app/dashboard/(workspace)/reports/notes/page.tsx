@@ -12,7 +12,7 @@ import { formatCurrency } from "@/lib/utils/formatter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, Search, Info, CheckCircle2, ChevronDown } from "lucide-react";
+import { ShieldCheck, Search, Info, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function NotesPage() {
@@ -82,12 +82,13 @@ export default function NotesPage() {
       content: (
         <div className="space-y-3 text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
           <p>
-            <strong>{company?.name || "PT BalanceIO System Indonesia"}</strong> (&quot;Entitas&quot;) didirikan berdasarkan Hukum Negara Republik Indonesia. Entitas bergerak dalam bidang pengembangan teknologi informasi, penyediaan perangkat lunak akuntansi berbasis SaaS, serta layanan konsultasi manajemen keuangan.
+            <strong>{company?.name || "Entitas"}</strong> (&quot;Entitas&quot;) didirikan berdasarkan Hukum Negara Republik Indonesia.{" "}
+            <em className="text-muted-foreground">[Diisi oleh manajemen: akta pendirian, kegiatan usaha utama, dan domisili.]</em>
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-zinc-50 dark:bg-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <div>
               <span className="text-xs text-muted-foreground block">Nama Entitas Pelapor</span>
-              <span className="font-semibold text-foreground">{company?.name || "PT BalanceIO System Indonesia"}</span>
+              <span className="font-semibold text-foreground">{company?.name || "—"}</span>
             </div>
             <div>
               <span className="text-xs text-muted-foreground block">Mata Uang Pelaporan</span>
@@ -95,7 +96,7 @@ export default function NotesPage() {
             </div>
             <div>
               <span className="text-xs text-muted-foreground block">Standar Penyajian</span>
-              <span className="font-semibold text-foreground">PSAK 201 (IAS 1) Compliant</span>
+              <span className="font-semibold text-foreground">Mengacu pada PSAK 201</span>
             </div>
             <div>
               <span className="text-xs text-muted-foreground block">Periode Pelaporan</span>
@@ -296,12 +297,9 @@ export default function NotesPage() {
       content: (
         <div className="space-y-3 text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
           <p>
-            Entitas memenuhi kewajiban perpajakan sesuai dengan ketentuan Undang-Undang Perpajakan di Republik Indonesia, termasuk penetapan tarif <strong>PPN 12%</strong> (UU HPP) serta pelaporan Surat Pemberitahuan (SPT) melalui sistem Coretax Direktorat Jenderal Pajak.
+            Entitas menghitung kewajiban perpajakan sesuai dengan ketentuan Undang-Undang Perpajakan di Republik Indonesia, termasuk penetapan tarif <strong>PPN 12%</strong> (UU HPP) serta pelaporan Surat Pemberitahuan (SPT).{" "}
+            <em className="text-muted-foreground">[Diisi oleh manajemen: status pelaporan SPT dan pemeriksaan pajak. Aplikasi ini menghitung PPN dan PPh dari buku besar; ia tidak memverifikasi kepatuhan dan tidak terhubung ke Coretax.]</em>
           </p>
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-lg">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Kepatuhan SPT PPN & PPh 21/23 Terverifikasi 100%</span>
-          </div>
         </div>
       ),
     },
@@ -312,7 +310,8 @@ export default function NotesPage() {
       tag: "Peristiwa",
       content: (
         <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
-          Tidak ada peristiwa signifikan yang terjadi antara akhir periode pelaporan ({reportDateStr}) dengan tanggal penyelesaian laporan keuangan yang memerlukan penyesuaian atau pengungkapan tambahan dalam Catatan atas Laporan Keuangan ini.
+          Peristiwa setelah akhir periode pelaporan ({reportDateStr}) yang memerlukan penyesuaian atau pengungkapan.{" "}
+          <em className="text-muted-foreground">[Diisi oleh manajemen. Tidak boleh dinyatakan &quot;tidak ada&quot; tanpa penelaahan.]</em>
         </p>
       ),
     },
