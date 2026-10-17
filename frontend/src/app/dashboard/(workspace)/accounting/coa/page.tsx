@@ -448,6 +448,7 @@ export default function CoaPage() {
                       ? {
                         code: editingAccount.code,
                         name: editingAccount.name,
+                        nameId: editingAccount.nameId || "",
                         type: editingAccount.accountGroup as any,
                         parentId: editingAccount.parentAccountId || "none",
                         description: editingAccount.description || "",

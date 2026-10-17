@@ -72,7 +72,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
             <>
                 <aside
                     className={cn(
-                        "fixed top-0 left-0 z-40 h-screen bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 w-[240px]",
+                        "fixed top-0 left-0 z-40 h-screen print:hidden bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 w-[240px]",
                         !isOpen && "-translate-x-full md:translate-x-0 md:w-[70px]",
                         isMobile && "shadow-2xl"
                     )}
@@ -91,7 +91,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                 initial={false}
                 animate={{ width: isOpen ? 240 : 70 }}
                 className={cn(
-                    "fixed top-0 left-0 z-40 h-screen bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 flex flex-col",
+                    "fixed top-0 left-0 z-40 h-screen print:hidden bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 flex flex-col",
                     isMobile && "shadow-2xl"
                 )}
             >

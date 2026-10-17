@@ -37,7 +37,7 @@ export default function DashboardLayout({
   }, []);
 
   return (
-    <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 relative overflow-hidden selection:bg-emerald-100 dark:selection:bg-emerald-900/40">
+    <div className="flex h-screen bg-zinc-50 dark:bg-zinc-950 relative overflow-hidden selection:bg-emerald-100 dark:selection:bg-emerald-900/40 print:block print:h-auto print:overflow-visible print:bg-white">
       {/* Ambient Canvas Decor (Hidden on Print) */}
       <div className="fixed inset-0 z-0 pointer-events-none print:hidden overflow-hidden">
         {/* Subtle Dot Grid */}

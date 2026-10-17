@@ -129,8 +129,8 @@ public class FinancialStatementsTests(ApiFactory factory) : IClassFixture<ApiFac
         Assert.Equal(0m, Prior(Line(pl, "PROFIT (LOSS) FOR THE PERIOD")));
 
         var equity = Statement(pack, "equity");
-        Assert.Equal(590 * M, Cur(Line(equity, "Balance as of December 31, 2025")));
-        Assert.Equal(660 * M, Cur(Line(equity, "Balance as of June 30, 2026")));
+        Assert.Equal(590 * M, Cur(Line(equity, "Balance at beginning of period")));
+        Assert.Equal(660 * M, Cur(Line(equity, "Balance at end of period")));
     }
 
     [Fact]

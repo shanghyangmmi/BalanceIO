@@ -271,7 +271,10 @@ public class FinancialStatementsService
         var opening = (c.Cur.EquityAt(start.AddDays(-1)), c.Prior?.EquityAt(c.Prior.Start.AddDays(-1)));
         var closing = (c.Cur.EquityAt(end), c.Prior?.EquityAt(c.Prior.End));
 
-        b.Subtotal($"Saldo per {DateId(start.AddDays(-1))}", $"Balance as of {DateEn(start.AddDays(-1))}", opening, 0);
+        // With a comparative column the two openings fall on different dates,
+        // so the row cannot name one.
+        if (c.HasPrior) b.Subtotal("Saldo awal periode", "Balance at beginning of period", opening, 0);
+        else b.Subtotal($"Saldo per {DateId(start.AddDays(-1))}", $"Balance as of {DateEn(start.AddDays(-1))}", opening, 0);
 
         var profit = (c.Cur.ProfitBetween(start, end), c.Prior?.ProfitBetween(c.Prior.Start, c.Prior.End));
         b.Item(fullYear ? "Laba (rugi) tahun berjalan" : "Laba (rugi) periode berjalan",
@@ -287,7 +290,8 @@ public class FinancialStatementsService
             running = Add(running, v);
         }
 
-        b.Total($"Saldo per {DateId(end)}", $"Balance as of {DateEn(end)}", closing);
+        if (c.HasPrior) b.Total("Saldo akhir periode", "Balance at end of period", closing);
+        else b.Total($"Saldo per {DateId(end)}", $"Balance as of {DateEn(end)}", closing);
 
         s.Checks.Add(Check("Saldo akhir sama dengan saldo awal ditambah mutasi", "Closing balance equals opening plus movements", running, closing));
         return s;

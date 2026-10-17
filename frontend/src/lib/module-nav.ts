@@ -125,6 +125,7 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "Documents", href: "/dashboard/documents", icon: FileText },
           { label: "Projects", href: "/dashboard/projects", icon: Folder },
           { label: "Reports", href: "/dashboard/reports", icon: PieChart, permission: PERMISSIONS.FinanceReport },
+          { label: "Financial Statements", href: "/dashboard/reports/financial-statements", icon: FileText, permission: PERMISSIONS.FinanceReport },
         ],
       },
     ],
