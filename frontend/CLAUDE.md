@@ -3,7 +3,7 @@
 Next.js 16 (App Router, static export) · React 19 · Tailwind v4 ·
 shadcn/ui (Radix) · TanStack Query + Virtual · Framer Motion · GSAP +
 Lenis. Backend is .NET 8 via `src/lib/api-client.ts`.
-`npm run build` passes; `npm run lint` currently fails (453 errors, mostly
+`npm run build` passes; `npm run lint` currently fails (448 errors, mostly
 `no-explicit-any`).
 
 **`DESIGN-SYSTEM.md` in this folder is the design source of truth.**

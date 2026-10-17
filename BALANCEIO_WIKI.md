@@ -62,7 +62,7 @@ segregation of duties). See `CLAUDE.md`.
 | Inventory | COGS, opname variance | products, movements, stock opname |
 | Fixed Assets | depreciation | register, depreciation, disposal, revaluation |
 | Tax | settlement journal | see `CLAUDE.md` |
-| Payroll | — | not built; shown inactive in the hub |
+| Payroll | salary expense, PPh 21, BPJS | compensation, monthly runs, TER and December settlement, posting and void; see `CLAUDE.md` |
 
 Plans gate modules through `ModuleEntitlementService`; the licensing catalogue
 (`PlatformFeature`, `PlanFeature`, `SubscriptionAddOn`) is platform-wide.

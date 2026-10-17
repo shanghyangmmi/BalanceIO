@@ -40,11 +40,11 @@ CI (`.github/workflows/ci.yml`) runs the backend tests against PostgreSQL 16.
 ## Scope rule
 
 A module belongs only if it posts to the general ledger. Inventory (COGS),
-Fixed Assets (depreciation) and Tax qualify; Payroll qualifies and is not
-built. CRM, attendance and storefronts do not. The moat is Indonesian
+Fixed Assets (depreciation), Tax and Payroll (salary expense, PPh 21, BPJS)
+qualify. CRM, attendance and storefronts do not. The moat is Indonesian
 compliance (PPN, PPh, e-Faktur, Coretax, PSAK). `ModuleEntitlementService`
 gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
-`payroll` (`UnbuiltModules` = payroll).
+`payroll`. `UnbuiltModules` is empty.
 
 ## Accounting integrity
 
@@ -70,7 +70,7 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
 | Tenant stamp, account resolution, balance, immutability, status transitions | `ApplicationDbContext.SaveChangesAsync` → `ApplicationDbContext.LedgerGuards.cs` | every writer; throws `LedgerIntegrityException` (400 with a `code`) |
 | Journal quota, audit rows | same method | every writer |
 | Balance of Posted entries in the database | PostgreSQL deferred constraint triggers (`EnforceLedgerBalanceInDatabase`) | anything, including raw SQL. Not present on SQLite |
-| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (15 files). Throws `PeriodLockedException` (400 `PERIOD_LOCKED`) |
+| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (13 files). Throws `PeriodLockedException` (400 `PERIOD_LOCKED`) |
 | Tenant scope | `CompanyScopeMiddleware` + query filters | reads. `Companies` has no filter: look it up by `CurrentCompanyId` |
 | Permissions | `[RequiresPermission]` → `PermissionFilter` | per action. `PermissionCoverageTests` fails on any action without one, other than the listed self-service ones |
 | Plan limit → 402 | `PlanLimitMiddleware` | |
@@ -84,7 +84,8 @@ its Code and rejects unknown or foreign accounts. Do not call the synchronous
 ### Audit trail
 
 `SaveChangesAsync` writes `AuditLogs` rows for Accounts, JournalEntries,
-JournalLines, Contacts, Products, SalesInvoices, PurchaseBills, FixedAssets.
+JournalLines, Contacts, Products, SalesInvoices, PurchaseBills, FixedAssets,
+EmployeeCompensations, PayrollRuns.
 `AuditService` records explicit events. Nothing in the API edits audit rows,
 but the `AuditPrune` scheduled job deletes rows older than
 `Audit:RetentionDays` when that setting is positive (default 0: off).
@@ -112,16 +113,42 @@ Implemented: SPT Masa PPN 1111 summary, e-Faktur CSV export, e-Bupot CSV
 export, withholding summary (PPh 21/22/23/4(2)), PPN settlement journal,
 ekualisasi PPN, rekonsiliasi fiskal, DER test (PMK-169). Product-level
 `DppScheme` (11/12 nilai lain) and PPnBM fields exist.
+PPh 21 in the withholding summary comes from posted payroll runs.
 Not implemented: Coretax integration, faktur pajak numbering (NSFP is
-entered, never generated), real bukti potong numbers, payroll-driven PPh 21.
+entered, never generated), real bukti potong numbers.
 Several outputs are derived from bills at report time rather than from the
 ledger. Missing faktur numbers and bukti potong numbers are reported as
 missing, never generated. Tax logic needs practitioner review before reliance.
 
+## Payroll
+
+`PayrollController` (`/api/Payroll`, module `payroll`, permissions
+`Payroll.View` / `Payroll.Manage` / `Payroll.Approve`), `PayrollService`,
+`PayrollCalculator`. Employees are Contacts with `IsEmployee`; PTKP, NIK and
+bank details live on the contact, pay on `EmployeeCompensation`.
+
+- One live run per month (filtered unique index; a Void run steps aside).
+  Draft → Posted → Void. Posting checks the period lock, segregation of duties
+  (the calculator cannot post), and refuses `RUN_STALE` when a fresh
+  calculation differs from the draft. Voiding is refused while a later month
+  of the same year is posted (its December settlement depends on it).
+- Entry: Dr `6-1100` earnings, Dr `6-1110` employer BPJS; Cr `2-1410` PPh 21,
+  Cr `2-1510` BPJS (both sides), Cr `2-1500` net pay. `ReferenceDataSeeder`
+  adds the three new accounts to existing companies.
+- PPh 21: TER (PP 58/2023) January–November on gross including employer JKK,
+  JKM and Kesehatan; December settles under Pasal 17 less TER withheld and may
+  be negative. Unknown PTKP is withheld as TK/0 with a warning.
+- BPJS: JKK (per-employee rate), JKM 0.3 %, JHT 3.7/2 %, JP 2/1 %, Kesehatan
+  4/1 %. Wage caps are configuration: `Payroll:JpWageCap` (default 10,547,400)
+  and `Payroll:KesehatanWageCap` (12,000,000). Update them when they change.
+- Not handled: leavers mid-year (no final-month annualisation), PPh 26,
+  NPWP/NIK surcharge, THR and bonus treatment beyond "other earnings",
+  1721-A1, payslips, bank transfer files. Needs practitioner review.
+
 ## Frontend conventions
 
 - Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
-  `components/providers/query-provider.tsx`). Only 14 files use it so far;
+  `components/providers/query-provider.tsx`). Only 17 files use it so far;
   91 files still call `apiClient` from `useEffect`. New code uses Query.
 - `VirtualDataTable` (`components/ui/virtual-data-table.tsx`) for large lists.
   Server paging (`?page=&pageSize=&search=&status=`) exists on journal entries
@@ -134,9 +161,14 @@ missing, never generated. Tax logic needs practitioner review before reliance.
   as the guard's fallback.
 - `⌘K` palette: `components/command-palette.tsx`, mounted in
   `app/dashboard/layout.tsx`.
-- The module hub exists: `app/dashboard/(hub)`, backed by
-  `GET /api/Dashboard/module-health` (`ModuleHealthService`). Workspaces live
-  under `app/dashboard/(workspace)`.
+- The hub: `app/dashboard/(hub)/page.tsx`. Doors and entitlement from
+  `GET /api/Dashboard/modules`, status and figures from
+  `GET /api/Dashboard/module-health` (`ModuleHealthService`). Accounting is the
+  anchor card; the other four sit beneath it. Workspaces live under
+  `app/dashboard/(workspace)`.
+- Query keys for the hub and payroll carry the company id and wait for a
+  selected company; switching company resets the query cache
+  (`contexts/company-context.tsx`).
 
 ## Model-only entities
 
@@ -151,7 +183,10 @@ controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 2. Tax: real NSFP handling, Coretax readiness, ledger-sourced withholding.
 3. Bank reconciliation: exists (`BankReconciliationService`); hardening for
    Indonesian number formats, import de-duplication, timing differences.
-4. Payroll.
+4. Payroll: leavers, THR, 1721-A1, bank transfer files.
+5. Inventory: warehouses and FIFO/moving-average valuation (the warehouses
+   page is a static mock). Fixed assets: fiscal groups (Golongan 1–4) beside
+   commercial depreciation.
 
 ## Known issues
 
@@ -162,10 +197,10 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | Invoice-level and bill-level discount unbalances the journal; refused with `UNBALANCED` | `SalesInvoicesController`, `PurchaseBillsController` |
 | Withholding (PPh 22/23/4(2)) is not journaled; reports derive from bills | `TaxReportsService` |
 | PPN: luxury goods/PPnBM never computed, `TaxRates` table unused, rounding rule unconfirmed, kurang/lebih bayar accounts unconfirmed | tax services |
-| PPh 21 not computed (no payroll) | `TaxReportsService` |
+| Payroll: no leaver annualisation, PPh 26 or 1721-A1; BPJS wage caps are configuration that must be kept current | `PayrollCalculator` |
 | Historical journal lines may hold an account Id instead of a Code and be invisible to reports | database (detection query in the audit report) |
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
 | 91 files fetch with `useEffect` instead of TanStack Query | frontend |
-| `npm run lint` fails: 449 errors, mostly `no-explicit-any` | frontend |
+| `npm run lint` fails: 448 errors, mostly `no-explicit-any` | frontend |
 | `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
 | i18n covers navigation labels only | frontend |
