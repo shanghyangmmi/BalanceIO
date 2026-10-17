@@ -44,6 +44,7 @@ public static class DefaultCoASeeder
                 IsHeader = isHeader,
                 NormalBalance = normalBalance,
                 Description = desc,
+                NameId = desc,
                 IsSystemDefault = true,
                 IsActive = true,
                 CreatedAt = now,

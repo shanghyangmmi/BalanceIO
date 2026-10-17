@@ -75,6 +75,10 @@ namespace BalanceIO.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("NameId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("NormalBalance")
                         .IsRequired()
                         .HasMaxLength(10)

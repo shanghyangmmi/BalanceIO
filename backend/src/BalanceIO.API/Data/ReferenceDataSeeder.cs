@@ -16,6 +16,7 @@ public static class ReferenceDataSeeder
     {
         await SeedTaxRatesAsync(db, ct);
         await SeedRequiredAccountsAsync(db, logger, ct);
+        await BackfillIndonesianNamesAsync(db, logger, ct);
     }
 
     private static async Task SeedTaxRatesAsync(ApplicationDbContext db, CancellationToken ct)
@@ -76,7 +77,7 @@ public static class ReferenceDataSeeder
                 {
                     Id = Guid.NewGuid(), CompanyId = companyId, Code = spec.Code, Name = spec.Name,
                     Type = spec.Type, AccountGroup = spec.Group, Level = spec.Level, NormalBalance = spec.NormalBalance,
-                    Description = spec.Description, IsActive = true, IsSystemDefault = true,
+                    Description = spec.Description, NameId = spec.Description, IsActive = true, IsSystemDefault = true,
                     ParentAccountId = have.TryGetValue(spec.ParentCode, out var parentId) ? parentId : null,
                 });
                 added++;
@@ -86,5 +87,20 @@ public static class ReferenceDataSeeder
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Seeded account {Code} for {Count} company(ies).", spec.Code, added);
         }
+    }
+
+    /// <summary>
+    /// The default chart kept each account's Indonesian name in Description.
+    /// Bilingual statements read NameId, so system accounts that predate it
+    /// take it from there. User accounts are left for their owners to name.
+    /// </summary>
+    private static async Task BackfillIndonesianNamesAsync(ApplicationDbContext db, ILogger logger, CancellationToken ct)
+    {
+        var updated = await db.Accounts.IgnoreQueryFilters()
+            .Where(a => a.IsSystemDefault && a.NameId == null && a.Description != null && a.Description.Length <= 100)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.NameId, a => a.Description), ct);
+
+        if (updated > 0)
+            logger.LogInformation("Set the Indonesian name on {Count} default account(s).", updated);
     }
 }

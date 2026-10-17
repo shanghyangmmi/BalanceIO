@@ -44,6 +44,13 @@ public class Account
     [MaxLength(10)]
     public string NormalBalance { get; set; } = "Debit";
 
+    /// <summary>
+    /// The account's name in Bahasa Indonesia, for bilingual statements.
+    /// <see cref="Name"/> is the English name. Null falls back to Name.
+    /// </summary>
+    [MaxLength(100)]
+    public string? NameId { get; set; }
+
     [MaxLength(500)]
     public string? Description { get; set; }
 

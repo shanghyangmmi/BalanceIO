@@ -77,6 +77,7 @@ builder.Services.AddScoped<AssetChargeService>();
 builder.Services.AddScoped<TaxAnalysisService>();
 builder.Services.AddScoped<TaxReportsService>();
 builder.Services.AddScoped<PayrollService>();
+builder.Services.AddScoped<FinancialStatementsService>();
 builder.Services.AddScoped<BankReconciliationService>();
 builder.Services.AddScoped<BudgetingService>();
 builder.Services.AddScoped<E2EAccountingValidationService>();

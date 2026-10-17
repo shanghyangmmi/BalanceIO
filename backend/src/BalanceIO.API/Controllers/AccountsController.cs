@@ -227,6 +227,14 @@ public class AccountsController : ControllerBase
         var existing = await _context.Accounts.FindAsync(id);
         if (existing == null) return NotFound();
 
+        // Journal lines reference the account by code. Changing the code of
+        // an account in use would detach its history from every report.
+        if (!string.Equals(existing.Code, account.Code, StringComparison.Ordinal)
+            && await HasJournalLinesAsync(existing))
+        {
+            return BadRequest(new { code = "ACCOUNT_CODE_IN_USE", message = $"Account {existing.Code} has journal lines; its code cannot change." });
+        }
+
         existing.Code = account.Code;
         existing.Name = account.Name;
         existing.Type = account.Type;
@@ -235,6 +243,7 @@ public class AccountsController : ControllerBase
         existing.IsHeader = account.IsHeader;
         existing.NormalBalance = account.NormalBalance;
         existing.Description = account.Description;
+        existing.NameId = string.IsNullOrWhiteSpace(account.NameId) ? null : account.NameId.Trim();
         existing.ParentAccountId = account.ParentAccountId;
         existing.IsActive = account.IsActive;
         existing.UpdatedAt = DateTime.UtcNow;
@@ -253,13 +262,10 @@ public class AccountsController : ControllerBase
         var account = await _context.Accounts.FindAsync(id);
         if (account == null) return NotFound();
 
-        // Prevent deletion of system default accounts with journal entries
-        if (account.IsSystemDefault)
-        {
-            var hasJournalLines = await _context.JournalLines.AnyAsync(l => l.AccountId == account.Code);
-            if (hasJournalLines)
-                return BadRequest("System default account with journal entries cannot be deleted.");
-        }
+        // Lines reference the account by code; deleting it would leave them
+        // pointing at nothing. Deactivate it instead.
+        if (await HasJournalLinesAsync(account))
+            return BadRequest(new { code = "ACCOUNT_IN_USE", message = $"Account {account.Code} has journal lines and cannot be deleted. Deactivate it instead." });
 
         // Check if account has children
         var hasChildren = await _context.Accounts.AnyAsync(a => a.ParentAccountId == id);
@@ -272,6 +278,10 @@ public class AccountsController : ControllerBase
         
         return NoContent();
     }
+
+    private Task<bool> HasJournalLinesAsync(Account account) =>
+        _context.JournalLines.AnyAsync(l => l.AccountId == account.Code
+                                         && l.JournalEntry!.CompanyId == account.CompanyId);
 
     private static int GetGroupOrder(string group) => group switch
     {

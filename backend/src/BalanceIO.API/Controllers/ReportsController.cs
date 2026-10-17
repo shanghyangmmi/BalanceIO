@@ -21,10 +21,32 @@ namespace BalanceIO.API.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly BalanceIO.API.Services.FinancialStatementsService _statements;
 
-    public ReportsController(ApplicationDbContext context)
+    public ReportsController(ApplicationDbContext context, BalanceIO.API.Services.FinancialStatementsService statements)
     {
         _context = context;
+        _statements = statements;
+    }
+
+    /// <summary>
+    /// The full statement set, bilingual (Bahasa Indonesia and English), with
+    /// the prior year alongside when <paramref name="comparative"/> is set.
+    /// Defaults to the fiscal year to date.
+    /// </summary>
+    [HttpGet("financial-statements")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<BalanceIO.API.DTOs.FinancialStatementPack>> GetFinancialStatements(
+        [FromQuery] DateOnly? start, [FromQuery] DateOnly? end, [FromQuery] bool comparative = true)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, 1, 1);
+        var who = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
+
+        return Ok(await _statements.BuildAsync(_context.CurrentCompanyId.Value, from, to, comparative, who));
     }
 
     [HttpGet("balance-sheet")]
@@ -35,7 +57,7 @@ public class ReportsController : ControllerBase
         var dateDateOnly = DateOnly.FromDateTime(reportDate);
 
         // 1. Fetch all Accounts
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToListAsync();
+        var accounts = await _context.Accounts.ToListAsync();
 
         // 2. Fetch Journal Lines up to date
         var query = _context.JournalLines
@@ -171,8 +193,7 @@ public class ReportsController : ControllerBase
 
         // Fetch Accounts (Expense/Revenue)
         var accounts = await _context.Accounts
-            .Where(a => a.IsActive && 
-                       (a.Code.StartsWith("4") || a.Code.StartsWith("5") || 
+            .Where(a => (a.Code.StartsWith("4") || a.Code.StartsWith("5") || 
                         a.Code.StartsWith("6") || a.Code.StartsWith("7") || 
                         a.Code.StartsWith("8") || a.Code.StartsWith("9")))
             .ToListAsync();
@@ -365,7 +386,7 @@ public class ReportsController : ControllerBase
         var reportDate = asOf ?? DateTime.UtcNow;
         var dateDateOnly = DateOnly.FromDateTime(reportDate);
 
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToListAsync();
+        var accounts = await _context.Accounts.ToListAsync();
 
         var query = _context.JournalLines
             .Where(l => l.JournalEntry!.Date <= dateDateOnly && l.JournalEntry.Status == JournalEntryStatus.Posted)
@@ -554,7 +575,7 @@ public class ReportsController : ControllerBase
             .ToListAsync();
             
         // Pre-fetch accounts to categorize
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToDictionaryAsync(a => a.Code, a => a);
+        var accounts = await _context.Accounts.ToDictionaryAsync(a => a.Code, a => a);
         
         decimal netIncome = 0;
         decimal depreciation = 0;
