@@ -28,11 +28,12 @@ public class SalesInvoicesController : ControllerBase
     // GET: api/salesinvoices
     [HttpGet]
     [RequiresPermission(Permissions.SalesView)]
-    public async Task<ActionResult<IEnumerable<SalesInvoice>>> GetAll()
+    public async Task<ActionResult<IEnumerable<SalesInvoice>>> GetAll([FromQuery] Guid? contactId = null)
     {
         var invoices = await _context.SalesInvoices
             .Include(i => i.Contact)
             .Include(i => i.Lines)
+            .Where(i => !contactId.HasValue || i.ContactId == contactId)
             .OrderByDescending(i => i.InvoiceDate)
             .ThenByDescending(i => i.CreatedAt)
             .ToListAsync();

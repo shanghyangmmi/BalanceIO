@@ -49,6 +49,19 @@ public class ReportsController : ControllerBase
         return Ok(await _statements.BuildAsync(_context.CurrentCompanyId.Value, from, to, comparative, who));
     }
 
+    /// <summary>Cash and cash equivalents over a period, per account, with weekly balances.</summary>
+    [HttpGet("cash-position")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<BalanceIO.API.DTOs.CashPositionResponse>> GetCashPosition([FromQuery] DateOnly? start, [FromQuery] DateOnly? end)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, to.Month, 1);
+        return Ok(await _statements.CashPositionAsync(_context.CurrentCompanyId.Value, from, to));
+    }
+
     [HttpGet("balance-sheet")]
     [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<BalanceSheetResponse>> GetBalanceSheet([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)

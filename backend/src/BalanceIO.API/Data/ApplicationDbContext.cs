@@ -100,6 +100,7 @@ public partial class ApplicationDbContext : DbContext
     public DbSet<ProductCategory> ProductCategories { get; set; }
     public DbSet<ProductUnit> ProductUnits { get; set; }
     public DbSet<StockOpname> StockOpnames { get; set; }
+    public DbSet<Warehouse> Warehouses { get; set; }
     public DbSet<StockOpnameLine> StockOpnameLines { get; set; }
     public DbSet<InventoryMovement> InventoryMovements { get; set; }
 
@@ -216,6 +217,7 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProductUnit>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<StockOpname>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<InventoryMovement>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<Warehouse>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         
         // Assets
         modelBuilder.Entity<FixedAsset>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
@@ -320,6 +322,8 @@ public partial class ApplicationDbContext : DbContext
             .HasFilter("\"Status\" <> 2");
 
         modelBuilder.Entity<PayrollLine>().HasIndex(e => e.ContactId);
+
+        modelBuilder.Entity<Warehouse>().HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
     }
 
     /// <summary>

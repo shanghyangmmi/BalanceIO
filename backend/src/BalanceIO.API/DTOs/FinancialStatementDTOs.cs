@@ -65,3 +65,35 @@ public class StatementCheck
     public bool Passed { get; set; }
     public decimal Difference { get; set; }
 }
+
+/// <summary>Cash and cash equivalent accounts (codes 1-11xx) over a period.</summary>
+public class CashPositionResponse
+{
+    public string Currency { get; set; } = "IDR";
+    public DateOnly Start { get; set; }
+    public DateOnly End { get; set; }
+    public decimal Opening { get; set; }
+    public decimal Inflow { get; set; }
+    public decimal Outflow { get; set; }
+    public decimal Closing { get; set; }
+    public List<CashAccountPosition> Accounts { get; set; } = new();
+    /// <summary>Closing balance at the end of each week of the period (the last point is the period end).</summary>
+    public List<CashBalancePoint> Series { get; set; } = new();
+}
+
+public class CashAccountPosition
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string NameId { get; set; } = string.Empty;
+    public decimal Opening { get; set; }
+    public decimal Inflow { get; set; }
+    public decimal Outflow { get; set; }
+    public decimal Closing { get; set; }
+}
+
+public class CashBalancePoint
+{
+    public DateOnly Date { get; set; }
+    public decimal Balance { get; set; }
+}

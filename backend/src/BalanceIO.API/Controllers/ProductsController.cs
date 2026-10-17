@@ -20,10 +20,12 @@ namespace BalanceIO.API.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly BalanceIO.API.Services.IPeriodLockService _periodLock;
 
-    public ProductsController(ApplicationDbContext context)
+    public ProductsController(ApplicationDbContext context, BalanceIO.API.Services.IPeriodLockService periodLock)
     {
         _context = context;
+        _periodLock = periodLock;
     }
 
     // GET: api/products
@@ -147,23 +149,92 @@ public class ProductsController : ControllerBase
     }
 
     // POST: api/products/{id}/adjust-stock
+    // A manual stock correction. It changes the quantity, records the
+    // movement, and posts the value to the ledger against inventory
+    // variance (5-9000), so stock on hand and the inventory account move
+    // together. Same accounts as a stock opname.
     [HttpPost("{id}/adjust-stock")]
     [RequiresPermission(Permissions.InventoryOpname)]
     public async Task<IActionResult> AdjustStock(Guid id, [FromBody] StockAdjustment adjustment)
     {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+        var companyId = _context.CurrentCompanyId.Value;
+
         var product = await _context.Products.FindAsync(id);
         if (product == null)
             return NotFound();
 
         if (!product.TrackInventory)
-            return BadRequest("This product does not track inventory");
+            return BadRequest(new { code = "NOT_TRACKED", message = "This product does not track inventory." });
+        if (adjustment.Quantity == 0m)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "Quantity cannot be zero." });
+        if (string.IsNullOrWhiteSpace(adjustment.Reason))
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "A reason is required for a stock adjustment." });
+        if (product.StockOnHand + adjustment.Quantity < 0m)
+            return BadRequest(new { code = "NEGATIVE_STOCK", message = $"Only {product.StockOnHand} {product.Unit} on hand; the adjustment would leave stock negative." });
+
+        var date = adjustment.Date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        await _periodLock.ValidateTransactionDate(companyId, date);
+
+        var unitCost = adjustment.UnitCost ?? product.BuyPrice;
+        if (unitCost < 0m)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "Unit cost cannot be negative." });
+        var value = Math.Round(Math.Abs(adjustment.Quantity) * unitCost, 2, MidpointRounding.ToEven);
+
+        var inventoryKey = product.InventoryAccountId?.ToString() ?? "1-1400";
+        var codes = await _context.ResolveAccountCodesAsync(companyId, new[] { inventoryKey, "5-9000" });
+        if (value > 0m && (!codes.ContainsKey(inventoryKey) || !codes.ContainsKey("5-9000")))
+            return BadRequest(new { code = "MISSING_ACCOUNT", message = "The inventory account or Inventory Variance (5-9000) is missing from the chart of accounts." });
+
+        var reference = $"ADJ-{date:yyyyMMdd}-{product.Code}";
+        var reason = adjustment.Reason.Trim();
+        Guid? entryId = null;
+
+        if (value > 0m)
+        {
+            var increase = adjustment.Quantity > 0m;
+            var entry = new JournalEntry
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = companyId,
+                Date = date,
+                ReferenceNumber = reference,
+                Currency = "IDR",
+                Notes = $"Stock adjustment, {product.Name}: {reason}",
+                Status = JournalEntryStatus.Posted,
+                CreatedAt = DateTime.UtcNow,
+                Lines =
+                [
+                    new JournalLine { Id = Guid.NewGuid(), AccountId = codes[inventoryKey], Description = $"{product.Name} {adjustment.Quantity:+0.####;-0.####} {product.Unit}", Debit = increase ? value : 0m, Credit = increase ? 0m : value },
+                    new JournalLine { Id = Guid.NewGuid(), AccountId = codes["5-9000"], Description = $"Inventory variance, {product.Name}", Debit = increase ? 0m : value, Credit = increase ? value : 0m },
+                ],
+            };
+            _context.JournalEntries.Add(entry);
+            entryId = entry.Id;
+        }
+
+        _context.InventoryMovements.Add(new InventoryMovement
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            ProductId = product.Id,
+            MovementDate = date,
+            Type = InventoryMovementType.ManualAdjustment,
+            Quantity = adjustment.Quantity,
+            UnitCost = unitCost,
+            TotalCost = adjustment.Quantity * unitCost,
+            ReferenceNumber = reference,
+            JournalEntryId = entryId,
+            Notes = reason,
+        });
 
         product.StockOnHand += adjustment.Quantity;
         product.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { stockOnHand = product.StockOnHand });
+        return Ok(new { stockOnHand = product.StockOnHand, journalEntryId = entryId, value });
     }
 
     private async Task<string> GenerateCode(ProductType type)
@@ -176,6 +247,11 @@ public class ProductsController : ControllerBase
 
 public class StockAdjustment
 {
+    /// <summary>Signed: positive adds stock, negative removes it.</summary>
     public decimal Quantity { get; set; }
     public string? Reason { get; set; }
+    /// <summary>Defaults to today (WIB).</summary>
+    public DateOnly? Date { get; set; }
+    /// <summary>Defaults to the product's buy price.</summary>
+    public decimal? UnitCost { get; set; }
 }

@@ -129,6 +129,77 @@ public class FinancialStatementsService
         return pack;
     }
 
+    /// <summary>
+    /// Cash and cash equivalents over a period: opening, money in, money out,
+    /// closing, per account, and the balance at each week end.
+    /// </summary>
+    public async Task<CashPositionResponse> CashPositionAsync(Guid companyId, DateOnly start, DateOnly end)
+    {
+        if (end < start)
+            throw new System.ComponentModel.DataAnnotations.ValidationException("The period end is before its start.");
+
+        var currency = await _context.Companies.AsNoTracking()
+            .Where(c => c.Id == companyId).Select(c => c.Currency).FirstOrDefaultAsync() ?? "IDR";
+
+        var accounts = (await _context.Accounts.AsNoTracking()
+                .Where(a => a.CompanyId == companyId)
+                .Select(a => new { a.Code, a.Name, a.NameId })
+                .ToListAsync())
+            .Where(a => Classify(a.Code) == Class.Cash)
+            .GroupBy(a => a.Code).Select(g => g.First())
+            .OrderBy(a => a.Code, StringComparer.Ordinal)
+            .ToList();
+        var codes = accounts.Select(a => a.Code).ToList();
+
+        var raw = await _context.JournalLines.AsNoTracking()
+            .Where(l => l.JournalEntry!.CompanyId == companyId
+                     && l.JournalEntry.Status == JournalEntryStatus.Posted
+                     && l.JournalEntry.Date <= end
+                     && codes.Contains(l.AccountId))
+            .Select(l => new { Line = new Line(l.AccountId, l.JournalEntry!.Date, l.Debit, l.Credit), l.JournalEntryId })
+            .ToListAsync();
+        var lines = raw.Select(r => r.Line).ToList();
+
+        var response = new CashPositionResponse { Currency = currency, Start = start, End = end };
+        foreach (var a in accounts)
+        {
+            var own = lines.Where(l => l.Code == a.Code).ToList();
+            var inPeriod = own.Where(l => l.Date >= start).ToList();
+            var position = new CashAccountPosition
+            {
+                Code = a.Code,
+                Name = a.Name,
+                NameId = string.IsNullOrWhiteSpace(a.NameId) ? a.Name : a.NameId,
+                Opening = own.Where(l => l.Date < start).Sum(l => l.Debit - l.Credit),
+                Inflow = inPeriod.Sum(l => l.Debit),
+                Outflow = inPeriod.Sum(l => l.Credit),
+            };
+            position.Closing = position.Opening + position.Inflow - position.Outflow;
+            if (position.Opening == 0m && position.Inflow == 0m && position.Outflow == 0m) continue;
+            response.Accounts.Add(position);
+        }
+
+        response.Opening = response.Accounts.Sum(a => a.Opening);
+        // Totals net each entry across the cash accounts, so a transfer from
+        // one bank account to another is neither money in nor money out.
+        var perEntry = raw.Where(r => r.Line.Date >= start)
+            .GroupBy(r => r.JournalEntryId)
+            .Select(g => g.Sum(r => r.Line.Debit - r.Line.Credit))
+            .ToList();
+        response.Inflow = perEntry.Where(v => v > 0m).Sum();
+        response.Outflow = -perEntry.Where(v => v < 0m).Sum();
+        response.Closing = response.Accounts.Sum(a => a.Closing);
+
+        for (var point = start.AddDays(6); ; point = point.AddDays(7))
+        {
+            var at = point < end ? point : end;
+            response.Series.Add(new CashBalancePoint { Date = at, Balance = lines.Where(l => l.Date <= at).Sum(l => l.Debit - l.Credit) });
+            if (at == end) break;
+        }
+
+        return response;
+    }
+
     // ── statements ────────────────────────────────────────────────────
 
     private static FinancialStatement PositionStatement(Calc c, DateOnly end, DateOnly? priorEnd)
