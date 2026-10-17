@@ -29,6 +29,7 @@ public static class RolePermissions
         Permissions.FinanceView, Permissions.FinanceCreate, Permissions.FinanceEdit, Permissions.FinanceDelete, Permissions.FinanceReport,
         Permissions.InventoryView, Permissions.InventoryManage, Permissions.InventoryOpname,
         Permissions.AssetsView, Permissions.AssetsManage, Permissions.AssetsDepreciate,
+        Permissions.PayrollView, Permissions.PayrollManage, Permissions.PayrollApprove,
         Permissions.ContactsView, Permissions.ContactsManage,
         Permissions.SettingsView, Permissions.SettingsManage,
         Permissions.UsersView, Permissions.UsersManage,
@@ -43,6 +44,7 @@ public static class RolePermissions
         Permissions.FinanceView, Permissions.FinanceCreate, Permissions.FinanceEdit, Permissions.FinanceDelete, Permissions.FinanceReport,
         Permissions.InventoryView, Permissions.InventoryManage, Permissions.InventoryOpname,
         Permissions.AssetsView, Permissions.AssetsManage, Permissions.AssetsDepreciate,
+        Permissions.PayrollView, Permissions.PayrollManage, Permissions.PayrollApprove,
         Permissions.ContactsView, Permissions.ContactsManage,
         Permissions.SettingsView, Permissions.SettingsManage,
         Permissions.UsersView, Permissions.UsersManage,
@@ -57,6 +59,7 @@ public static class RolePermissions
         Permissions.FinanceView, Permissions.FinanceCreate, Permissions.FinanceEdit, Permissions.FinanceReport,
         Permissions.InventoryView, Permissions.InventoryManage, Permissions.InventoryOpname,
         Permissions.AssetsView, Permissions.AssetsManage, Permissions.AssetsDepreciate,
+        Permissions.PayrollView, Permissions.PayrollManage, Permissions.PayrollApprove,
         Permissions.ContactsView, Permissions.ContactsManage,
         Permissions.SettingsView,
         Permissions.AuditView
@@ -71,6 +74,7 @@ public static class RolePermissions
         Permissions.FinanceReport,
         Permissions.InventoryView,
         Permissions.AssetsView,
+        Permissions.PayrollView,
         Permissions.ContactsView,
         Permissions.AuditView
     };

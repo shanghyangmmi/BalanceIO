@@ -1342,6 +1342,55 @@ namespace BalanceIO.API.Migrations
                     b.ToTable("EmailSettings");
                 });
 
+            modelBuilder.Entity("BalanceIO.API.Models.EmployeeCompensation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<bool>("BpjsKesehatan")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("BpjsKetenagakerjaan")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("BpjsPension")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContactId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("FixedAllowance")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("JkkRate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("CompanyId", "ContactId")
+                        .IsUnique();
+
+                    b.ToTable("EmployeeCompensations");
+                });
+
             modelBuilder.Entity("BalanceIO.API.Models.EvidenceAttachment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2449,6 +2498,175 @@ namespace BalanceIO.API.Migrations
                     b.HasIndex("PurchaseBillId");
 
                     b.ToTable("PaymentVoucherLines");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.PayrollLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<Guid>("ContactId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("EmployeeJht")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("EmployeeJp")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("EmployeeKesehatan")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<string>("EmployeeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("EmployerJht")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("EmployerJkk")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("EmployerJkm")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("EmployerJp")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("EmployerKesehatan")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("FixedAllowance")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("NetPay")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<string>("Nik")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<decimal>("OtherEarnings")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<Guid>("PayrollRunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Pph21")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<string>("Pph21Method")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("PtkpStatus")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<decimal>("TaxableGross")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<string>("TerCategory")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("character varying(1)");
+
+                    b.Property<decimal?>("TerRate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("Warning")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContactId");
+
+                    b.HasIndex("PayrollRunId");
+
+                    b.ToTable("PayrollLines");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.PayrollRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateOnly>("PostingDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalEmployeeBpjs")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("TotalEmployerBpjs")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("TotalGross")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("TotalNetPay")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("TotalPph21")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Year", "Month")
+                        .IsUnique()
+                        .HasFilter("\"Status\" <> 2");
+
+                    b.ToTable("PayrollRuns");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.Plan", b =>
@@ -4377,6 +4595,17 @@ namespace BalanceIO.API.Migrations
                     b.Navigation("SalesOrderLine");
                 });
 
+            modelBuilder.Entity("BalanceIO.API.Models.EmployeeCompensation", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.Contact", "Contact")
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Contact");
+                });
+
             modelBuilder.Entity("BalanceIO.API.Models.EvidenceAttachment", b =>
                 {
                     b.HasOne("BalanceIO.API.Models.Company", "Company")
@@ -4671,6 +4900,17 @@ namespace BalanceIO.API.Migrations
                     b.Navigation("PaymentVoucher");
 
                     b.Navigation("PurchaseBill");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.PayrollLine", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.PayrollRun", "PayrollRun")
+                        .WithMany("Lines")
+                        .HasForeignKey("PayrollRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PayrollRun");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.PlanFeature", b =>
@@ -5164,6 +5404,11 @@ namespace BalanceIO.API.Migrations
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.PaymentVoucher", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.PayrollRun", b =>
                 {
                     b.Navigation("Lines");
                 });

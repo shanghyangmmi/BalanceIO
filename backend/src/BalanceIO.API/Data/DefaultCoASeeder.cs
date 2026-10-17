@@ -96,7 +96,9 @@ public static class DefaultCoASeeder
         A("2-1200", "Accrued Expenses", "Liability", "Liability", 3, false, "Credit", "2-1000", "Beban yang Masih Harus Dibayar");
         A("2-1300", "VAT Out", "Liability", "Liability", 3, false, "Credit", "2-1000", "PPN Keluaran");
         A("2-1400", "Income Tax Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "PPh Terutang");
+        A("2-1410", "PPh 21 Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang PPh 21");
         A("2-1500", "Employee Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang Gaji");
+        A("2-1510", "BPJS Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang BPJS");
         A("2-1600", "Unearned Revenue", "Liability", "Liability", 3, false, "Credit", "2-1000", "Pendapatan Diterima di Muka");
 
         var ncLiab = A("2-2000", "Non-Current Liabilities", "Liability", "Liability", 2, true, "Credit", "2-0000");
@@ -139,6 +141,7 @@ public static class DefaultCoASeeder
 
         var ga = A("6-1000", "General & Administrative", "Expense", "Expense", 2, true, "Debit", "6-0000");
         A("6-1100", "Salaries & Wages", "Expense", "Expense", 3, false, "Debit", "6-1000", "Gaji & Upah");
+        A("6-1110", "Employee Benefits (BPJS)", "Expense", "Expense", 3, false, "Debit", "6-1000", "Beban BPJS");
         A("6-1200", "Rent Expense", "Expense", "Expense", 3, false, "Debit", "6-1000", "Beban Sewa");
         A("6-1300", "Utilities", "Expense", "Expense", 3, false, "Debit", "6-1000", "Listrik, Air, Internet");
         A("6-1400", "Office Supplies", "Expense", "Expense", 3, false, "Debit", "6-1000", "Perlengkapan Kantor");

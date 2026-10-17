@@ -123,6 +123,11 @@ public partial class ApplicationDbContext : DbContext
     public DbSet<ScheduledJob> ScheduledJobs { get; set; }
     public DbSet<JobRun> JobRuns { get; set; }
 
+    // Payroll
+    public DbSet<EmployeeCompensation> EmployeeCompensations { get; set; }
+    public DbSet<PayrollRun> PayrollRuns { get; set; }
+    public DbSet<PayrollLine> PayrollLines { get; set; }
+
     public Guid? CurrentCompanyId { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -259,6 +264,11 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<BudgetLine>()
             .HasQueryFilter(e => e.Budget!.CompanyId == CurrentCompanyId);
 
+        modelBuilder.Entity<EmployeeCompensation>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<PayrollRun>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<PayrollLine>()
+            .HasQueryFilter(e => e.PayrollRun!.CompanyId == CurrentCompanyId);
+
         // --- Indexes for Performance ---
         modelBuilder.Entity<JournalEntry>().HasIndex(e => new { e.CompanyId, e.Date });
         modelBuilder.Entity<JournalEntry>().HasIndex(e => e.ProjectId);
@@ -297,6 +307,19 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<ImportBatch>().HasIndex(e => new { e.CompanyId, e.ConversionDate });
         modelBuilder.Entity<ExchangeRate>().HasIndex(e => new { e.RateDate, e.FromCurrency, e.RateType });
         modelBuilder.Entity<ExchangeRate>().HasIndex(e => new { e.ValidFrom, e.ValidTo, e.FromCurrency });
+
+        modelBuilder.Entity<EmployeeCompensation>()
+            .HasIndex(e => new { e.CompanyId, e.ContactId })
+            .IsUnique();
+
+        // One live run per month. A voided run steps aside so the month can
+        // be run again; the filter is the same SQL on SQLite and PostgreSQL.
+        modelBuilder.Entity<PayrollRun>()
+            .HasIndex(e => new { e.CompanyId, e.Year, e.Month })
+            .IsUnique()
+            .HasFilter("\"Status\" <> 2");
+
+        modelBuilder.Entity<PayrollLine>().HasIndex(e => e.ContactId);
     }
 
     /// <summary>
@@ -426,7 +449,7 @@ public partial class ApplicationDbContext : DbContext
 
             // Only audit important operational tables to avoid log bloat
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
-            var allowedTables = new[] { "Accounts", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets" };
+            var allowedTables = new[] { "Accounts", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets", "EmployeeCompensations", "PayrollRuns" };
             if (!allowedTables.Contains(tableName))
                 continue;
 

@@ -15,7 +15,7 @@ public static class ReferenceDataSeeder
     public static async Task SeedAsync(ApplicationDbContext db, ILogger logger, CancellationToken ct = default)
     {
         await SeedTaxRatesAsync(db, ct);
-        await SeedInventoryVarianceAccountsAsync(db, logger, ct);
+        await SeedRequiredAccountsAsync(db, logger, ct);
     }
 
     private static async Task SeedTaxRatesAsync(ApplicationDbContext db, CancellationToken ct)
@@ -37,25 +37,54 @@ public static class ReferenceDataSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    private static async Task SeedInventoryVarianceAccountsAsync(ApplicationDbContext db, ILogger logger, CancellationToken ct)
+    /// <summary>
+    /// Accounts that a posting path depends on and that companies created
+    /// before the path existed do not have. Added to every company missing
+    /// them; existing accounts with the code are left alone.
+    /// </summary>
+    private static readonly (string Code, string Name, string Type, string Group, int Level, string NormalBalance, string Description, string ParentCode)[] RequiredAccounts =
+    {
+        (VarianceCode, "Inventory Variance", "Expense", "CostOfSales", 2, "Debit", "Selisih Persediaan", "5-0000"),
+        ("2-1410", "PPh 21 Payable", "Liability", "Liability", 3, "Credit", "Utang PPh 21", "2-1000"),
+        ("2-1510", "BPJS Payable", "Liability", "Liability", 3, "Credit", "Utang BPJS", "2-1000"),
+        ("6-1110", "Employee Benefits (BPJS)", "Expense", "Expense", 3, "Debit", "Beban BPJS", "6-1000"),
+    };
+
+    private static async Task SeedRequiredAccountsAsync(ApplicationDbContext db, ILogger logger, CancellationToken ct)
     {
         var companies = await db.Companies.AsNoTracking().Select(c => c.Id).ToListAsync(ct);
-        var have = (await db.Accounts.IgnoreQueryFilters().Where(a => a.Code == VarianceCode).Select(a => a.CompanyId).ToListAsync(ct)).ToHashSet();
+        var codes = RequiredAccounts.Select(a => a.Code).Concat(RequiredAccounts.Select(a => a.ParentCode)).Distinct().ToList();
 
-        var added = 0;
-        foreach (var companyId in companies.Where(c => !have.Contains(c)))
+        var existing = await db.Accounts.IgnoreQueryFilters()
+            .Where(a => codes.Contains(a.Code))
+            .Select(a => new { a.CompanyId, a.Code, a.Id })
+            .ToListAsync(ct);
+
+        var byCompany = existing
+            .GroupBy(a => a.CompanyId)
+            .ToDictionary(g => g.Key, g => g.ToDictionary(a => a.Code, a => a.Id));
+
+        foreach (var spec in RequiredAccounts)
         {
-            db.Accounts.Add(new Account
+            var added = 0;
+            foreach (var companyId in companies)
             {
-                Id = Guid.NewGuid(), CompanyId = companyId, Code = VarianceCode, Name = "Inventory Variance",
-                Type = "Expense", AccountGroup = "CostOfSales", Level = 2, NormalBalance = "Debit",
-                Description = "Selisih Persediaan", IsActive = true, IsSystemDefault = true,
-            });
-            added++;
-        }
-        if (added == 0) return;
+                var have = byCompany.TryGetValue(companyId, out var accounts) ? accounts : new Dictionary<string, Guid>();
+                if (have.ContainsKey(spec.Code)) continue;
 
-        await db.SaveChangesAsync(ct);
-        logger.LogInformation("Seeded account {Code} for {Count} company(ies).", VarianceCode, added);
+                db.Accounts.Add(new Account
+                {
+                    Id = Guid.NewGuid(), CompanyId = companyId, Code = spec.Code, Name = spec.Name,
+                    Type = spec.Type, AccountGroup = spec.Group, Level = spec.Level, NormalBalance = spec.NormalBalance,
+                    Description = spec.Description, IsActive = true, IsSystemDefault = true,
+                    ParentAccountId = have.TryGetValue(spec.ParentCode, out var parentId) ? parentId : null,
+                });
+                added++;
+            }
+
+            if (added == 0) continue;
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Seeded account {Code} for {Count} company(ies).", spec.Code, added);
+        }
     }
 }

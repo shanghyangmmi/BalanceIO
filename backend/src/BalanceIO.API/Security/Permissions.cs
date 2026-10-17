@@ -33,6 +33,11 @@ public static class Permissions
     public const string AssetsManage = "Assets.Manage";
     public const string AssetsDepreciate = "Assets.Depreciate";
 
+    // Payroll
+    public const string PayrollView = "Payroll.View";
+    public const string PayrollManage = "Payroll.Manage"; // Compensation, draft runs
+    public const string PayrollApprove = "Payroll.Approve"; // Post or void a run
+
     // Contacts
     public const string ContactsView = "Contacts.View";
     public const string ContactsManage = "Contacts.Manage";

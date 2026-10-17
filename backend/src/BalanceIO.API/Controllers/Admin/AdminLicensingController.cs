@@ -448,6 +448,7 @@ public class AdminLicensingController : ControllerBase
             new() { Key = "module.tax",         Name = "Tax module",        Module = "tax",         SortOrder = 10, Description = "SPT Masa PPN, withholding, ekualisasi, rekonsiliasi fiskal and the debt to equity test." },
             new() { Key = "module.inventory",   Name = "Inventory module",  Module = "inventory",   SortOrder = 20, Description = "Items, stock opname, adjustments and the COGS they post." },
             new() { Key = "module.fixedAssets", Name = "Assets module",     Module = "fixedAssets", SortOrder = 30, Description = "Asset register, depreciation, amortisation, disposal and revaluation." },
+            new() { Key = "module.payroll",     Name = "Payroll module",    Module = "payroll",     SortOrder = 35, Description = "Compensation, monthly runs, PPh 21 TER and BPJS, posted as salary expense." },
 
             new() { Key = "tax.equalisation",    Name = "Ekualisasi",              Module = "tax", SortOrder = 40, Description = "PPN Keluaran against sales and PPN Masukan against purchases." },
             new() { Key = "tax.reconciliation",  Name = "Rekonsiliasi fiskal",     Module = "tax", SortOrder = 41, Description = "Commercial profit reconciled to fiscal profit." },
