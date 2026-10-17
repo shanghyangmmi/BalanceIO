@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -23,6 +24,7 @@ public class AccountsController : ControllerBase
 
     // GET: api/accounts
     [HttpGet]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<object>>> GetAccounts()
     {
         try
@@ -70,6 +72,7 @@ public class AccountsController : ControllerBase
 
     // GET: api/accounts/tree
     [HttpGet("tree")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult> GetAccountsTree()
     {
         try
@@ -114,6 +117,7 @@ public class AccountsController : ControllerBase
 
     // POST: api/accounts/initialize — Seed default CoA for current company
     [HttpPost("initialize")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult> InitializeDefaultCoA()
     {
         try
@@ -144,6 +148,7 @@ public class AccountsController : ControllerBase
 
     // GET: api/accounts/{id}
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<Account>> GetById(Guid id)
     {
         var account = await _context.Accounts.FindAsync(id);
@@ -153,6 +158,7 @@ public class AccountsController : ControllerBase
 
     // POST: api/accounts
     [HttpPost]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult<Account>> Create(Account account)
     {
         if (account.Id == Guid.Empty)
@@ -213,6 +219,7 @@ public class AccountsController : ControllerBase
 
     // PUT: api/accounts/{id}
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<IActionResult> Update(Guid id, Account account)
     {
         if (id != account.Id) return BadRequest("ID mismatch");
@@ -240,6 +247,7 @@ public class AccountsController : ControllerBase
 
     // DELETE: api/accounts/{id}
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.FinanceDelete)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var account = await _context.Accounts.FindAsync(id);

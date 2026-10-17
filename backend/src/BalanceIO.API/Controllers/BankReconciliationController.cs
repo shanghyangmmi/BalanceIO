@@ -4,6 +4,7 @@ using BalanceIO.API.DTOs;
 using BalanceIO.API.Models;
 using BalanceIO.API.Services;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BalanceIO.API.Controllers;
@@ -48,6 +49,7 @@ public class BankReconciliationController : ControllerBase
     /// List all Cash & Bank accounts with GL balances and reconciliation status
     /// </summary>
     [HttpGet("accounts")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<List<BankAccountSummaryDto>>> GetAccountsSummary()
     {
         var companyId = GetCurrentCompanyId();
@@ -61,6 +63,7 @@ public class BankReconciliationController : ControllerBase
     /// Load 2-pane reconciliation workspace for a specific bank account
     /// </summary>
     [HttpGet("workspace/{accountId}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<BankReconciliationWorkspaceResponse>> GetWorkspace(
         Guid accountId, 
         [FromQuery] DateOnly? asOfDate = null)
@@ -83,6 +86,7 @@ public class BankReconciliationController : ControllerBase
     /// Import and parse a bank statement CSV
     /// </summary>
     [HttpPost("import")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult<StatementImportResponse>> ImportStatement([FromBody] StatementImportRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -101,6 +105,7 @@ public class BankReconciliationController : ControllerBase
     /// Run multi-pass automated matching against unmatched ledger entries
     /// </summary>
     [HttpPost("auto-match")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult<AutoMatchResponse>> RunAutoMatch([FromBody] AutoMatchRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -114,6 +119,7 @@ public class BankReconciliationController : ControllerBase
     /// Manually link a statement line to a GL journal line
     /// </summary>
     [HttpPost("match")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult> ManualMatch([FromBody] ManualMatchRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -134,6 +140,7 @@ public class BankReconciliationController : ControllerBase
     /// Unlink a previously matched statement line
     /// </summary>
     [HttpPost("unmatch")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult> Unmatch([FromBody] UnmatchRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -154,6 +161,7 @@ public class BankReconciliationController : ControllerBase
     /// 1-Click GL adjustment posting for unrecorded bank fee or interest income
     /// </summary>
     [HttpPost("post-adjustment")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult<PostBankAdjustmentResponse>> PostBankAdjustment([FromBody] PostBankAdjustmentRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -174,6 +182,7 @@ public class BankReconciliationController : ControllerBase
     /// Finalize and lock formal bank reconciliation session
     /// </summary>
     [HttpPost("finalize")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult<FinalizeReconciliationResponse>> FinalizeReconciliation([FromBody] FinalizeReconciliationRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -192,6 +201,7 @@ public class BankReconciliationController : ControllerBase
     /// Download sample statement CSV templates (Generic, BCA, Mandiri)
     /// </summary>
     [HttpGet("sample-template")]
+    [RequiresPermission(Permissions.FinanceView)]
     public IActionResult DownloadSampleTemplate([FromQuery] string format = "generic")
     {
         var sb = new StringBuilder();

@@ -134,6 +134,7 @@ public class DashboardController : ControllerBase
     /// settled, and the figures have to be consistent with the reports.
     /// </summary>
     [HttpGet("module-health")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<ModuleHealthResponse>> GetModuleHealth()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -166,6 +167,7 @@ public class DashboardController : ControllerBase
     /// modules nobody opened.
     /// </summary>
     [HttpGet("accounting")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<AccountingOverviewResponse>> GetAccountingOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -190,6 +192,7 @@ public class DashboardController : ControllerBase
     /// Nothing in the response decides how a transaction should be taxed.
     /// </summary>
     [HttpGet("tax")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TaxOverviewResponse>> GetTaxOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -216,6 +219,7 @@ public class DashboardController : ControllerBase
     /// Behind the Tax entitlement, like the rest of the module.
     /// </summary>
     [HttpGet("tax/equalisation")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TaxEqualisationResponse>> GetTaxEqualisation([FromQuery] int? year)
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -246,6 +250,7 @@ public class DashboardController : ControllerBase
     /// through the corrections marked on the chart of accounts.
     /// </summary>
     [HttpGet("tax/reconciliation")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<FiscalReconciliationResponse>> GetFiscalReconciliation([FromQuery] int? year)
     {
         var guard = await TaxYearGuardAsync(year);
@@ -259,6 +264,7 @@ public class DashboardController : ControllerBase
     /// interest that falls outside the 4:1 cap.
     /// </summary>
     [HttpGet("tax/debt-to-equity")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<DebtToEquityResponse>> GetDebtToEquity([FromQuery] int? year)
     {
         var guard = await TaxYearGuardAsync(year);
@@ -301,9 +307,11 @@ public class DashboardController : ControllerBase
     /// so giving them separate implementations would only let them drift.
     /// </summary>
     [HttpGet("assets/depreciation")]
+    [RequiresPermission(Permissions.AssetsView)]
     public Task<ActionResult<AssetChargeOverviewResponse>> GetDepreciation() => AssetChargeAsync(intangible: false);
 
     [HttpGet("assets/amortisation")]
+    [RequiresPermission(Permissions.AssetsView)]
     public Task<ActionResult<AssetChargeOverviewResponse>> GetAmortisation() => AssetChargeAsync(intangible: true);
 
     /// <summary>
@@ -364,6 +372,7 @@ public class DashboardController : ControllerBase
     /// and the items whose movements cannot reach the ledger.
     /// </summary>
     [HttpGet("inventory")]
+    [RequiresPermission(Permissions.InventoryView)]
     public async Task<ActionResult<StockOverviewResponse>> GetStockOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -386,6 +395,7 @@ public class DashboardController : ControllerBase
     /// behind on depreciation, and what could not post if it were run.
     /// </summary>
     [HttpGet("assets")]
+    [RequiresPermission(Permissions.AssetsView)]
     public async Task<ActionResult<AssetOverviewResponse>> GetAssetOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -404,6 +414,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("metrics")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult> GetMetrics()
     {
         try
@@ -474,6 +485,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("recent-sales")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult> GetRecentSales()
     {
         try
@@ -502,6 +514,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("overview")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult> GetOverview()
     {
         try
@@ -537,6 +550,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("expense-breakdown")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult> GetExpenseBreakdown()
     {
         try
@@ -584,6 +598,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("top-products")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult> GetTopProducts()
     {
         try
@@ -631,6 +646,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("sales-trend")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult> GetSalesTrend()
     {
         try

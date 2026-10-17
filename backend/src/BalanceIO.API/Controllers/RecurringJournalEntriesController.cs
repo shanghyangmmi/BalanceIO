@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,7 @@ public class RecurringJournalEntriesController : ControllerBase
     }
 
     [HttpGet]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<RecurringJournalEntry>>> GetAll()
     {
         return await _context.RecurringJournalEntries
@@ -36,6 +38,7 @@ public class RecurringJournalEntriesController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<RecurringJournalEntry>> GetById(Guid id)
     {
         var entry = await _context.RecurringJournalEntries
@@ -49,6 +52,7 @@ public class RecurringJournalEntriesController : ControllerBase
     }
 
     [HttpPost]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult<RecurringJournalEntry>> Create(RecurringJournalEntry entry)
     {
         if (entry.Id == Guid.Empty) entry.Id = Guid.NewGuid();
@@ -75,6 +79,7 @@ public class RecurringJournalEntriesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<IActionResult> Update(Guid id, RecurringJournalEntry entry)
     {
         if (id != entry.Id) return BadRequest();
@@ -110,6 +115,7 @@ public class RecurringJournalEntriesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.FinanceDelete)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var entry = await _context.RecurringJournalEntries.FindAsync(id);
@@ -122,6 +128,7 @@ public class RecurringJournalEntriesController : ControllerBase
 
     // Process Manually Endpoint (Simplified Logic)
     [HttpPost("{id}/process")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<IActionResult> Process(Guid id)
     {
         var template = await _context.RecurringJournalEntries

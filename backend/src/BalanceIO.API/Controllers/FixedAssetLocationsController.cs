@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,12 +27,14 @@ public class FixedAssetLocationsController : ControllerBase
     }
 
     [HttpGet]
+    [RequiresPermission(Permissions.AssetsView)]
     public async Task<ActionResult<IEnumerable<FixedAssetLocation>>> GetAll()
     {
         return await _context.FixedAssetLocations.OrderBy(l => l.Name).ToListAsync();
     }
 
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.AssetsView)]
     public async Task<ActionResult<FixedAssetLocation>> GetById(Guid id)
     {
         var location = await _context.FixedAssetLocations.FindAsync(id);
@@ -40,6 +43,7 @@ public class FixedAssetLocationsController : ControllerBase
     }
 
     [HttpPost]
+    [RequiresPermission(Permissions.AssetsManage)]
     public async Task<ActionResult<FixedAssetLocation>> Create(FixedAssetLocation location)
     {
         if (location.Id == Guid.Empty) location.Id = Guid.NewGuid();
@@ -57,6 +61,7 @@ public class FixedAssetLocationsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.AssetsManage)]
     public async Task<IActionResult> Update(Guid id, FixedAssetLocation location)
     {
         if (id != location.Id) return BadRequest();
@@ -73,6 +78,7 @@ public class FixedAssetLocationsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.AssetsManage)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var location = await _context.FixedAssetLocations.FindAsync(id);

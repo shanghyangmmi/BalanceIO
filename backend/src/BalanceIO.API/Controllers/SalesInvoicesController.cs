@@ -42,6 +42,7 @@ public class SalesInvoicesController : ControllerBase
 
     // GET: api/salesinvoices/{id}
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult<SalesInvoice>> GetById(Guid id)
     {
         var invoice = await _context.SalesInvoices
@@ -95,6 +96,7 @@ public class SalesInvoicesController : ControllerBase
 
     // PUT: api/salesinvoices/{id}
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.SalesEdit)]
     public async Task<IActionResult> Update(Guid id, SalesInvoice invoice)
     {
         if (id != invoice.Id)
@@ -234,6 +236,7 @@ public class SalesInvoicesController : ControllerBase
 
     // POST: api/salesinvoices/{id}/void
     [HttpPost("{id}/void")]
+    [RequiresPermission(Permissions.SalesDelete)]
     public async Task<IActionResult> Void(Guid id)
     {
         if (!_context.CurrentCompanyId.HasValue)

@@ -72,7 +72,7 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
 | Balance of Posted entries in the database | PostgreSQL deferred constraint triggers (`EnforceLedgerBalanceInDatabase`) | anything, including raw SQL. Not present on SQLite |
 | Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (15 files). Throws `PeriodLockedException` (400 `PERIOD_LOCKED`) |
 | Tenant scope | `CompanyScopeMiddleware` + query filters | reads. `Companies` has no filter: look it up by `CurrentCompanyId` |
-| Permissions | `[RequiresPermission]` → `PermissionFilter` | per action. Most controllers still have only `[Authorize]` |
+| Permissions | `[RequiresPermission]` → `PermissionFilter` | per action. `PermissionCoverageTests` fails on any action without one, other than the listed self-service ones |
 | Plan limit → 402 | `PlanLimitMiddleware` | |
 | Exceptions → JSON | `ApiExceptionMiddleware` | no stack trace outside Development |
 
@@ -155,7 +155,6 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 
 | Issue | Where |
 |---|---|
-| Most controllers lack `[RequiresPermission]` (Accounts, Reports, BankReconciliation, RecurringJournalEntries, Products, ...) | `Controllers/` |
 | Invoice-level and bill-level discount unbalances the journal; refused with `UNBALANCED` | `SalesInvoicesController`, `PurchaseBillsController` |
 | Withholding (PPh 22/23/4(2)) is not journaled; reports derive from bills | `TaxReportsService` |
 | PPN: luxury goods/PPnBM never computed, `TaxRates` table unused, rounding rule unconfirmed, kurang/lebih bayar accounts unconfirmed | tax services |

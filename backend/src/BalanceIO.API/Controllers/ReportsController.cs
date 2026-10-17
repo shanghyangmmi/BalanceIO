@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -27,6 +28,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("balance-sheet")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<BalanceSheetResponse>> GetBalanceSheet([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var reportDate = asOf ?? DateTime.UtcNow;
@@ -161,6 +163,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("profit-loss")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<ProfitLossResponse>> GetProfitLoss([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -231,6 +234,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("aged-receivables")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AgedReportResponse>> GetAgedReceivables()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -278,6 +282,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("aged-payables")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AgedReportResponse>> GetAgedPayables()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -325,6 +330,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("inventory-valuation")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<InventoryValuationResponse>> GetInventoryValuation()
     {
         var products = await _context.Products
@@ -353,6 +359,7 @@ public class ReportsController : ControllerBase
         return report;
     }
     [HttpGet("trial-balance")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TrialBalanceResponse>> GetTrialBalance([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var reportDate = asOf ?? DateTime.UtcNow;
@@ -432,6 +439,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("general-ledger")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<GeneralLedgerResponse>> GetGeneralLedger([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] string? accountId = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -529,6 +537,7 @@ public class ReportsController : ControllerBase
         return report;
     }
     [HttpGet("cash-flow")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<CashFlowResponse>> GetCashFlow([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -657,6 +666,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("equity")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<EquityChangeResponse>> GetEquity([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -724,6 +734,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("assets-schedule")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AssetsScheduleResponse>> GetAssetsSchedule([FromQuery] DateOnly? asOf = null)
     {
         // For now, simple snapshot of current state

@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpGet]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<Project>>> GetAll()
     {
         return await _context.Projects
@@ -35,6 +37,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<Project>> GetById(Guid id)
     {
         var project = await _context.Projects.FindAsync(id);
@@ -43,6 +46,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPost]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult<Project>> Create(Project project)
     {
         if (project.Id == Guid.Empty) project.Id = Guid.NewGuid();
@@ -61,6 +65,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<IActionResult> Update(Guid id, Project project)
     {
         if (id != project.Id) return BadRequest();
@@ -78,6 +83,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.FinanceDelete)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var project = await _context.Projects.FindAsync(id);

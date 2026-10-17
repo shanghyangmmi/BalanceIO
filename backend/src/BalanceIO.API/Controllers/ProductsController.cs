@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,7 @@ public class ProductsController : ControllerBase
 
     // GET: api/products
     [HttpGet]
+    [RequiresPermission(Permissions.InventoryView)]
     public async Task<ActionResult<IEnumerable<Product>>> GetAll([FromQuery] ProductType? type = null, [FromQuery] bool? active = null)
     {
         var query = _context.Products.AsQueryable();
@@ -48,6 +50,7 @@ public class ProductsController : ControllerBase
 
     // GET: api/products/{id}
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.InventoryView)]
     public async Task<ActionResult<Product>> GetById(Guid id)
     {
         var product = await _context.Products
@@ -64,6 +67,7 @@ public class ProductsController : ControllerBase
 
     // POST: api/products
     [HttpPost]
+    [RequiresPermission(Permissions.InventoryManage)]
     public async Task<ActionResult<Product>> Create(Product product)
     {
         if (product.Id == Guid.Empty)
@@ -90,6 +94,7 @@ public class ProductsController : ControllerBase
 
     // PUT: api/products/{id}
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.InventoryManage)]
     public async Task<IActionResult> Update(Guid id, Product product)
     {
         if (id != product.Id)
@@ -123,6 +128,7 @@ public class ProductsController : ControllerBase
 
     // DELETE: api/products/{id}
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.InventoryManage)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var product = await _context.Products.FindAsync(id);
@@ -142,6 +148,7 @@ public class ProductsController : ControllerBase
 
     // POST: api/products/{id}/adjust-stock
     [HttpPost("{id}/adjust-stock")]
+    [RequiresPermission(Permissions.InventoryOpname)]
     public async Task<IActionResult> AdjustStock(Guid id, [FromBody] StockAdjustment adjustment)
     {
         var product = await _context.Products.FindAsync(id);

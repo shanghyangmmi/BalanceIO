@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,12 +27,14 @@ public class FixedAssetCategoriesController : ControllerBase
     }
 
     [HttpGet]
+    [RequiresPermission(Permissions.AssetsView)]
     public async Task<ActionResult<IEnumerable<FixedAssetCategory>>> GetAll()
     {
         return await _context.FixedAssetCategories.OrderBy(c => c.Name).ToListAsync();
     }
 
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.AssetsView)]
     public async Task<ActionResult<FixedAssetCategory>> GetById(Guid id)
     {
         var category = await _context.FixedAssetCategories.FindAsync(id);
@@ -40,6 +43,7 @@ public class FixedAssetCategoriesController : ControllerBase
     }
 
     [HttpPost]
+    [RequiresPermission(Permissions.AssetsManage)]
     public async Task<ActionResult<FixedAssetCategory>> Create(FixedAssetCategory category)
     {
         if (category.Id == Guid.Empty) category.Id = Guid.NewGuid();
@@ -57,6 +61,7 @@ public class FixedAssetCategoriesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.AssetsManage)]
     public async Task<IActionResult> Update(Guid id, FixedAssetCategory category)
     {
         if (id != category.Id) return BadRequest();
@@ -76,6 +81,7 @@ public class FixedAssetCategoriesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.AssetsManage)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var category = await _context.FixedAssetCategories.FindAsync(id);

@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,8 +30,11 @@ public class SubscriptionsController : ControllerBase
     /// Get current user's company subscription
     /// </summary>
     [HttpGet("current/{companyId}")]
+    [RequiresPermission(Permissions.SettingsView)]
     public async Task<ActionResult<object>> GetCurrentSubscription(Guid companyId)
     {
+        if (companyId != _context.CurrentCompanyId) return Forbid();
+
         var subscription = await _context.Subscriptions
             .Include(s => s.Plan)
             .Where(s => s.CompanyId == companyId && s.Status == SubscriptionStatus.Active)
@@ -88,8 +92,11 @@ public class SubscriptionsController : ControllerBase
     /// Check if company can add more users based on subscription
     /// </summary>
     [HttpGet("check-limits/{companyId}")]
+    [RequiresPermission(Permissions.SettingsView)]
     public async Task<ActionResult<object>> CheckLimits(Guid companyId)
     {
+        if (companyId != _context.CurrentCompanyId) return Forbid();
+
         var subscription = await _context.Subscriptions
             .Include(s => s.Plan)
             .FirstOrDefaultAsync(s => s.CompanyId == companyId && s.Status == SubscriptionStatus.Active);
@@ -114,8 +121,12 @@ public class SubscriptionsController : ControllerBase
     /// Request subscription upgrade (placeholder for Midtrans)
     /// </summary>
     [HttpPost("upgrade")]
+    [RequiresPermission(Permissions.SettingsManage)]
     public async Task<ActionResult<object>> UpgradeSubscription([FromBody] UpgradeRequest request)
     {
+        // The permission was checked for the company in scope; only that company may be changed.
+        if (request.CompanyId != _context.CurrentCompanyId) return Forbid();
+
         var company = await _context.Companies.FindAsync(request.CompanyId);
         if (company == null) return NotFound(new { message = "Company not found" });
 
@@ -157,8 +168,11 @@ public class SubscriptionsController : ControllerBase
     /// Get payment history for a company
     /// </summary>
     [HttpGet("payments/{companyId}")]
+    [RequiresPermission(Permissions.SettingsView)]
     public async Task<ActionResult<IEnumerable<object>>> GetPaymentHistory(Guid companyId)
     {
+        if (companyId != _context.CurrentCompanyId) return Forbid();
+
         var payments = await _context.Payments
             .Include(p => p.Subscription)
             .Where(p => p.Subscription != null && p.Subscription.CompanyId == companyId)
