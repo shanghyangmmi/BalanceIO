@@ -14,9 +14,9 @@ namespace BalanceIO.API.Controllers;
 public class StockOpnameController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly PeriodLockService _periodLockService;
+    private readonly IPeriodLockService _periodLockService;
 
-    public StockOpnameController(ApplicationDbContext context, PeriodLockService periodLockService)
+    public StockOpnameController(ApplicationDbContext context, IPeriodLockService periodLockService)
     {
         _context = context;
         _periodLockService = periodLockService;

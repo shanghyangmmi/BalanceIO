@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { Toaster } from "@/components/ui/sonner";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { OnboardingWizard } from "@/components/dashboard/onboarding-wizard";
 import { CommandPalette } from "@/components/command-palette";
@@ -52,7 +51,6 @@ export default function DashboardLayout({
 
       {children}
 
-      <Toaster />
       <OnboardingWizard />
       {/* Global ⌘K / Ctrl+K command palette */}
       <CommandPalette />

@@ -161,7 +161,8 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | PPh 21 not computed (no payroll) | `TaxReportsService` |
 | Historical journal lines may hold an account Id instead of a Code and be invisible to reports | database (detection query in the audit report) |
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
+| Write actions are not hidden by permission (`RBACGuard` exists, unused); a refused click shows a 403 toast | frontend |
 | 91 files fetch with `useEffect` instead of TanStack Query | frontend |
-| `npm run lint` fails: 451 errors, 414 of them `no-explicit-any` | frontend |
+| `npm run lint` fails: 449 errors, mostly `no-explicit-any` | frontend |
 | `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
 | i18n covers navigation labels only | frontend |

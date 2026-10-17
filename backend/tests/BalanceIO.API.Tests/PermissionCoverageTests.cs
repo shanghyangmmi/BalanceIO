@@ -4,6 +4,7 @@ using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BalanceIO.API.Tests;
 
@@ -94,5 +95,39 @@ public class PermissionCoverageTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.Equal(HttpStatusCode.Forbidden, (await mine.OwnerClient().GetAsync($"/api/Subscriptions/current/{theirs.CompanyId}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
             (await mine.OwnerClient().PostJson("/api/Subscriptions/upgrade", new { companyId = theirs.CompanyId, planId = Guid.NewGuid() })).StatusCode);
+    }
+
+    [Fact]
+    public void Every_controller_can_be_constructed_from_the_container()
+    {
+        // StockOpnameController asked for the concrete PeriodLockService, which is only
+        // registered as IPeriodLockService: every request to it failed with a 500.
+        var isService = factory.Services.GetRequiredService<IServiceProviderIsService>();
+        var unresolvable = typeof(Program).Assembly.GetTypes()
+            .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract)
+            .SelectMany(t => t.GetConstructors().SelectMany(c => c.GetParameters())
+                .Where(p => !isService.IsService(p.ParameterType))
+                .Select(p => $"{t.Name}({p.ParameterType.Name} {p.Name})"))
+            .ToList();
+        Assert.True(unresolvable.Count == 0, "Unresolvable constructor parameters:\n" + string.Join("\n", unresolvable));
+    }
+
+    [Fact]
+    public async Task Refusal_names_the_missing_permission()
+    {
+        var t = factory.CreateTenant();
+        var viewer = await factory.AddMember(t.CompanyId, "viewer", role: "Viewer");
+        var res = await factory.ClientFor(t.CompanyId, viewer).PostJson("/api/ProductUnits", new { name = "Box" });
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+        var body = await res.Json();
+        Assert.Equal("PERMISSION_DENIED", body.GetProperty("code").GetString());
+        Assert.Equal("Inventory.Manage", body.GetProperty("permission").GetString());
+    }
+
+    [Fact]
+    public async Task Stock_opname_list_loads()
+    {
+        var t = factory.CreateTenant();
+        Assert.Equal(HttpStatusCode.OK, (await t.OwnerClient().GetAsync("/api/StockOpname")).StatusCode);
     }
 }
