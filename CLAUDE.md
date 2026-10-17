@@ -70,7 +70,7 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
 | Tenant stamp, account resolution, balance, immutability, status transitions | `ApplicationDbContext.SaveChangesAsync` → `ApplicationDbContext.LedgerGuards.cs` | every writer; throws `LedgerIntegrityException` (400 with a `code`) |
 | Journal quota, audit rows | same method | every writer |
 | Balance of Posted entries in the database | PostgreSQL deferred constraint triggers (`EnforceLedgerBalanceInDatabase`) | anything, including raw SQL. Not present on SQLite |
-| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (13 files). Throws `PeriodLockedException` (400 `PERIOD_LOCKED`) |
+| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (14 files). Throws `PeriodLockedException` (400 `PERIOD_LOCKED`) |
 | Tenant scope | `CompanyScopeMiddleware` + query filters | reads. `Companies` has no filter: look it up by `CurrentCompanyId` |
 | Permissions | `[RequiresPermission]` → `PermissionFilter` | per action. `PermissionCoverageTests` fails on any action without one, other than the listed self-service ones |
 | Plan limit → 402 | `PlanLimitMiddleware` | |
@@ -78,7 +78,10 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
 
 A new posting path must call the period lock itself. `JournalLine.AccountId`
 is stored as the account **Code**; the choke point converts an account Id to
-its Code and rejects unknown or foreign accounts. Do not call the synchronous
+its Code and rejects unknown or foreign accounts. For the same reason an
+account with journal lines cannot change its code or be deleted
+(`ACCOUNT_CODE_IN_USE`, `ACCOUNT_IN_USE`); deactivate it instead. Reports
+include inactive accounts that still hold a balance. Do not call the synchronous
 `SaveChanges()` on ledger entities (it throws): the guards are async.
 
 ### Audit trail
@@ -120,6 +123,29 @@ Several outputs are derived from bills at report time rather than from the
 ledger. Missing faktur numbers and bukti potong numbers are reported as
 missing, never generated. Tax logic needs practitioner review before reliance.
 
+## Financial statements and reports
+
+`GET /api/Reports/financial-statements?start=&end=&comparative=`
+(`FinancialStatementsService`) builds the statement set from posted lines:
+financial position, profit or loss and OCI, changes in equity, cash flows
+(indirect), trial balance. Every label is bilingual: `Account.NameId` is the
+Indonesian name (default accounts take it from the seeded description),
+`Account.Name` the English. Each statement carries arithmetic checks that
+must pass (assets = liabilities + equity, equity roll-forward, closing cash =
+cash accounts, Dr = Cr). Classification is by code: `1-11` cash, `1-1`
+current assets, other `1` non-current (credit-normal ones are contra, e.g.
+accumulated depreciation), `2-1` current liabilities, `3` equity, `4`
+revenue, `5` cost of revenue, `6` operating expenses, `7` other income,
+`8`/`9` other expenses, `8-5000` income tax. Unclosed profit shows as
+retained earnings (before the fiscal year) and profit for the year.
+
+The page `reports/financial-statements` prints A4 (Indonesian left, figures,
+English right; reversible or monolingual) and exports Excel. Printing works
+from any dashboard page: the shell and sidebar are released under `print:`.
+`GET /api/Reports/cash-position` serves the cash dashboard. The older
+`/Reports/cash-flow` endpoint still classifies by account name and does not
+reconcile; the statements endpoint does.
+
 ## Payroll
 
 `PayrollController` (`/api/Payroll`, module `payroll`, permissions
@@ -148,8 +174,10 @@ bank details live on the contact, pay on `EmployeeCompensation`.
 ## Frontend conventions
 
 - Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
-  `components/providers/query-provider.tsx`). Only 17 files use it so far;
-  91 files still call `apiClient` from `useEffect`. New code uses Query.
+  `components/providers/query-provider.tsx`). 25 files use it so far;
+  about 70 still call `apiClient` from `useEffect`. New code uses Query.
+- No screen may render sample data. `lib/data/*` was deleted; an empty
+  result is shown as empty, a failed request as an error.
 - `VirtualDataTable` (`components/ui/virtual-data-table.tsx`) for large lists.
   Server paging (`?page=&pageSize=&search=&status=`) exists on journal entries
   and audit logs only. The general ledger report is unpaged.
@@ -184,8 +212,9 @@ controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 3. Bank reconciliation: exists (`BankReconciliationService`); hardening for
    Indonesian number formats, import de-duplication, timing differences.
 4. Payroll: leavers, THR, 1721-A1, bank transfer files.
-5. Inventory: warehouses and FIFO/moving-average valuation (the warehouses
-   page is a static mock). Fixed assets: fiscal groups (Golongan 1–4) beside
+5. Inventory: stock per warehouse (`Warehouse` is master data only) and
+   FIFO/moving-average valuation (adjustments and opname value at the
+   product's buy price). Fixed assets: fiscal groups (Golongan 1–4) beside
    commercial depreciation.
 
 ## Known issues
@@ -200,7 +229,9 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | Payroll: no leaver annualisation, PPh 26 or 1721-A1; BPJS wage caps are configuration that must be kept current | `PayrollCalculator` |
 | Historical journal lines may hold an account Id instead of a Code and be invisible to reports | database (detection query in the audit report) |
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
-| 91 files fetch with `useEffect` instead of TanStack Query | frontend |
-| `npm run lint` fails: 448 errors, mostly `no-explicit-any` | frontend |
+| About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
+| Sales/purchases-by-customer/vendor/product reports total invoices on the client in JS numbers | `app/dashboard/(workspace)/reports` |
+| Payments (Midtrans) not connected; a plan change is recorded as a request | `SubscriptionsController` |
+| `npm run lint` fails: 444 errors, mostly `no-explicit-any` | frontend |
 | `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
 | i18n covers navigation labels only | frontend |
