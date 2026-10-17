@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -23,6 +24,7 @@ public class AccountsController : ControllerBase
 
     // GET: api/accounts
     [HttpGet]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<object>>> GetAccounts()
     {
         try
@@ -70,6 +72,7 @@ public class AccountsController : ControllerBase
 
     // GET: api/accounts/tree
     [HttpGet("tree")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult> GetAccountsTree()
     {
         try
@@ -114,6 +117,7 @@ public class AccountsController : ControllerBase
 
     // POST: api/accounts/initialize — Seed default CoA for current company
     [HttpPost("initialize")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult> InitializeDefaultCoA()
     {
         try
@@ -144,6 +148,7 @@ public class AccountsController : ControllerBase
 
     // GET: api/accounts/{id}
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<Account>> GetById(Guid id)
     {
         var account = await _context.Accounts.FindAsync(id);
@@ -153,6 +158,7 @@ public class AccountsController : ControllerBase
 
     // POST: api/accounts
     [HttpPost]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult<Account>> Create(Account account)
     {
         if (account.Id == Guid.Empty)
@@ -213,12 +219,21 @@ public class AccountsController : ControllerBase
 
     // PUT: api/accounts/{id}
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<IActionResult> Update(Guid id, Account account)
     {
         if (id != account.Id) return BadRequest("ID mismatch");
 
         var existing = await _context.Accounts.FindAsync(id);
         if (existing == null) return NotFound();
+
+        // Journal lines reference the account by code. Changing the code of
+        // an account in use would detach its history from every report.
+        if (!string.Equals(existing.Code, account.Code, StringComparison.Ordinal)
+            && await HasJournalLinesAsync(existing))
+        {
+            return BadRequest(new { code = "ACCOUNT_CODE_IN_USE", message = $"Account {existing.Code} has journal lines; its code cannot change." });
+        }
 
         existing.Code = account.Code;
         existing.Name = account.Name;
@@ -228,6 +243,7 @@ public class AccountsController : ControllerBase
         existing.IsHeader = account.IsHeader;
         existing.NormalBalance = account.NormalBalance;
         existing.Description = account.Description;
+        existing.NameId = string.IsNullOrWhiteSpace(account.NameId) ? null : account.NameId.Trim();
         existing.ParentAccountId = account.ParentAccountId;
         existing.IsActive = account.IsActive;
         existing.UpdatedAt = DateTime.UtcNow;
@@ -240,18 +256,16 @@ public class AccountsController : ControllerBase
 
     // DELETE: api/accounts/{id}
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.FinanceDelete)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var account = await _context.Accounts.FindAsync(id);
         if (account == null) return NotFound();
 
-        // Prevent deletion of system default accounts with journal entries
-        if (account.IsSystemDefault)
-        {
-            var hasJournalLines = await _context.JournalLines.AnyAsync(l => l.AccountId == account.Code);
-            if (hasJournalLines)
-                return BadRequest("System default account with journal entries cannot be deleted.");
-        }
+        // Lines reference the account by code; deleting it would leave them
+        // pointing at nothing. Deactivate it instead.
+        if (await HasJournalLinesAsync(account))
+            return BadRequest(new { code = "ACCOUNT_IN_USE", message = $"Account {account.Code} has journal lines and cannot be deleted. Deactivate it instead." });
 
         // Check if account has children
         var hasChildren = await _context.Accounts.AnyAsync(a => a.ParentAccountId == id);
@@ -264,6 +278,10 @@ public class AccountsController : ControllerBase
         
         return NoContent();
     }
+
+    private Task<bool> HasJournalLinesAsync(Account account) =>
+        _context.JournalLines.AnyAsync(l => l.AccountId == account.Code
+                                         && l.JournalEntry!.CompanyId == account.CompanyId);
 
     private static int GetGroupOrder(string group) => group switch
     {

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import { retryUnlessClientError } from "@/lib/query-retry"
+import { useCompany } from "@/contexts/company-context"
 
 /**
  * Types mirror DTOs/ModuleHealthDTOs.cs exactly. They were written from a
@@ -67,8 +68,10 @@ export interface ModuleHealthResponse {
  * disagree with each other while they settled.
  */
 export function useModuleHealth() {
+  const { company } = useCompany()
   return useQuery({
-    queryKey: ["dashboard", "module-health"],
+    queryKey: ["dashboard", "module-health", company?.id],
+    enabled: !!company,
     queryFn: () => apiClient.get<ModuleHealthResponse>("/Dashboard/module-health"),
     retry: retryUnlessClientError,
     // The house defaults (30s stale, 10min gc) are right here: revisiting

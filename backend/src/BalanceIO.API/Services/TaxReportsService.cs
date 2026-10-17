@@ -19,11 +19,13 @@ public class TaxReportsService
 {
     private readonly ApplicationDbContext _context;
     private readonly IPeriodLockService _periodLockService;
+    private readonly PayrollService _payroll;
 
-    public TaxReportsService(ApplicationDbContext context, IPeriodLockService periodLockService)
+    public TaxReportsService(ApplicationDbContext context, IPeriodLockService periodLockService, PayrollService payroll)
     {
         _context = context;
         _periodLockService = periodLockService;
+        _payroll = payroll;
     }
 
     private static readonly CultureInfo IdCulture = new("id-ID");
@@ -85,7 +87,7 @@ public class TaxReportsService
                 CounterpartyName = inv.Contact?.Name ?? "Pelanggan Umum",
                 CounterpartyNpwp = inv.Contact?.TaxId,
                 CounterpartyNik = inv.Contact?.Nik,
-                FakturPajakNumber = inv.ReferenceNumber ?? $"010.000-{year}.{inv.InvoiceNumber}",
+                FakturPajakNumber = inv.ReferenceNumber,
                 DppAmount = invDpp,
                 TaxRate = effectiveRate,
                 PpnAmount = invPpn,
@@ -136,7 +138,7 @@ public class TaxReportsService
                 CounterpartyName = bill.Contact?.Name ?? "Supplier",
                 CounterpartyNpwp = bill.Contact?.TaxId,
                 CounterpartyNik = bill.Contact?.Nik,
-                FakturPajakNumber = bill.VendorInvoiceNumber ?? $"010.000-{year}.{bill.BillNumber}",
+                FakturPajakNumber = bill.VendorInvoiceNumber,
                 DppAmount = billDpp,
                 TaxRate = effectiveRate,
                 PpnAmount = billPpn,
@@ -263,8 +265,7 @@ public class TaxReportsService
                     GrossDppAmount = dpp,
                     EffectiveTaxRate = effectiveRate,
                     TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false,
-                    BuktiPotongNumber = $"BP23-{year}{month:D2}-{bill.BillNumber}"
+                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
                 });
             }
             else if (withholdingType == "PPH4(2)" || withholdingType == "PPH42" || withholdingType == "PPH 4(2)")
@@ -284,8 +285,7 @@ public class TaxReportsService
                     GrossDppAmount = dpp,
                     EffectiveTaxRate = effectiveRate,
                     TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false,
-                    BuktiPotongNumber = $"BP42-{year}{month:D2}-{bill.BillNumber}"
+                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
                 });
             }
             else if (withholdingType == "PPH22" || withholdingType == "PPH 22")
@@ -305,45 +305,15 @@ public class TaxReportsService
                     GrossDppAmount = dpp,
                     EffectiveTaxRate = effectiveRate,
                     TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false,
-                    BuktiPotongNumber = $"BP22-{year}{month:D2}-{bill.BillNumber}"
+                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
                 });
             }
         }
 
-        // 2. Fetch Employees for PPh 21 TER Scheme (PP 58/2023)
-        var employees = await _context.Contacts
-            .AsNoTracking()
-            .Where(c => c.CompanyId == companyId && c.IsEmployee)
-            .ToListAsync();
-
-        foreach (var emp in employees)
-        {
-            var ptkp = emp.PtkpStatus ?? "TK/0";
-            var terCategory = GetTerCategory(ptkp);
-            var sampleGross = 12500000m; // Sample employee monthly payroll
-            var terRate = GetTerMonthlyRate(terCategory, sampleGross);
-            var taxWithheld = Math.Round(sampleGross * (terRate / 100m), 2);
-
-            pph21Lines.Add(new WithholdingTaxLineDto
-            {
-                Id = emp.Id,
-                TaxType = "PPh 21",
-                KodeObjekPajak = "21-100-01", // Pegawai Tetap
-                CounterpartyName = emp.Name,
-                CounterpartyNpwp = emp.TaxId,
-                CounterpartyNik = emp.Nik,
-                PtkpStatus = ptkp,
-                TerCategory = terCategory,
-                ReferenceDocument = $"PAY-{year}{month:D2}",
-                TransactionDate = endDate,
-                GrossDppAmount = sampleGross,
-                EffectiveTaxRate = terRate,
-                TaxWithheldAmount = taxWithheld,
-                HasWithholdingExemption = false,
-                BuktiPotongNumber = $"BP21-{year}{month:D2}-{emp.Nik ?? emp.Name.Replace(" ", "")}"
-            });
-        }
+        // PPh 21 comes from posted payroll runs and nothing else. It once
+        // emitted a line per employee contact on an invented salary, which
+        // put fabricated withholding into a report destined for e-Bupot.
+        pph21Lines.AddRange(await _payroll.Pph21LinesAsync(companyId, year, month));
 
         return new WithholdingSummaryResponse
         {
@@ -358,7 +328,8 @@ public class TaxReportsService
             Pph21Lines = pph21Lines,
             Pph23Lines = pph23Lines,
             Pph42Lines = pph42Lines,
-            Pph22Lines = pph22Lines
+            Pph22Lines = pph22Lines,
+            Pph21Note = pph21Lines.Count == 0 ? $"No payroll run is posted for {monthLabel}." : null
         };
     }
 
@@ -505,9 +476,26 @@ public class TaxReportsService
         }
 
         var ppnKeluaranAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "2-1300");
-        var ppnMasukanAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "1-1400");
+        // PPN Masukan is "VAT In" (1-1700) in the default chart, and is what purchase
+        // bills debit. 1-1400 is Inventory: closing input VAT against it credited stock.
+        var ppnMasukanAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "1-1700");
         var ppnKurangBayarAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "2-1400");
         var ppnLebihBayarAcc = await _context.Accounts.FirstOrDefaultAsync(a => a.CompanyId == companyId && a.Code == "1-1450");
+
+        var netToSettle = spt.TotalPpnKeluaran - spt.TotalPpnMasukanDapatDikreditkan;
+        var missing = new List<string>();
+        if (spt.TotalPpnKeluaran > 0 && ppnKeluaranAcc is null) missing.Add("2-1300 (PPN Keluaran)");
+        if (spt.TotalPpnMasukanDapatDikreditkan > 0 && ppnMasukanAcc is null) missing.Add("1-1700 (PPN Masukan)");
+        if (netToSettle > 0 && ppnKurangBayarAcc is null) missing.Add("2-1400 (PPN Kurang Bayar)");
+        if (netToSettle < 0 && ppnLebihBayarAcc is null) missing.Add("1-1450 (PPN Lebih Bayar)");
+        if (missing.Count > 0)
+        {
+            return new PpnSettlementResult
+            {
+                Success = false,
+                Message = $"The settlement cannot be posted: this company's chart of accounts has no {string.Join(", ", missing)}."
+            };
+        }
 
         var journalEntry = new JournalEntry
         {
@@ -530,7 +518,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnKeluaranAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnKeluaranAcc!.Code,
                 Debit = spt.TotalPpnKeluaran,
                 Credit = 0,
                 Description = $"Closing PPN Keluaran Masa {request.Month:D2}/{request.Year}"
@@ -544,7 +532,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnMasukanAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnMasukanAcc!.Code,
                 Debit = 0,
                 Credit = spt.TotalPpnMasukanDapatDikreditkan,
                 Description = $"Closing PPN Masukan Masa {request.Month:D2}/{request.Year}"
@@ -562,7 +550,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnKurangBayarAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnKurangBayarAcc!.Code,
                 Debit = 0,
                 Credit = netDelta,
                 Description = $"PPN Kurang Bayar Masa {request.Month:D2}/{request.Year}"
@@ -577,7 +565,7 @@ public class TaxReportsService
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
-                AccountId = (ppnLebihBayarAcc?.Id ?? Guid.Empty).ToString(),
+                AccountId = ppnLebihBayarAcc!.Code,
                 Debit = overpayment,
                 Credit = 0,
                 Description = $"PPN Lebih Bayar Masa {request.Month:D2}/{request.Year}"
@@ -599,123 +587,4 @@ public class TaxReportsService
             SettlementAccountCode = settlementAccCode
         };
     }
-
-    #region Helper Rules (PP 58/2023 TER)
-
-    private static string GetTerCategory(string ptkp)
-    {
-        return ptkp.ToUpperInvariant() switch
-        {
-            "TK/0" or "TK/1" or "K/0" => "TER A",
-            "TK/2" or "TK/3" or "K/1" or "K/2" => "TER B",
-            "K/3" => "TER C",
-
-            // An unrecognised or blank PTKP falls to A, which has the
-            // lowest thresholds and therefore withholds the most. Erring
-            // towards over-withholding is the safe direction - the
-            // employee reclaims it at year-end, whereas under-withholding
-            // leaves the company liable. It is still a guess, and a
-            // contact with no PTKP recorded should be fixed rather than
-            // taxed on a default.
-            _ => "TER A",
-        };
-    }
-
-    /// <summary>
-    /// Tarif Efektif Rata-rata bulanan, from the Lampiran to PP 58/2023.
-    ///
-    /// The tables are reproduced in full: 44 brackets for category A, 40
-    /// for B, 41 for C, each ending at 34% above roughly Rp 1,4 miliar.
-    ///
-    /// They were previously truncated - A stopped at 15% above Rp 26,45
-    /// juta, B at 12%, C at 10% - so every employee earning more than that
-    /// was under-withheld, and the shortfall lands on the employee at
-    /// year-end or on the company as under-withholding. Category B was
-    /// also missing two brackets in the middle (Rp 11,25 juta at 2,00% and
-    /// Rp 11,6 juta at 2,50%), which shifted every rate above them down by
-    /// one row: an employee on Rp 12 juta was withheld at 2,00% instead of
-    /// 3,00%.
-    ///
-    /// Held as an ordered table rather than a chain of ifs. A hundred and
-    /// twenty-five hand-written comparisons is how two brackets went
-    /// missing without anyone noticing.
-    /// </summary>
-    private static decimal GetTerMonthlyRate(string category, decimal grossMonthly)
-    {
-        var table = category switch
-        {
-            "TER B" => TerB,
-            "TER C" => TerC,
-            _ => TerA,
-        };
-
-        foreach (var (upperBound, rate) in table)
-        {
-            if (grossMonthly <= upperBound) return rate;
-        }
-
-        // Above the final bracket in every category.
-        return 34m;
-    }
-
-    /// <summary>
-    /// Each row is the inclusive upper bound of the bracket and its rate.
-    /// The regulation states the lower bound as the previous bound plus one
-    /// rupiah, so the bounds alone describe the table without ambiguity.
-    /// </summary>
-    private static readonly (decimal UpperBound, decimal Rate)[] TerA =
-    {
-        (5_400_000m, 0m),      (5_650_000m, 0.25m),   (5_950_000m, 0.50m),
-        (6_300_000m, 0.75m),   (6_750_000m, 1.00m),   (7_500_000m, 1.25m),
-        (8_550_000m, 1.50m),   (9_650_000m, 1.75m),   (10_050_000m, 2.00m),
-        (10_350_000m, 2.25m),  (10_700_000m, 2.50m),  (11_050_000m, 3.00m),
-        (11_600_000m, 3.50m),  (12_500_000m, 4.00m),  (13_750_000m, 5.00m),
-        (15_100_000m, 6.00m),  (16_950_000m, 7.00m),  (19_750_000m, 8.00m),
-        (24_150_000m, 9.00m),  (26_450_000m, 10.00m), (28_000_000m, 11.00m),
-        (30_050_000m, 12.00m), (32_400_000m, 13.00m), (35_400_000m, 14.00m),
-        (39_100_000m, 15.00m), (43_850_000m, 16.00m), (47_800_000m, 17.00m),
-        (51_400_000m, 18.00m), (56_300_000m, 19.00m), (62_200_000m, 20.00m),
-        (68_600_000m, 21.00m), (77_500_000m, 22.00m), (89_000_000m, 23.00m),
-        (103_000_000m, 24.00m), (125_000_000m, 25.00m), (157_000_000m, 26.00m),
-        (206_000_000m, 27.00m), (337_000_000m, 28.00m), (454_000_000m, 29.00m),
-        (550_000_000m, 30.00m), (695_000_000m, 31.00m), (910_000_000m, 32.00m),
-        (1_400_000_000m, 33.00m),
-    };
-
-    private static readonly (decimal UpperBound, decimal Rate)[] TerB =
-    {
-        (6_200_000m, 0m),      (6_500_000m, 0.25m),   (6_850_000m, 0.50m),
-        (7_300_000m, 0.75m),   (9_200_000m, 1.00m),   (10_750_000m, 1.50m),
-        (11_250_000m, 2.00m),  (11_600_000m, 2.50m),  (12_600_000m, 3.00m),
-        (13_600_000m, 4.00m),  (14_950_000m, 5.00m),  (16_400_000m, 6.00m),
-        (18_450_000m, 7.00m),  (21_850_000m, 8.00m),  (26_000_000m, 9.00m),
-        (27_700_000m, 10.00m), (29_350_000m, 11.00m), (31_450_000m, 12.00m),
-        (33_950_000m, 13.00m), (37_100_000m, 14.00m), (41_100_000m, 15.00m),
-        (45_800_000m, 16.00m), (49_500_000m, 17.00m), (53_800_000m, 18.00m),
-        (58_500_000m, 19.00m), (64_000_000m, 20.00m), (71_000_000m, 21.00m),
-        (80_000_000m, 22.00m), (93_000_000m, 23.00m), (109_000_000m, 24.00m),
-        (129_000_000m, 25.00m), (163_000_000m, 26.00m), (211_000_000m, 27.00m),
-        (374_000_000m, 28.00m), (459_000_000m, 29.00m), (555_000_000m, 30.00m),
-        (704_000_000m, 31.00m), (957_000_000m, 32.00m), (1_405_000_000m, 33.00m),
-    };
-
-    private static readonly (decimal UpperBound, decimal Rate)[] TerC =
-    {
-        (6_600_000m, 0m),      (6_950_000m, 0.25m),   (7_350_000m, 0.50m),
-        (7_800_000m, 0.75m),   (8_850_000m, 1.00m),   (9_800_000m, 1.25m),
-        (10_950_000m, 1.50m),  (11_200_000m, 1.75m),  (12_050_000m, 2.00m),
-        (12_950_000m, 3.00m),  (14_150_000m, 4.00m),  (15_550_000m, 5.00m),
-        (17_050_000m, 6.00m),  (19_500_000m, 7.00m),  (22_700_000m, 8.00m),
-        (26_600_000m, 9.00m),  (28_100_000m, 10.00m), (30_100_000m, 11.00m),
-        (32_600_000m, 12.00m), (35_400_000m, 13.00m), (38_900_000m, 14.00m),
-        (43_000_000m, 15.00m), (47_400_000m, 16.00m), (51_200_000m, 17.00m),
-        (55_800_000m, 18.00m), (60_400_000m, 19.00m), (66_700_000m, 20.00m),
-        (74_500_000m, 21.00m), (83_200_000m, 22.00m), (95_600_000m, 23.00m),
-        (110_000_000m, 24.00m), (134_000_000m, 25.00m), (169_000_000m, 26.00m),
-        (221_000_000m, 27.00m), (390_000_000m, 28.00m), (463_000_000m, 29.00m),
-        (561_000_000m, 30.00m), (709_000_000m, 31.00m), (965_000_000m, 32.00m),
-        (1_419_000_000m, 33.00m),
-    };
-
-    #endregion
 }

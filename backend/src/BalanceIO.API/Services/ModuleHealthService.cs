@@ -47,7 +47,7 @@ public class ModuleHealthService
         response.Modules.Add(await TaxAsync(companyId, today, currency));
         response.Modules.Add(await InventoryAsync(companyId, today));
         response.Modules.Add(await FixedAssetsAsync(companyId, today, currency));
-        response.Modules.Add(Payroll());
+        response.Modules.Add(await PayrollAsync(companyId, today, currency));
 
         response.Overall = ModuleHealthStatus.Worst(response.Modules.Select(m => m.Status));
 
@@ -880,7 +880,7 @@ public class ModuleHealthService
         var module = new ModuleHealth
         {
             Key  = "fixedAssets",
-            Name = "Assets",
+            Name = "Fixed Assets",
             Href = "/dashboard/assets",
         };
 
@@ -1335,19 +1335,77 @@ public class ModuleHealthService
 
     // ── Payroll ───────────────────────────────────────────────────────
 
-    private static ModuleHealth Payroll() => new()
+    // Posted when last month's run is on the ledger. Salary expense for a
+    // closed month that never posted understates expenses and PPh 21
+    // payable for that month, so a missing run is overdue, not pending.
+
+    private async Task<ModuleHealth> PayrollAsync(Guid companyId, DateOnly today, string currency)
     {
-        Key         = "payroll",
-        Name        = "Payroll",
-        Status      = ModuleHealthStatus.Inactive,
-        Implemented = false,
-        Href        = null,
-        Headline    = "Not built",
-        Detail      = "Salary expense, PPh 21 and BPJS post to the ledger, so payroll qualifies. It is not built yet.",
-        // Deliberately empty. Zeros would read as "nobody was paid this
-        // month", which is a different and much worse statement.
-        Figures     = new List<ModuleFigure>(),
-    };
+        var module = new ModuleHealth
+        {
+            Key  = "payroll",
+            Name = "Payroll",
+            Href = "/dashboard/payroll",
+        };
+
+        var employees = await _context.EmployeeCompensations
+            .AsNoTracking()
+            .CountAsync(e => e.CompanyId == companyId && e.IsActive
+                          && e.Contact!.IsEmployee && e.Contact.IsActive);
+
+        var runs = await _context.PayrollRuns
+            .AsNoTracking()
+            .Where(r => r.CompanyId == companyId && r.Status != PayrollRunStatus.Void)
+            .Select(r => new { r.Year, r.Month, r.Status, r.TotalNetPay, r.TotalGross, r.TotalPph21 })
+            .ToListAsync();
+
+        if (employees == 0 && runs.Count == 0)
+        {
+            module.Status   = ModuleHealthStatus.Inactive;
+            module.Headline = "No employees on payroll";
+            module.Detail   = "Mark contacts as employees and record their compensation to run payroll.";
+            module.Figures.Add(Count("Employees", 0));
+            return module;
+        }
+
+        var drafts = runs.Count(r => r.Status == PayrollRunStatus.Draft);
+        var lastPosted = runs
+            .Where(r => r.Status == PayrollRunStatus.Posted)
+            .OrderByDescending(r => r.Year).ThenByDescending(r => r.Month)
+            .FirstOrDefault();
+
+        var previous = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var previousPosted = runs.Any(r => r.Status == PayrollRunStatus.Posted
+                                        && r.Year == previous.Year && r.Month == previous.Month);
+
+        module.Figures.Add(lastPosted is null
+            ? Count("Employees", employees)
+            : Money("Last net pay", lastPosted.TotalNetPay, currency));
+        module.Figures.Add(Count("Awaiting approval", drafts));
+
+        if (!previousPosted && employees > 0)
+        {
+            module.Status   = ModuleHealthStatus.Overdue;
+            module.Headline = string.Format(CultureInfo.InvariantCulture, "Payroll for {0:MMMM yyyy} not posted", previous);
+            module.Detail   = "Salary expense, PPh 21 and BPJS for that month are missing from the ledger.";
+        }
+        else if (drafts > 0)
+        {
+            module.Status   = ModuleHealthStatus.Attention;
+            module.Headline = drafts == 1 ? "1 run awaiting approval" : $"{drafts} runs awaiting approval";
+            module.Detail   = "A calculated run reaches the ledger once a second person posts it.";
+        }
+        else
+        {
+            module.Status   = ModuleHealthStatus.Balanced;
+            module.Headline = lastPosted is null
+                ? "No run posted yet"
+                : $"Posted through {PayrollService.PeriodLabel(lastPosted.Year, lastPosted.Month)}";
+            module.Detail   = employees == 1 ? "1 employee on payroll." : $"{employees} employees on payroll.";
+        }
+
+        return module;
+    }
 
     // ── exact aggregation ─────────────────────────────────────────────
     //

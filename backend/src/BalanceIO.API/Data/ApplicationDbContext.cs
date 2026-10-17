@@ -8,7 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 
 namespace BalanceIO.API.Data;
 
-public class ApplicationDbContext : DbContext
+public partial class ApplicationDbContext : DbContext
 {
     private readonly IHttpContextAccessor? _httpContextAccessor;
 
@@ -100,6 +100,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProductCategory> ProductCategories { get; set; }
     public DbSet<ProductUnit> ProductUnits { get; set; }
     public DbSet<StockOpname> StockOpnames { get; set; }
+    public DbSet<Warehouse> Warehouses { get; set; }
     public DbSet<StockOpnameLine> StockOpnameLines { get; set; }
     public DbSet<InventoryMovement> InventoryMovements { get; set; }
 
@@ -122,6 +123,11 @@ public class ApplicationDbContext : DbContext
     // Operations
     public DbSet<ScheduledJob> ScheduledJobs { get; set; }
     public DbSet<JobRun> JobRuns { get; set; }
+
+    // Payroll
+    public DbSet<EmployeeCompensation> EmployeeCompensations { get; set; }
+    public DbSet<PayrollRun> PayrollRuns { get; set; }
+    public DbSet<PayrollLine> PayrollLines { get; set; }
 
     public Guid? CurrentCompanyId { get; set; }
 
@@ -211,6 +217,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProductUnit>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<StockOpname>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<InventoryMovement>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<Warehouse>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         
         // Assets
         modelBuilder.Entity<FixedAsset>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
@@ -259,9 +266,21 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<BudgetLine>()
             .HasQueryFilter(e => e.Budget!.CompanyId == CurrentCompanyId);
 
+        modelBuilder.Entity<EmployeeCompensation>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<PayrollRun>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<PayrollLine>()
+            .HasQueryFilter(e => e.PayrollRun!.CompanyId == CurrentCompanyId);
+
         // --- Indexes for Performance ---
         modelBuilder.Entity<JournalEntry>().HasIndex(e => new { e.CompanyId, e.Date });
         modelBuilder.Entity<JournalEntry>().HasIndex(e => e.ProjectId);
+
+        // Idempotency is decided by this index, not by a check-then-insert in
+        // the controller. NULL keys are distinct in both SQLite and
+        // PostgreSQL, so entries without a key are unaffected.
+        modelBuilder.Entity<JournalEntry>()
+            .HasIndex(e => new { e.CompanyId, e.IdempotencyKey })
+            .IsUnique();
         
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.AccountId);
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.JournalEntryId);
@@ -290,11 +309,42 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ImportBatch>().HasIndex(e => new { e.CompanyId, e.ConversionDate });
         modelBuilder.Entity<ExchangeRate>().HasIndex(e => new { e.RateDate, e.FromCurrency, e.RateType });
         modelBuilder.Entity<ExchangeRate>().HasIndex(e => new { e.ValidFrom, e.ValidTo, e.FromCurrency });
+
+        modelBuilder.Entity<EmployeeCompensation>()
+            .HasIndex(e => new { e.CompanyId, e.ContactId })
+            .IsUnique();
+
+        // One live run per month. A voided run steps aside so the month can
+        // be run again; the filter is the same SQL on SQLite and PostgreSQL.
+        modelBuilder.Entity<PayrollRun>()
+            .HasIndex(e => new { e.CompanyId, e.Year, e.Month })
+            .IsUnique()
+            .HasFilter("\"Status\" <> 2");
+
+        modelBuilder.Entity<PayrollLine>().HasIndex(e => e.ContactId);
+
+        modelBuilder.Entity<Warehouse>().HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
+    }
+
+    /// <summary>
+    /// The synchronous overload skips every async ledger guard, so it may not
+    /// be used for anything that touches the ledger.
+    /// </summary>
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        if (ChangeTracker.Entries().Any(e => e.State != EntityState.Unchanged && e.State != EntityState.Detached
+                                             && (e.Entity is JournalEntry || e.Entity is JournalLine)))
+        {
+            throw new InvalidOperationException("Ledger writes must use SaveChangesAsync so the ledger guards run.");
+        }
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        ValidateJournalEntryBalances();
+        StampTenantScope();
+        await EnforceLedgerInvariantsAsync(cancellationToken);
         await EnforceJournalQuotaAsync(cancellationToken);
         StampAuditLogCompanyScope();
         var auditEntries = OnBeforeSaveChanges();
@@ -391,27 +441,6 @@ public class ApplicationDbContext : DbContext
         }
     }
 
-    private void ValidateJournalEntryBalances()
-    {
-        var postedEntries = ChangeTracker.Entries<JournalEntry>()
-            .Where(e => (e.State == EntityState.Added || e.State == EntityState.Modified) && e.Entity.Status == JournalEntryStatus.Posted)
-            .Select(e => e.Entity);
-
-        foreach (var journal in postedEntries)
-        {
-            var lines = journal.Lines;
-            if (lines != null && lines.Count > 0)
-            {
-                var totalDebit = lines.Sum(l => l.Debit);
-                var totalCredit = lines.Sum(l => l.Credit);
-                if (totalDebit != totalCredit)
-                {
-                    throw new InvalidOperationException($"ERR_409: Database Balance Guard Fault — Journal Entry '{journal.ReferenceNumber}' is unbalanced! Total Debit ({totalDebit}) != Total Credit ({totalCredit}). Saved transaction aborted.");
-                }
-            }
-        }
-    }
-
     private List<AuditEntry> OnBeforeSaveChanges()
     {
         ChangeTracker.DetectChanges();
@@ -424,7 +453,7 @@ public class ApplicationDbContext : DbContext
 
             // Only audit important operational tables to avoid log bloat
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
-            var allowedTables = new[] { "Accounts", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets" };
+            var allowedTables = new[] { "Accounts", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets", "EmployeeCompensations", "PayrollRuns" };
             if (!allowedTables.Contains(tableName))
                 continue;
 

@@ -14,6 +14,7 @@ import {
   Receipt,
   Repeat2,
   Ruler,
+  Wallet,
   Scale,
   ScanLine,
   Settings,
@@ -49,7 +50,7 @@ import { PERMISSIONS } from "@/lib/auth/permissions"
  * menus under two group headings.
  */
 
-export type ModuleId = "accounting" | "tax" | "inventory" | "assets" | "settings"
+export type ModuleId = "accounting" | "tax" | "inventory" | "assets" | "payroll" | "settings"
 
 export interface ModuleNavItem {
   label: string
@@ -124,6 +125,7 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "Documents", href: "/dashboard/documents", icon: FileText },
           { label: "Projects", href: "/dashboard/projects", icon: Folder },
           { label: "Reports", href: "/dashboard/reports", icon: PieChart, permission: PERMISSIONS.FinanceReport },
+          { label: "Financial Statements", href: "/dashboard/reports/financial-statements", icon: FileText, permission: PERMISSIONS.FinanceReport },
         ],
       },
     ],
@@ -214,6 +216,23 @@ export const MODULE_NAVS: ModuleNav[] = [
         items: [
           { label: "Categories", href: "/dashboard/assets/categories", icon: Folder, permission: PERMISSIONS.AssetsManage },
           { label: "Labels", href: "/dashboard/assets/labels", icon: ScanLine, permission: PERMISSIONS.AssetsView },
+        ],
+      },
+    ],
+  },
+  {
+    id: "payroll",
+    name: "Payroll",
+    icon: Wallet,
+    home: "/dashboard/payroll",
+    owns: ["/dashboard/payroll"],
+    groups: [
+      {
+        label: "Payroll",
+        items: [
+          { label: "Overview", href: "/dashboard/payroll", icon: LayoutDashboard },
+          { label: "Payroll Runs", href: "/dashboard/payroll/runs", icon: CalendarClock, permission: PERMISSIONS.PayrollView },
+          { label: "Employees", href: "/dashboard/payroll/employees", icon: Users, permission: PERMISSIONS.PayrollView },
         ],
       },
     ],

@@ -23,7 +23,7 @@ public class PeriodLockService : IPeriodLockService
         {
             if (transactionDate <= company.LockDate.Value)
             {
-                throw new ValidationException($"The transaction date {transactionDate:dd/MM/yyyy} is within a locked period (Locked until: {company.LockDate.Value:dd/MM/yyyy}). Action denied.");
+                throw new PeriodLockedException($"The transaction date {transactionDate:dd/MM/yyyy} is within a locked period (Locked until: {company.LockDate.Value:dd/MM/yyyy}). Action denied.");
             }
         }
     }

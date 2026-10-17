@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -20,20 +21,56 @@ namespace BalanceIO.API.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly BalanceIO.API.Services.FinancialStatementsService _statements;
 
-    public ReportsController(ApplicationDbContext context)
+    public ReportsController(ApplicationDbContext context, BalanceIO.API.Services.FinancialStatementsService statements)
     {
         _context = context;
+        _statements = statements;
+    }
+
+    /// <summary>
+    /// The full statement set, bilingual (Bahasa Indonesia and English), with
+    /// the prior year alongside when <paramref name="comparative"/> is set.
+    /// Defaults to the fiscal year to date.
+    /// </summary>
+    [HttpGet("financial-statements")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<BalanceIO.API.DTOs.FinancialStatementPack>> GetFinancialStatements(
+        [FromQuery] DateOnly? start, [FromQuery] DateOnly? end, [FromQuery] bool comparative = true)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, 1, 1);
+        var who = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
+
+        return Ok(await _statements.BuildAsync(_context.CurrentCompanyId.Value, from, to, comparative, who));
+    }
+
+    /// <summary>Cash and cash equivalents over a period, per account, with weekly balances.</summary>
+    [HttpGet("cash-position")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<BalanceIO.API.DTOs.CashPositionResponse>> GetCashPosition([FromQuery] DateOnly? start, [FromQuery] DateOnly? end)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, to.Month, 1);
+        return Ok(await _statements.CashPositionAsync(_context.CurrentCompanyId.Value, from, to));
     }
 
     [HttpGet("balance-sheet")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<BalanceSheetResponse>> GetBalanceSheet([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var reportDate = asOf ?? DateTime.UtcNow;
         var dateDateOnly = DateOnly.FromDateTime(reportDate);
 
         // 1. Fetch all Accounts
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToListAsync();
+        var accounts = await _context.Accounts.ToListAsync();
 
         // 2. Fetch Journal Lines up to date
         var query = _context.JournalLines
@@ -161,6 +198,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("profit-loss")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<ProfitLossResponse>> GetProfitLoss([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -168,8 +206,7 @@ public class ReportsController : ControllerBase
 
         // Fetch Accounts (Expense/Revenue)
         var accounts = await _context.Accounts
-            .Where(a => a.IsActive && 
-                       (a.Code.StartsWith("4") || a.Code.StartsWith("5") || 
+            .Where(a => (a.Code.StartsWith("4") || a.Code.StartsWith("5") || 
                         a.Code.StartsWith("6") || a.Code.StartsWith("7") || 
                         a.Code.StartsWith("8") || a.Code.StartsWith("9")))
             .ToListAsync();
@@ -231,6 +268,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("aged-receivables")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AgedReportResponse>> GetAgedReceivables()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -278,6 +316,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("aged-payables")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AgedReportResponse>> GetAgedPayables()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -325,6 +364,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("inventory-valuation")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<InventoryValuationResponse>> GetInventoryValuation()
     {
         var products = await _context.Products
@@ -353,12 +393,13 @@ public class ReportsController : ControllerBase
         return report;
     }
     [HttpGet("trial-balance")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TrialBalanceResponse>> GetTrialBalance([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var reportDate = asOf ?? DateTime.UtcNow;
         var dateDateOnly = DateOnly.FromDateTime(reportDate);
 
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToListAsync();
+        var accounts = await _context.Accounts.ToListAsync();
 
         var query = _context.JournalLines
             .Where(l => l.JournalEntry!.Date <= dateDateOnly && l.JournalEntry.Status == JournalEntryStatus.Posted)
@@ -432,6 +473,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("general-ledger")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<GeneralLedgerResponse>> GetGeneralLedger([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] string? accountId = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -529,6 +571,7 @@ public class ReportsController : ControllerBase
         return report;
     }
     [HttpGet("cash-flow")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<CashFlowResponse>> GetCashFlow([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -545,7 +588,7 @@ public class ReportsController : ControllerBase
             .ToListAsync();
             
         // Pre-fetch accounts to categorize
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToDictionaryAsync(a => a.Code, a => a);
+        var accounts = await _context.Accounts.ToDictionaryAsync(a => a.Code, a => a);
         
         decimal netIncome = 0;
         decimal depreciation = 0;
@@ -657,6 +700,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("equity")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<EquityChangeResponse>> GetEquity([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -724,6 +768,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("assets-schedule")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AssetsScheduleResponse>> GetAssetsSchedule([FromQuery] DateOnly? asOf = null)
     {
         // For now, simple snapshot of current state

@@ -9,7 +9,6 @@ import { formatCurrency } from "@/lib/utils/formatter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { defaultAssets } from "@/lib/data/assets-data";
 import { Search, Building2, TrendingDown, DollarSign, Calculator, Loader2 } from "lucide-react";
 
 export default function DepreciationSchedulePage() {
@@ -23,16 +22,13 @@ export default function DepreciationSchedulePage() {
     async function loadAssets() {
       setIsLoading(true);
       try {
-        const data = await apiClient.get<any[]>("/Assets").catch(() => null);
-        if (data && Array.isArray(data) && data.length > 0) {
-          setAssets(data);
-        } else {
-          // Fallback to default asset register demo data
-          setAssets(defaultAssets);
-        }
+        // The register as stored. An empty register is shown as empty;
+        // sample assets in a report would read as the company's own.
+        const data = await apiClient.get<any[]>("/Assets");
+        setAssets(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("Failed to load assets for depreciation schedule", err);
-        setAssets(defaultAssets);
+        console.error("Failed to load asset register", err);
+        setAssets([]);
       } finally {
         setIsLoading(false);
       }

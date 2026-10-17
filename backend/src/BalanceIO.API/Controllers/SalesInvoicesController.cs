@@ -28,11 +28,12 @@ public class SalesInvoicesController : ControllerBase
     // GET: api/salesinvoices
     [HttpGet]
     [RequiresPermission(Permissions.SalesView)]
-    public async Task<ActionResult<IEnumerable<SalesInvoice>>> GetAll()
+    public async Task<ActionResult<IEnumerable<SalesInvoice>>> GetAll([FromQuery] Guid? contactId = null)
     {
         var invoices = await _context.SalesInvoices
             .Include(i => i.Contact)
             .Include(i => i.Lines)
+            .Where(i => !contactId.HasValue || i.ContactId == contactId)
             .OrderByDescending(i => i.InvoiceDate)
             .ThenByDescending(i => i.CreatedAt)
             .ToListAsync();
@@ -42,6 +43,7 @@ public class SalesInvoicesController : ControllerBase
 
     // GET: api/salesinvoices/{id}
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult<SalesInvoice>> GetById(Guid id)
     {
         var invoice = await _context.SalesInvoices
@@ -95,6 +97,7 @@ public class SalesInvoicesController : ControllerBase
 
     // PUT: api/salesinvoices/{id}
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.SalesEdit)]
     public async Task<IActionResult> Update(Guid id, SalesInvoice invoice)
     {
         if (id != invoice.Id)
@@ -234,6 +237,7 @@ public class SalesInvoicesController : ControllerBase
 
     // POST: api/salesinvoices/{id}/void
     [HttpPost("{id}/void")]
+    [RequiresPermission(Permissions.SalesDelete)]
     public async Task<IActionResult> Void(Guid id)
     {
         if (!_context.CurrentCompanyId.HasValue)

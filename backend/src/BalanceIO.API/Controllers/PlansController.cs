@@ -121,7 +121,7 @@ public class PlansController : ControllerBase
                 PriceMonthly = 499000, // Rp 499,000
                 PriceYearly = 4990000, // Rp 4,990,000
                 Features = "[\"Unlimited Users\", \"Unlimited Companies\", \"All Reports\", \"Unlimited Transactions\", \"Multi-Currency\", \"API Access\", \"Dedicated Support\", \"Custom Branding\", \"Advanced Analytics\"]",
-                Modules = "[\"accounting\",\"tax\",\"inventory\",\"fixedAssets\"]",
+                Modules = "[\"accounting\",\"tax\",\"inventory\",\"fixedAssets\",\"payroll\"]",
                 MaxUsers = 999,
                 MaxCompanies = 99,
                 SortOrder = 3,

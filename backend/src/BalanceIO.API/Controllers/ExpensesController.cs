@@ -28,6 +28,7 @@ public class ExpensesController : ControllerBase
 
     // GET: api/expenses
     [HttpGet]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<object>>> GetAll(
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null,
@@ -97,6 +98,7 @@ public class ExpensesController : ControllerBase
 
     // GET: api/expenses/summary
     [HttpGet("summary")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<object>> GetSummary(
         [FromQuery] int? year = null,
         [FromQuery] int? month = null)
@@ -144,6 +146,7 @@ public class ExpensesController : ControllerBase
 
     // GET: api/expenses/by-period
     [HttpGet("by-period")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<object>>> GetByPeriod([FromQuery] int months = 6)
     {
         var periods = new List<object>();

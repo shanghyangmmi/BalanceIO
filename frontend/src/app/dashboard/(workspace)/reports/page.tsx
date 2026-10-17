@@ -76,6 +76,13 @@ const reports: Record<
 > = {
   financial: [
     {
+      name: "Laporan Keuangan / Financial Statements",
+      description:
+        "The full set, bilingual, with prior-year comparatives: position, profit or loss, equity, cash flows and trial balance. Print to PDF or export to Excel.",
+      href: "/dashboard/reports/financial-statements",
+      icon: Layers,
+    },
+    {
       name: "Statement of Financial Position",
       description:
         "Assets, liabilities, and equity at a specific date.",

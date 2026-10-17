@@ -28,6 +28,8 @@ import { apiClient } from "@/lib/api-client";
 import { Account, accountGroupLabels } from "@/lib/types/accounting";
 import { cn } from "@/lib/utils";
 import { AccountForm } from "@/components/accounting/account-form";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -68,6 +70,7 @@ function AccountRow({
   onAddChild,
   searchQuery,
 }: AccountRowProps) {
+    const can = useCan();
   const children = childMap.get(account.id) || [];
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(account.id);
@@ -144,7 +147,7 @@ function AccountRow({
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-          {account.level < 5 && (
+          {account.level < 5 && can(PERMISSIONS.FinanceCreate) && (
             <button
               onClick={() => onAddChild(account)}
               className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-muted-foreground hover:text-foreground"
@@ -153,14 +156,14 @@ function AccountRow({
               <PlusCircle className="h-3.5 w-3.5" />
             </button>
           )}
-          <button
+          {can(PERMISSIONS.FinanceEdit) && <button
             onClick={() => onEdit(account)}
             className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-muted-foreground hover:text-foreground"
             title="Edit"
           >
             <Pencil className="h-3.5 w-3.5" />
-          </button>
-          {!account.isSystemDefault && (
+          </button>}
+          {!account.isSystemDefault && can(PERMISSIONS.FinanceDelete) && (
             <button
               onClick={() => onDelete(account)}
               className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-muted-foreground hover:text-red-600"
@@ -211,6 +214,7 @@ function hasDescendantMatch(
 }
 
 export default function CoaPage() {
+    const can = useCan();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
@@ -373,14 +377,14 @@ export default function CoaPage() {
               Get started quickly with a ready-made chart of accounts for your business.
               You can customize, add, or remove accounts anytime.
             </p>
-            <Button onClick={handleInitialize} disabled={initializing} size="lg">
+            {can(PERMISSIONS.FinanceCreate) && <Button onClick={handleInitialize} disabled={initializing} size="lg">
               {initializing ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Sparkles className="mr-2 h-4 w-4" />
               )}
               Get Started
-            </Button>
+            </Button>}
           </CardContent>
         </Card>
       </div>
@@ -416,9 +420,9 @@ export default function CoaPage() {
               setSheetOpen(val);
             }}
           >
-            <Button onClick={() => { setEditingAccount(null); setParentForNew(null); setSheetOpen(true); }}>
+            {can(PERMISSIONS.FinanceCreate) && <Button onClick={() => { setEditingAccount(null); setParentForNew(null); setSheetOpen(true); }}>
               <PlusCircle className="mr-2 h-4 w-4" /> New Account
-            </Button>
+            </Button>}
             <SheetContent className="sm:max-w-[540px]">
               <SheetHeader>
                 <SheetTitle>
@@ -444,6 +448,7 @@ export default function CoaPage() {
                       ? {
                         code: editingAccount.code,
                         name: editingAccount.name,
+                        nameId: editingAccount.nameId || "",
                         type: editingAccount.accountGroup as any,
                         parentId: editingAccount.parentAccountId || "none",
                         description: editingAccount.description || "",

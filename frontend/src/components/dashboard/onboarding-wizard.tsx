@@ -19,6 +19,7 @@ import { CheckCircle, Building, Wallet, Calendar, Activity, Loader2 } from "luci
 import { toast } from "sonner"
 import { siteConfig } from "@/config/site"
 import { apiClient } from "@/lib/api-client"
+import { usePermission } from "@/contexts/permission-context"
 
 export function OnboardingWizard() {
     const [open, setOpen] = useState(false)
@@ -28,8 +29,14 @@ export function OnboardingWizard() {
     const [address, setAddress] = useState("")
     const [currency, setCurrency] = useState("IDR")
     const [isLoading, setIsLoading] = useState(false)
+    // Completing setup needs Settings.Manage. Without it the dialog, which cannot
+    // be dismissed, would trap Staff and Viewers behind a form the API refuses.
+    const { hasPermission, isReady } = usePermission()
+    const canCompleteSetup = isReady && hasPermission("Settings.Manage")
 
     useEffect(() => {
+        if (!canCompleteSetup) return;
+
         // SKIP FOR ADMINS
         const token = localStorage.getItem("token")
         if (token) {
@@ -58,7 +65,7 @@ export function OnboardingWizard() {
             }
         }
         checkStatus()
-    }, [])
+    }, [canCompleteSetup])
 
     // Prevent closing dialog without completing - no X button, no escape, no backdrop click
     const handleOpenChange = (newOpen: boolean) => {

@@ -15,8 +15,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { formatCurrency, formatDate } from "@/lib/utils/formatter"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function SptPpnPage() {
+    const can = useCan();
     const today = new Date()
     const [year, setYear] = React.useState<number>(today.getFullYear())
     const [month, setMonth] = React.useState<number>(today.getMonth() + 1)
@@ -231,11 +234,11 @@ export default function SptPpnPage() {
                                     </span>
                                 ) : (
                                     <Dialog open={settleDialogOpen} onOpenChange={setSettleDialogOpen}>
-                                        <DialogTrigger asChild>
+                                        {can(PERMISSIONS.FinanceCreate) && <DialogTrigger asChild>
                                             <Button size="sm" variant="outline" className="h-6 text-[10px] font-mono">
                                                 Tutup Masa
                                             </Button>
-                                        </DialogTrigger>
+                                        </DialogTrigger>}
                                         <DialogContent>
                                             <DialogHeader>
                                                 <DialogTitle className="font-display">Posting Jurnal Penutupan PPN</DialogTitle>
@@ -445,7 +448,7 @@ export default function SptPpnPage() {
                                             ) : (
                                                 data.formA2Lines.map((row: any) => (
                                                     <TableRow key={row.documentId}>
-                                                        <TableCell className="font-bold">{row.fakturPajakNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.fakturPajakNumber ?? "Not entered"}</TableCell>
                                                         <TableCell>{formatDate(row.documentDate)}</TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || row.counterpartyNik || "—"}</TableCell>
@@ -495,7 +498,7 @@ export default function SptPpnPage() {
                                             ) : (
                                                 data.formB2Lines.map((row: any) => (
                                                     <TableRow key={row.documentId}>
-                                                        <TableCell className="font-bold">{row.fakturPajakNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.fakturPajakNumber ?? "Not entered"}</TableCell>
                                                         <TableCell>{formatDate(row.documentDate)}</TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || "—"}</TableCell>

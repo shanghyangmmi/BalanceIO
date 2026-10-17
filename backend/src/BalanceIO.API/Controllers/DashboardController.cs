@@ -44,24 +44,23 @@ public class DashboardController : ControllerBase
     /// <summary>What is behind each door, and which of them open.</summary>
     private static readonly (string Key, string Name, string Description, string Href, string[] Contents)[] Catalogue =
     {
-        ("accounting",  "Accounting",   "Journals, the general ledger, the chart of accounts and the period close.", "/dashboard/accounting",
-            new[] { "Journal entries", "General ledger", "Chart of accounts", "Approvals", "Recurring", "Period lock" }),
-        ("tax",         "Tax",          "PPN Keluaran and PPN Masukan, period by period, against the SPT Masa deadline.", "/dashboard/tax",
-            new[] { "PPN Keluaran", "PPN Masukan", "Ekualisasi", "Rekonsiliasi fiskal", "Debt to equity" }),
-        ("inventory",   "Inventory",    "Stock on hand, counted against the shelf, and the COGS it produces.",        "/dashboard/inventory",
-            new[] { "Items", "Stock opname", "Adjustments" }),
-        ("fixedAssets", "Assets",       "The register at cost, and the depreciation it posts each period.",           "/dashboard/assets",
-            new[] { "Register", "Depreciation", "Amortization", "Disposal" }),
-        ("payroll",     "Payroll",      "Salary expense, PPh 21 and BPJS.",                                           "/dashboard/payroll",
-            new[] { "Salary expense", "PPh 21", "BPJS" }),
+        ("accounting",  "Accounting",     "Journals, the chart of accounts, approvals and the period close. Every other module posts here.", "/dashboard/accounting",
+            new[] { "Journal entries", "General ledger", "Chart of accounts", "Approvals", "Recurring entries", "Period lock" }),
+        ("tax",         "Tax",            "PPN Keluaran and Masukan, withholding, ekualisasi and koreksi fiskal against the filing calendar.", "/dashboard/tax",
+            new[] { "SPT Masa PPN", "e-Faktur", "PPh 21/22/23/4(2)", "Ekualisasi", "Rekonsiliasi fiskal", "Debt to equity" }),
+        ("inventory",   "Inventory",      "Stock on hand by item, counted against the shelf, and the cost of goods sold it posts.", "/dashboard/inventory",
+            new[] { "Items", "Stock opname", "Adjustments", "Movements" }),
+        ("fixedAssets", "Fixed Assets",   "The register at cost, depreciation and amortisation each period, disposal and revaluation.", "/dashboard/assets",
+            new[] { "Register", "Depreciation", "Amortisation", "Disposal", "Revaluation" }),
+        ("payroll",     "Payroll",        "Compensation, monthly runs, PPh 21 under TER and BPJS, posted as salary expense.", "/dashboard/payroll",
+            new[] { "Compensation", "Payroll runs", "PPh 21 TER", "BPJS", "Ledger posting" }),
     };
 
     /// <summary>
-    /// The hub. A list of doors and nothing else.
-    ///
-    /// No figures here on purpose: the hub answers "where do I go", and the
-    /// module you walk into answers "how is it going". Putting both on one
-    /// page is what made the old KPI dashboard unreadable.
+    /// Which modules exist and which of them this company's plan opens.
+    /// The hub pairs this with module-health for the figures; the two stay
+    /// separate because entitlement is visible to every member and the
+    /// figures require Finance.View.
     /// </summary>
     [HttpGet("modules")]
     public async Task<ActionResult<ModuleDoorsResponse>> GetModuleDoors()
@@ -97,7 +96,7 @@ public class DashboardController : ControllerBase
                 Entitled    = entitled,
                 Href        = entitled ? href : null,
                 LockedReason = !implemented
-                    ? "Not built yet."
+                    ? "Not available."
                     : entitled
                         ? null
                         : entitlement.PlanName is null
@@ -134,6 +133,7 @@ public class DashboardController : ControllerBase
     /// settled, and the figures have to be consistent with the reports.
     /// </summary>
     [HttpGet("module-health")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<ModuleHealthResponse>> GetModuleHealth()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -166,6 +166,7 @@ public class DashboardController : ControllerBase
     /// modules nobody opened.
     /// </summary>
     [HttpGet("accounting")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<AccountingOverviewResponse>> GetAccountingOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -190,6 +191,7 @@ public class DashboardController : ControllerBase
     /// Nothing in the response decides how a transaction should be taxed.
     /// </summary>
     [HttpGet("tax")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TaxOverviewResponse>> GetTaxOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -216,6 +218,7 @@ public class DashboardController : ControllerBase
     /// Behind the Tax entitlement, like the rest of the module.
     /// </summary>
     [HttpGet("tax/equalisation")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TaxEqualisationResponse>> GetTaxEqualisation([FromQuery] int? year)
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -246,6 +249,7 @@ public class DashboardController : ControllerBase
     /// through the corrections marked on the chart of accounts.
     /// </summary>
     [HttpGet("tax/reconciliation")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<FiscalReconciliationResponse>> GetFiscalReconciliation([FromQuery] int? year)
     {
         var guard = await TaxYearGuardAsync(year);
@@ -259,6 +263,7 @@ public class DashboardController : ControllerBase
     /// interest that falls outside the 4:1 cap.
     /// </summary>
     [HttpGet("tax/debt-to-equity")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<DebtToEquityResponse>> GetDebtToEquity([FromQuery] int? year)
     {
         var guard = await TaxYearGuardAsync(year);
@@ -301,9 +306,11 @@ public class DashboardController : ControllerBase
     /// so giving them separate implementations would only let them drift.
     /// </summary>
     [HttpGet("assets/depreciation")]
+    [RequiresPermission(Permissions.AssetsView)]
     public Task<ActionResult<AssetChargeOverviewResponse>> GetDepreciation() => AssetChargeAsync(intangible: false);
 
     [HttpGet("assets/amortisation")]
+    [RequiresPermission(Permissions.AssetsView)]
     public Task<ActionResult<AssetChargeOverviewResponse>> GetAmortisation() => AssetChargeAsync(intangible: true);
 
     /// <summary>
@@ -364,6 +371,7 @@ public class DashboardController : ControllerBase
     /// and the items whose movements cannot reach the ledger.
     /// </summary>
     [HttpGet("inventory")]
+    [RequiresPermission(Permissions.InventoryView)]
     public async Task<ActionResult<StockOverviewResponse>> GetStockOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -386,6 +394,7 @@ public class DashboardController : ControllerBase
     /// behind on depreciation, and what could not post if it were run.
     /// </summary>
     [HttpGet("assets")]
+    [RequiresPermission(Permissions.AssetsView)]
     public async Task<ActionResult<AssetOverviewResponse>> GetAssetOverview()
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -404,6 +413,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("metrics")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult> GetMetrics()
     {
         try
@@ -474,6 +484,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("recent-sales")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult> GetRecentSales()
     {
         try
@@ -502,6 +513,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("overview")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult> GetOverview()
     {
         try
@@ -537,6 +549,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("expense-breakdown")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult> GetExpenseBreakdown()
     {
         try
@@ -584,6 +597,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("top-products")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult> GetTopProducts()
     {
         try
@@ -631,6 +645,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("sales-trend")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult> GetSalesTrend()
     {
         try

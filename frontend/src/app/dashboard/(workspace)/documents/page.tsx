@@ -41,6 +41,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface FinancialDocument {
   id: string
@@ -88,6 +90,10 @@ function formatCurrency(amount: number) {
 }
 
 export default function DocumentsPage() {
+    const can = useCan();
+    const canCreateSales = can(PERMISSIONS.SalesCreate);
+    const canCreateJournal = can(PERMISSIONS.FinanceCreate);
+    const canCreatePurchases = can(PERMISSIONS.PurchasesCreate);
   const router = useRouter()
   const [documents, setDocuments] = useState<FinancialDocument[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -205,7 +211,7 @@ export default function DocumentsPage() {
             View and create invoices, journal entries, and purchase documents.
           </p>
         </div>
-        <DropdownMenu>
+        {(canCreateSales || canCreateJournal || canCreatePurchases) && <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -213,18 +219,23 @@ export default function DocumentsPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            {canCreateSales && <>
             <DropdownMenuLabel>Sales</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => handleCreateDocument("invoice")}>
               <Receipt className="mr-2 h-4 w-4 text-emerald-500" />
               Sales Invoice
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            </>}
+            {canCreateJournal && <>
+            {canCreateSales && <DropdownMenuSeparator />}
             <DropdownMenuLabel>Accounting</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => handleCreateDocument("journal")}>
               <FileText className="mr-2 h-4 w-4 text-blue-500" />
               Journal Entry
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            </>}
+            {canCreatePurchases && <>
+            {(canCreateSales || canCreateJournal) && <DropdownMenuSeparator />}
             <DropdownMenuLabel>Purchases</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => handleCreateDocument("purchase-order")}>
               <ShoppingCart className="mr-2 h-4 w-4 text-violet-500" />
@@ -234,8 +245,9 @@ export default function DocumentsPage() {
               <FileText className="mr-2 h-4 w-4 text-red-500" />
               Purchase Bill
             </DropdownMenuItem>
+            </>}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu>}
       </div>
 
       {/* Filters */}

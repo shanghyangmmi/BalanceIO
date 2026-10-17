@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import { retryUnlessClientError } from "@/lib/query-retry"
+import { useCompany } from "@/contexts/company-context"
 
 /** Types mirror DTOs/ModuleDoorDTOs.cs, written from a real response. */
 
@@ -12,7 +13,7 @@ export interface ModuleDoor {
   key: ModuleKey
   name: string
   description: string
-  /** What is inside, named. Not measured — the hub carries no figures. */
+  /** What is inside, named. Figures come from module-health. */
   contents: string[]
   /** The one door that is the product rather than an addition to it. */
   primary: boolean
@@ -32,15 +33,14 @@ export interface ModuleDoorsResponse {
 }
 
 /**
- * The hub's only request.
- *
- * Deliberately not module-health: the hub is a list of doors, and asking
- * four modules how they are going in order to draw a launcher would pay
- * for figures nobody asked to see.
+ * Which modules exist and which the plan opens. The hub draws its cards
+ * from this at once and fills their figures from module-health.
  */
 export function useModuleDoors() {
+  const { company } = useCompany()
   return useQuery({
-    queryKey: ["dashboard", "module-doors"],
+    queryKey: ["dashboard", "module-doors", company?.id],
+    enabled: !!company,
     queryFn: () => apiClient.get<ModuleDoorsResponse>("/Dashboard/modules"),
     retry: retryUnlessClientError,
   })

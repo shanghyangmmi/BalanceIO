@@ -12,8 +12,11 @@ import { apiClient } from "@/lib/api-client";
 import { Product } from "@/lib/types/inventory";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function InventoryPage() {
+    const can = useCan();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [metrics, setMetrics] = useState({
@@ -57,7 +60,10 @@ export default function InventoryPage() {
     setIsAdjustmentOpen(true);
   };
 
-  const columns = getProductColumns(handleAdjustStock);
+  const columns = getProductColumns(
+    can(PERMISSIONS.InventoryOpname) ? handleAdjustStock : undefined,
+    can(PERMISSIONS.InventoryManage),
+  );
 
   return (
     <div className="flex-1 space-y-4">
@@ -66,11 +72,11 @@ export default function InventoryPage() {
           <h2 className="text-3xl font-bold tracking-tight text-gradient">Inventory</h2>
         </div>
         <div className="flex items-center space-x-2">
-          <Link href="/dashboard/inventory/new">
+          {can(PERMISSIONS.InventoryManage) && <Link href="/dashboard/inventory/new">
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" /> New Product
             </Button>
-          </Link>
+          </Link>}
         </div>
       </div>
 

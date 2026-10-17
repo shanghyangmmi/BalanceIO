@@ -1,4 +1,6 @@
 import { JournalForm } from "@/components/accounting/journal-form";
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function NewJournalPage() {
   return (
@@ -6,7 +8,9 @@ export default function NewJournalPage() {
       {/* Header Removed */}
 
       <div className="bg-card text-card-foreground">
-        <JournalForm />
+        <RBACGuard permission={PERMISSIONS.FinanceCreate} fallback={<NoPermission permission={PERMISSIONS.FinanceCreate} />}>
+<JournalForm />
+</RBACGuard>
       </div>
     </div>
   );

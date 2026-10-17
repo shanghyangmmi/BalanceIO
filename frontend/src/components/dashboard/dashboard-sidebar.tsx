@@ -72,7 +72,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
             <>
                 <aside
                     className={cn(
-                        "fixed top-0 left-0 z-40 h-screen bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 w-[240px]",
+                        "fixed top-0 left-0 z-40 h-screen print:hidden bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 w-[240px]",
                         !isOpen && "-translate-x-full md:translate-x-0 md:w-[70px]",
                         isMobile && "shadow-2xl"
                     )}
@@ -91,7 +91,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                 initial={false}
                 animate={{ width: isOpen ? 240 : 70 }}
                 className={cn(
-                    "fixed top-0 left-0 z-40 h-screen bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 flex flex-col",
+                    "fixed top-0 left-0 z-40 h-screen print:hidden bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 flex flex-col",
                     isMobile && "shadow-2xl"
                 )}
             >
@@ -197,13 +197,13 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                 className="space-y-3"
                             >
                                 <div className="px-1 space-y-1">
-                                    <div className="flex justify-between text-[10px] text-zinc-400">
-                                        <span>Company ID:</span>
-                                        <span className="font-mono text-zinc-600 dark:text-zinc-300 font-semibold">BIO-8823</span>
+                                    <div className="flex justify-between gap-3 text-[10px] text-zinc-400">
+                                        <span>Company</span>
+                                        <span className="truncate font-semibold text-zinc-600 dark:text-zinc-300" title={company?.name}>{company?.name ?? "—"}</span>
                                     </div>
-                                    <div className="flex justify-between text-[10px] text-zinc-400">
-                                        <span>User ID:</span>
-                                        <span className="font-mono text-zinc-600 dark:text-zinc-300 font-semibold">USR-9921</span>
+                                    <div className="flex justify-between gap-3 text-[10px] text-zinc-400">
+                                        <span>Role</span>
+                                        <span className="font-mono font-semibold text-zinc-600 dark:text-zinc-300">{company?.role ?? "—"}</span>
                                     </div>
                                 </div>
                                 <Button

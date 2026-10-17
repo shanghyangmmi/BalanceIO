@@ -345,6 +345,7 @@ public class MigrationController : ControllerBase
 
     // ── 6. GET: api/migration/templates/{type} ──────────────────────────
     [HttpGet("templates/{type}")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public IActionResult DownloadTemplate(string type)
     {
         var csvContent = type.ToLower() switch

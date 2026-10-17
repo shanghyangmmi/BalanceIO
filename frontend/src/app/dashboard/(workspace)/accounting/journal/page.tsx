@@ -9,6 +9,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo } from "react";
 import { useJournalEntries } from "@/hooks/use-journal-entries";
 import { JournalEntry } from "@/lib/types/accounting";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // Backend enum: 0 = Draft, 1 = Posted, 2 = Void
 const STATUS_MAP: Record<number, string> = {
@@ -24,6 +26,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function JournalPageBody() {
+    const can = useCan();
   // ?status=draft narrows the list. The Accounting module dashboard links
   // here that way, and a link that promised drafts and delivered every
   // entry would be worse than no link at all.
@@ -62,11 +65,11 @@ function JournalPageBody() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Link href="/dashboard/accounting/journal/new">
+          {can(PERMISSIONS.FinanceCreate) && <Link href="/dashboard/accounting/journal/new">
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" /> New Entry
             </Button>
-          </Link>
+          </Link>}
         </div>
       </div>
 

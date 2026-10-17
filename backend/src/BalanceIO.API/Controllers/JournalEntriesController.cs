@@ -1,4 +1,5 @@
 using BalanceIO.API.Data;
+using BalanceIO.API.DTOs;
 using BalanceIO.API.Models;
 using BalanceIO.API.Services;
 using BalanceIO.API.Security;
@@ -14,13 +15,11 @@ namespace BalanceIO.API.Controllers;
 public class JournalEntriesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly IConfiguration _configuration;
     private readonly IPeriodLockService _periodLockService;
 
-    public JournalEntriesController(ApplicationDbContext context, IConfiguration configuration, IPeriodLockService periodLockService)
+    public JournalEntriesController(ApplicationDbContext context, IPeriodLockService periodLockService)
     {
         _context = context;
-        _configuration = configuration;
         _periodLockService = periodLockService;
     }
 
@@ -32,13 +31,21 @@ public class JournalEntriesController : ControllerBase
         return Guid.TryParse(claim, out var id) ? id : null;
     }
 
-    private string GetCurrentUserEmail()
+    /// <summary>
+    /// The caller's identity for stamping and segregation of duties. There is
+    /// no fallback address: two callers without an email claim must never
+    /// compare as the same person.
+    /// </summary>
+    private bool TryGetActor(out Guid id, out string label)
     {
-        return User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value 
-            ?? User.FindFirst("email")?.Value 
-            ?? User.Identity?.Name 
-            ?? "accountant@balanceio.id";
+        id = GetCurrentUserId() ?? Guid.Empty;
+        label = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+             ?? User.FindFirst("email")?.Value
+             ?? id.ToString();
+        return id != Guid.Empty;
     }
+
+    private IActionResult Rejected(string code, string message) => BadRequest(new { code, message });
 
     // GET: api/JournalEntries
     // Backward compatible: without ?page= returns the full list (legacy shape).
@@ -70,50 +77,22 @@ public class JournalEntriesController : ControllerBase
             .OrderByDescending(j => j.Date)
             .ThenByDescending(j => j.CreatedAt);
 
-        try
+        if (!page.HasValue)
         {
-            if (!page.HasValue)
-            {
-                return Ok(await query.AsNoTracking().ToListAsync());
-            }
-
-            pageSize = Math.Clamp(pageSize, 1, 200);
-            var currentPage = Math.Max(page.Value, 1);
-
-            var total = await query.CountAsync();
-            var items = await query
-                .AsNoTracking()
-                .Skip((currentPage - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            return Ok(new { items, total, page = currentPage, pageSize });
+            return Ok(await query.AsNoTracking().ToListAsync());
         }
-        catch (Exception ex) when (ex.Message.Contains("IsAdjustingEntry") || ex.Message.Contains("no such column"))
-        {
-            // Auto-patch missing columns in SQLite database file on demand
-            try { _context.Database.ExecuteSqlRaw(@"ALTER TABLE ""JournalEntries"" ADD COLUMN ""IsAdjustingEntry"" INTEGER DEFAULT 0;"); } catch { }
-            try { _context.Database.ExecuteSqlRaw(@"ALTER TABLE ""JournalEntries"" ADD COLUMN ""ProjectId"" TEXT;"); } catch { }
-            try { _context.Database.ExecuteSqlRaw(@"ALTER TABLE ""SalesInvoices"" ADD COLUMN ""ProjectId"" TEXT;"); } catch { }
-            try { _context.Database.ExecuteSqlRaw(@"ALTER TABLE ""Companies"" ADD COLUMN ""LockDate"" TEXT;"); } catch { }
 
-            if (!page.HasValue)
-            {
-                return Ok(await query.AsNoTracking().ToListAsync());
-            }
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        var currentPage = Math.Max(page.Value, 1);
 
-            pageSize = Math.Clamp(pageSize, 1, 200);
-            var currentPage = Math.Max(page.Value, 1);
+        var total = await query.CountAsync();
+        var items = await query
+            .AsNoTracking()
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
 
-            var total = await query.CountAsync();
-            var items = await query
-                .AsNoTracking()
-                .Skip((currentPage - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            return Ok(new { items, total, page = currentPage, pageSize });
-        }
+        return Ok(new { items, total, page = currentPage, pageSize });
     }
 
     // GET: api/JournalEntries/5
@@ -134,91 +113,72 @@ public class JournalEntriesController : ControllerBase
     }
 
     // POST: api/JournalEntries
+    // Always creates a Draft. Posting goes through POST /{id}/post, where
+    // segregation of duties is enforced.
     [HttpPost]
     [RequiresPermission(Permissions.FinanceCreate)]
-    public async Task<ActionResult<JournalEntry>> PostJournalEntry(JournalEntry journalEntry)
+    public async Task<IActionResult> PostJournalEntry([FromBody] JournalEntryRequest request)
     {
-        // 0. Validation
-        if (!_context.CurrentCompanyId.HasValue) return BadRequest("Company context is required");
+        if (!_context.CurrentCompanyId.HasValue) return Rejected("COMPANY_REQUIRED", "Company context is required");
+        var companyId = _context.CurrentCompanyId.Value;
+        if (!TryGetActor(out var actorId, out var actorLabel)) return Unauthorized();
 
-        // ── IDEMPOTENCY KEY GUARD (Prevent Double Submission / Network Retries) ──
-        string? idempotencyKey = Request.Headers["X-Idempotency-Key"].FirstOrDefault();
-        if (string.IsNullOrEmpty(idempotencyKey))
-        {
-            idempotencyKey = journalEntry.IdempotencyKey;
-        }
+        var idempotencyKey = Request.Headers["X-Idempotency-Key"].FirstOrDefault();
+        if (idempotencyKey is { Length: > 100 })
+            return Rejected("IDEMPOTENCY_KEY_TOO_LONG", "X-Idempotency-Key is limited to 100 characters.");
 
         if (!string.IsNullOrEmpty(idempotencyKey))
         {
-            var existingEntry = await _context.JournalEntries
-                .Include(j => j.Lines)
-                .FirstOrDefaultAsync(j => j.CompanyId == _context.CurrentCompanyId.Value && j.IdempotencyKey == idempotencyKey);
-
-            if (existingEntry != null)
-            {
-                // Request already processed — return existing entry immediately with HTTP 200 OK
-                return Ok(existingEntry);
-            }
-
-            journalEntry.IdempotencyKey = idempotencyKey;
+            var existing = await FindByIdempotencyKey(idempotencyKey);
+            if (existing != null) return Ok(existing);
         }
 
-        await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, journalEntry.Date);
+        var invalid = await ValidateRequest(request, companyId);
+        if (invalid != null) return invalid;
 
-        if (journalEntry.Lines.Count < 2)
-            return BadRequest("Journal Entry must have at least 2 lines.");
+        await _periodLockService.ValidateTransactionDate(companyId, request.Date);
 
-        // FREE TIER LIMIT (Configurable)
-        var maxJournals = _configuration.GetValue<int>("TierLimits:Free:MaxJournals");
-        if (maxJournals == 0) maxJournals = 50; // Increased default limit
-
-        var currentCount = await _context.JournalEntries.CountAsync();
-        if (currentCount >= maxJournals)
+        var journalEntry = new JournalEntry
         {
-            return BadRequest($"Free Tier Limit Reached: You can only create up to {maxJournals} Journal Entries. Upgrade for more.");
-        }
-
-        // 1. Balance Check - Only Strict for POSTED
-        var totalDebit = journalEntry.Lines.Sum(l => l.Debit);
-        var totalCredit = journalEntry.Lines.Sum(l => l.Credit);
-        
-        // If user sends 'Posted' status, we enforce balance.
-        // If 'Draft', we allow imbalance (Work In Progress).
-        
-        // Default to Draft if not specified? No, frontend sends status.
-        // If frontend sends nothing, it defaults to Draft (0) usually if enum default.
-        var currentUserId = GetCurrentUserId();
-        var currentEmail = GetCurrentUserEmail();
-
-        journalEntry.CreatedByUserId = currentUserId;
-        journalEntry.CreatedBy = currentEmail;
-
-        if (journalEntry.Status == JournalEntryStatus.Posted)
-        {
-            // Exact equality: money is decimal — no tolerance window on a ledger.
-            if (totalDebit != totalCredit)
-            {
-                return BadRequest(new { message = "Journal Entry is not balanced. Cannot Post.", difference = Math.Abs(totalDebit - totalCredit) });
-            }
-
-            journalEntry.ApprovedByUserId = currentUserId;
-            journalEntry.ApprovedBy = currentEmail;
-            journalEntry.ApprovedAt = DateTime.UtcNow;
-        }
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            IdempotencyKey = string.IsNullOrEmpty(idempotencyKey) ? null : idempotencyKey,
+            CreatedByUserId = actorId,
+            CreatedBy = actorLabel,
+            Status = JournalEntryStatus.Draft,
+        };
+        await ApplyRequest(journalEntry, request, companyId);
 
         _context.JournalEntries.Add(journalEntry);
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException) when (journalEntry.IdempotencyKey != null)
+        {
+            // Lost a race against a concurrent request with the same key; the
+            // unique index on (CompanyId, IdempotencyKey) decided the winner.
+            _context.ChangeTracker.Clear();
+            var winner = await FindByIdempotencyKey(journalEntry.IdempotencyKey);
+            if (winner != null) return Ok(winner);
+            throw;
+        }
 
         return CreatedAtAction("GetJournalEntry", new { id = journalEntry.Id }, journalEntry);
     }
 
+    private Task<JournalEntry?> FindByIdempotencyKey(string key) =>
+        _context.JournalEntries.AsNoTracking().Include(j => j.Lines)
+            .FirstOrDefaultAsync(j => j.CompanyId == _context.CurrentCompanyId && j.IdempotencyKey == key);
+
     // PUT: api/JournalEntries/5
+    // Edits a Draft. Status cannot be changed here.
     [HttpPut("{id}")]
     [RequiresPermission(Permissions.FinanceEdit)]
-    public async Task<IActionResult> PutJournalEntry(Guid id, JournalEntry journalEntry)
+    public async Task<IActionResult> PutJournalEntry(Guid id, [FromBody] JournalEntryRequest request)
     {
-        if (id != journalEntry.Id) return BadRequest();
-        if (!_context.CurrentCompanyId.HasValue) return BadRequest("Company context is required");
+        if (!_context.CurrentCompanyId.HasValue) return Rejected("COMPANY_REQUIRED", "Company context is required");
+        var companyId = _context.CurrentCompanyId.Value;
 
         var existing = await _context.JournalEntries
             .Include(j => j.Lines)
@@ -226,14 +186,9 @@ public class JournalEntriesController : ControllerBase
 
         if (existing == null) return NotFound();
 
-        // Check Period Lock (Old Date)
-        await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, existing.Date);
-        // Check Period Lock (New Date)
-        await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, journalEntry.Date);
-
         // ── LEDGER IMMUTABILITY GUARD ──────────────────────────────────────
-        // A Posted entry is part of the immutable ledger. NO field or line may
-        // be modified. Corrections must go through Void + Reversal:
+        // A Posted entry is part of the immutable ledger and a Void entry is a
+        // historical record. Corrections go through Void + Reversal:
         //   POST api/JournalEntries/{id}/void
         //   POST api/JournalEntries/{id}/reverse
         if (existing.Status == JournalEntryStatus.Posted)
@@ -246,7 +201,6 @@ public class JournalEntriesController : ControllerBase
             });
         }
 
-        // A Void entry is a historical record — equally immutable.
         if (existing.Status == JournalEntryStatus.Void)
         {
             return BadRequest(new
@@ -256,40 +210,96 @@ public class JournalEntriesController : ControllerBase
             });
         }
 
-        // From here on, existing.Status == Draft.
-        existing.Date = journalEntry.Date;
-        existing.ReferenceNumber = journalEntry.ReferenceNumber;
-        existing.Notes = journalEntry.Notes;
-        existing.Status = journalEntry.Status; // Draft -> Draft or Draft -> Posted
+        var invalid = await ValidateRequest(request, companyId);
+        if (invalid != null) return invalid;
+
+        await _periodLockService.ValidateTransactionDate(companyId, existing.Date);
+        await _periodLockService.ValidateTransactionDate(companyId, request.Date);
+
+        _context.JournalLines.RemoveRange(existing.Lines);
+        existing.Lines = new List<JournalLine>();
+        await ApplyRequest(existing, request, companyId);
         existing.UpdatedAt = DateTime.UtcNow;
 
-        // Replace lines
-        _context.JournalLines.RemoveRange(existing.Lines);
-        existing.Lines = journalEntry.Lines;
-        foreach(var line in existing.Lines) {
-             line.JournalEntryId = existing.Id;
-             if(line.Id == Guid.Empty) line.Id = Guid.NewGuid();
-        }
-
-        // Validate Balance if Posting (exact equality — no tolerance on a ledger)
-        if (existing.Status == JournalEntryStatus.Posted)
-        {
-             var d = existing.Lines.Sum(l => l.Debit);
-             var c = existing.Lines.Sum(l => l.Credit);
-             if (d != c) return BadRequest("Journal Entry is not balanced.");
-        }
-
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!JournalEntryExists(id)) return NotFound();
-            else throw;
-        }
-
+        await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    /// <summary>Everything a Draft's content may carry. Returns null when valid.</summary>
+    private async Task<IActionResult?> ValidateRequest(JournalEntryRequest request, Guid companyId)
+    {
+        if (request.Status is not (null or 0))
+        {
+            return request.Status == 1
+                ? Rejected("USE_POST_ENDPOINT", "Journal entries are saved as Draft. Post with POST /api/JournalEntries/{id}/post.")
+                : Rejected("INVALID_STATUS", "Status cannot be set on create or update.");
+        }
+
+        if (request.Date == default) return Rejected("DATE_REQUIRED", "Date is required.");
+        if (request.Lines.Count < 2) return Rejected("TOO_FEW_LINES", "Journal Entry must have at least 2 lines.");
+        if (request.ReferenceNumber is { Length: > 50 }) return Rejected("FIELD_TOO_LONG", "ReferenceNumber is limited to 50 characters.");
+        if (request.Tags is { Length: > 200 }) return Rejected("FIELD_TOO_LONG", "Tags is limited to 200 characters.");
+        if (request.ContactId is { Length: > 100 }) return Rejected("FIELD_TOO_LONG", "ContactId is limited to 100 characters.");
+        if (request.Notes is { Length: > 4000 }) return Rejected("FIELD_TOO_LONG", "Notes is limited to 4000 characters.");
+        if (request.Currency is { } cur && !(cur.Length == 3 && cur.All(char.IsAsciiLetter)))
+            return Rejected("INVALID_CURRENCY", "Currency must be a 3-letter ISO code.");
+
+        foreach (var line in request.Lines)
+        {
+            if (string.IsNullOrWhiteSpace(line.AccountId) || line.AccountId.Length > 100)
+                return Rejected("ACCOUNT_REQUIRED", "Every line needs an account.");
+            if (line.Description is { Length: > 255 }) return Rejected("FIELD_TOO_LONG", "Line description is limited to 255 characters.");
+            if (line.Tax is { Length: > 50 }) return Rejected("FIELD_TOO_LONG", "Line tax is limited to 50 characters.");
+            if (line.Debit < 0 || line.Credit < 0)
+                return Rejected("NEGATIVE_AMOUNT", "Debit and credit amounts cannot be negative.");
+            if (line.Debit > 0 && line.Credit > 0)
+                return Rejected("DEBIT_AND_CREDIT", "A line carries either a debit or a credit, not both.");
+            if (line.Debit == 0 && line.Credit == 0)
+                return Rejected("ZERO_LINE", "Every line needs a debit or a credit amount.");
+            // The column is decimal(19,4): anything finer would be rounded by
+            // the database, silently unbalancing an entry that balanced here.
+            if (line.Debit != Math.Round(line.Debit, 4) || line.Credit != Math.Round(line.Credit, 4)
+                || line.Debit >= 1e15m || line.Credit >= 1e15m)
+                return Rejected("AMOUNT_OUT_OF_RANGE", "Amounts support at most 4 decimal places and less than 1e15.");
+        }
+
+        var codes = await _context.ResolveAccountCodesAsync(companyId, request.Lines.Select(l => l.AccountId));
+        var unknown = request.Lines.Select(l => l.AccountId).Distinct().Where(a => !codes.ContainsKey(a)).ToList();
+        if (unknown.Count > 0)
+            return Rejected("ACCOUNT_NOT_FOUND", $"Unknown account(s) for this company: {string.Join(", ", unknown)}.");
+
+        if (request.ProjectId.HasValue && !await _context.Projects.AnyAsync(p => p.Id == request.ProjectId))
+            return Rejected("PROJECT_NOT_FOUND", "Project does not exist in this company.");
+
+        return null;
+    }
+
+    private async Task ApplyRequest(JournalEntry entry, JournalEntryRequest request, Guid companyId)
+    {
+        var codes = await _context.ResolveAccountCodesAsync(companyId, request.Lines.Select(l => l.AccountId));
+
+        entry.Date = request.Date;
+        entry.ReferenceNumber = request.ReferenceNumber;
+        entry.Tags = request.Tags;
+        entry.ContactId = string.IsNullOrWhiteSpace(request.ContactId) ? null : request.ContactId;
+        entry.Currency = request.Currency?.ToUpperInvariant() ?? "IDR";
+        entry.Notes = request.Notes;
+        entry.ProjectId = request.ProjectId;
+        entry.IsAdjustingEntry = request.IsAdjustingEntry;
+
+        foreach (var line in request.Lines)
+        {
+            entry.Lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                JournalEntryId = entry.Id,
+                AccountId = codes[line.AccountId],
+                Description = line.Description,
+                Debit = line.Debit,
+                Credit = line.Credit,
+                Tax = line.Tax,
+            });
+        }
     }
 
     // DELETE: api/JournalEntries/5
@@ -369,6 +379,9 @@ public class JournalEntriesController : ControllerBase
         if (source.Status == JournalEntryStatus.Draft)
             return BadRequest(new { message = "Draft entries can be edited directly — reversal is unnecessary.", code = "DRAFT_NOT_REVERSIBLE" });
 
+        if (source.Status == JournalEntryStatus.Void)
+            return BadRequest(new { message = "Void entries no longer affect the ledger and cannot be reversed.", code = "VOID_NOT_REVERSIBLE" });
+
         var reversalDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
         await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, reversalDate);
 
@@ -396,6 +409,12 @@ public class JournalEntriesController : ControllerBase
             }).ToList()
         };
 
+        if (TryGetActor(out var reverserId, out var reverserLabel))
+        {
+            reversal.CreatedByUserId = reverserId;
+            reversal.CreatedBy = reverserLabel;
+        }
+
         _context.JournalEntries.Add(reversal);
         await _context.SaveChangesAsync();
 
@@ -411,8 +430,7 @@ public class JournalEntriesController : ControllerBase
         if (!_context.CurrentCompanyId.HasValue) return BadRequest("Company context is required");
 
         var company = await _context.Companies.FindAsync(_context.CurrentCompanyId.Value);
-        var currentUserId = GetCurrentUserId();
-        var currentEmail = GetCurrentUserEmail();
+        if (!TryGetActor(out var currentUserId, out var currentEmail)) return Unauthorized();
 
         var entries = await _context.JournalEntries
             .Include(j => j.Lines) // Include lines for balance check
@@ -438,6 +456,16 @@ public class JournalEntriesController : ControllerBase
                     errors.Add($"Journal {entry.ReferenceNumber ?? entry.Id.ToString()} was created by you (SoD: requires second reviewer approval).");
                     continue;
                 }
+            }
+
+            try
+            {
+                await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, entry.Date);
+            }
+            catch (PeriodLockedException ex)
+            {
+                errors.Add($"Journal {entry.ReferenceNumber ?? entry.Id.ToString()}: {ex.Message}");
+                continue;
             }
 
             // Validate Balance
@@ -479,8 +507,7 @@ public class JournalEntriesController : ControllerBase
         if (!_context.CurrentCompanyId.HasValue) return BadRequest("Company context is required");
 
         var company = await _context.Companies.FindAsync(_context.CurrentCompanyId.Value);
-        var currentUserId = GetCurrentUserId();
-        var currentEmail = GetCurrentUserEmail();
+        if (!TryGetActor(out var currentUserId, out var currentEmail)) return Unauthorized();
 
         var entry = await _context.JournalEntries
             .Include(j => j.Lines)
@@ -490,6 +517,9 @@ public class JournalEntriesController : ControllerBase
 
         if (entry.Status == JournalEntryStatus.Posted)
             return BadRequest(new { message = "Journal entry is already posted.", code = "ALREADY_POSTED" });
+
+        if (entry.Status == JournalEntryStatus.Void)
+            return BadRequest(new { message = "Void entries cannot be posted again.", code = "VOID_NOT_POSTABLE" });
 
         // ── SEGREGATION OF DUTIES (SoD) GUARD ────────────────────────────────
         // The creator of an entry cannot approve or post it.
@@ -537,13 +567,19 @@ public class JournalEntriesController : ControllerBase
     {
         if (!_context.CurrentCompanyId.HasValue) return BadRequest("Company context is required");
 
-        var currentEmail = GetCurrentUserEmail();
+        if (!TryGetActor(out _, out var currentEmail)) return Unauthorized();
 
         var entry = await _context.JournalEntries.FindAsync(id);
         if (entry == null) return NotFound();
 
+        // Only a Draft can be sent back for revision. A Void entry is a
+        // closed record and must not be reopened into something deletable.
         if (entry.Status == JournalEntryStatus.Posted)
             return BadRequest(new { message = "Cannot reject a posted entry. Void it instead.", code = "POSTED_NOT_REJECTABLE" });
+        if (entry.Status == JournalEntryStatus.Void)
+            return BadRequest(new { message = "Void entries are historical records and cannot be rejected.", code = "VOID_NOT_REJECTABLE" });
+
+        await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, entry.Date);
 
         entry.Status = JournalEntryStatus.Draft;
         entry.RejectionReason = reason ?? "Revision requested by manager";

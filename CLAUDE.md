@@ -1,144 +1,237 @@
 # BalanceIO
 
-Accounting and bookkeeping platform for the Indonesian market. .NET 8
-Web API + Next.js 16 frontend, multi-tenant, SQLite in development and
-PostgreSQL in production.
+Accounting platform for the Indonesian market. Multi-tenant. .NET 8 Web API
+(EF Core; SQLite in Development, PostgreSQL in Production) and a Next.js 16
+App Router frontend built as a static export.
 
 ```
-backend/src/BalanceIO.API/   .NET 8 · EF Core · Controllers, Services, Models
-frontend/                    Next.js 16 · App Router · static export
-BALANCEIO_WIKI.md            longer-form project documentation
+backend/BalanceIO.sln
+backend/src/BalanceIO.API/   Controllers, Services, Models, DTOs, Data, Middleware, Security, Migrations
+frontend/                    Next.js app. UI rules: frontend/CLAUDE.md, frontend/DESIGN-SYSTEM.md
+BALANCEIO_WIKI.md            architecture overview
+SECRETS.md                   environment variables, rotation
 ```
 
-`frontend/CLAUDE.md` and `frontend/DESIGN-SYSTEM.md` cover everything
-visual. Read those before touching the UI.
+## Build, run, test
 
-**Run everything:** `start-dev.bat` (backend on :5210, frontend on :3000).
+```bash
+# backend (http://localhost:5210, Swagger at /swagger, SQLite file balanceio.db in the cwd)
+dotnet build backend/BalanceIO.sln
+cd backend/src/BalanceIO.API && dotnet run --launch-profile http
 
----
+# backend tests (xUnit, real pipeline on a throwaway SQLite file)
+dotnet test backend/tests/BalanceIO.API.Tests
+# add the PostgreSQL migration/trigger tests (they skip when this is unset):
+BALANCEIO_TEST_POSTGRES="Host=localhost;Username=postgres;Password=..." dotnet test backend/tests/BalanceIO.API.Tests
 
-## Product scope — the rule that decides what gets built
+# frontend (http://localhost:3000; API base is NEXT_PUBLIC_API_URL, default http://localhost:5210/api)
+cd frontend && npm ci && npm run dev
+npm test           # node:test, money arithmetic
+npm run build      # static export to frontend/out
+npm run lint       # currently failing, see Known issues
+```
 
-BalanceIO is **accounting-first**, not an ERP. It already carries
-Inventory, Fixed Assets and Projects, which puts it in light-ERP
-territory, but breadth is not the strategy.
+There is no launcher script in the repo (`*.bat` is gitignored). In
+Development the API calls `EnsureCreated()` and seeds two known-password users
+(`DatabaseInitializer`); it never runs migrations, and it does not alter an
+existing `balanceio.db`, so delete the file after pulling model changes.
+CI (`.github/workflows/ci.yml`) runs the backend tests against PostgreSQL 16.
 
-A module earns its place only if it answers yes to one question:
+## Scope rule
 
-> **Does it post to the general ledger?**
+A module belongs only if it posts to the general ledger. Inventory (COGS),
+Fixed Assets (depreciation), Tax and Payroll (salary expense, PPh 21, BPJS)
+qualify. CRM, attendance and storefronts do not. The moat is Indonesian
+compliance (PPN, PPh, e-Faktur, Coretax, PSAK). `ModuleEntitlementService`
+gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
+`payroll`. `UnbuiltModules` is empty.
 
-| Qualifies | Does not |
-|---|---|
-| Inventory (produces COGS) | CRM — a sales pipeline generates no journal |
-| Fixed Assets (depreciation) | Attendance / leave management |
-| Payroll (salary expense, PPh 21) | Website or storefront building |
-| Manufacturing (in principle — too complex for now) | |
+## Accounting integrity
 
-The reasoning behind the rule: a shallow module damages trust in the
-deep ones. In most categories that is a disappointment; in accounting
-software the stakes are audit and tax, so trust *is* the product.
+- `Sum(Debit) == Sum(Credit)`, compared with `!=`. No tolerance.
+- Money is `decimal`; `float`/`double` are not used for money. Rounding is
+  `MidpointRounding.ToEven` unless a regulation says otherwise.
+- Journal status: `0 Draft`, `1 Posted`, `2 Void`. Posted and Void entries
+  reject `PUT` (`POSTED_IMMUTABLE`, `VOID_IMMUTABLE`). Corrections use
+  `POST /{id}/void` or `POST /{id}/reverse` (swapped Dr/Cr, `REV-` prefix,
+  created as Draft). Only Drafts are deletable.
+- Tenant isolation: `CompanyScopeMiddleware` reads `X-Company-Id`, verifies
+  membership in `UserCompanies` (platform admins excepted), and sets
+  `ApplicationDbContext.CurrentCompanyId`. Global query filters compare
+  `CompanyId == CurrentCompanyId`, so a missing scope returns no rows. Entities
+  without a filter must be queried with an explicit `CompanyId` predicate.
+- Segregation of duties: `Company.EnforceSegregationOfDuties` (default true)
+  blocks the creator of an entry from posting it.
 
-The defensible moat is **Indonesian compliance** — Coretax, e-Faktur,
-PPN, PPh, PSAK. Foreign competitors will not do this work seriously.
-It is also currently the weakest module.
+### Choke points
 
----
+| Concern | Where | Covers |
+|---|---|---|
+| Tenant stamp, account resolution, balance, immutability, status transitions | `ApplicationDbContext.SaveChangesAsync` → `ApplicationDbContext.LedgerGuards.cs` | every writer; throws `LedgerIntegrityException` (400 with a `code`) |
+| Journal quota, audit rows | same method | every writer |
+| Balance of Posted entries in the database | PostgreSQL deferred constraint triggers (`EnforceLedgerBalanceInDatabase`) | anything, including raw SQL. Not present on SQLite |
+| Period lock | `IPeriodLockService.ValidateTransactionDate`, called by each controller/service | **only the callers that remember** (14 files). Throws `PeriodLockedException` (400 `PERIOD_LOCKED`) |
+| Tenant scope | `CompanyScopeMiddleware` + query filters | reads. `Companies` has no filter: look it up by `CurrentCompanyId` |
+| Permissions | `[RequiresPermission]` → `PermissionFilter` | per action. `PermissionCoverageTests` fails on any action without one, other than the listed self-service ones |
+| Plan limit → 402 | `PlanLimitMiddleware` | |
+| Exceptions → JSON | `ApiExceptionMiddleware` | no stack trace outside Development |
 
-## Accounting integrity — non-negotiable
+A new posting path must call the period lock itself. `JournalLine.AccountId`
+is stored as the account **Code**; the choke point converts an account Id to
+its Code and rejects unknown or foreign accounts. For the same reason an
+account with journal lines cannot change its code or be deleted
+(`ACCOUNT_CODE_IN_USE`, `ACCOUNT_IN_USE`); deactivate it instead. Reports
+include inactive accounts that still hold a balance. Do not call the synchronous
+`SaveChanges()` on ledger entities (it throws): the guards are async.
 
-- **Double entry is exact.** `Sum(Debit) == Sum(Credit)`, compared with
-  `!=`, never a tolerance. A `0.0001m` tolerance was removed
-  deliberately.
-- **Money is `decimal`.** `float`/`double` are banned throughout. Use
-  Bankers rounding (`MidpointRounding.ToEven`).
-- **Posted entries are immutable.** `PUT` on a Posted or Void entry
-  returns `POSTED_IMMUTABLE` / `VOID_IMMUTABLE`. Corrections go through
-  `POST /{id}/void` or `POST /{id}/reverse` (Dr/Cr swapped, `REV-`
-  prefix, lands as Draft). Only Draft entries are deletable.
-- **Period locking.** `PeriodLockService` rejects transactions dated
-  inside a locked period. Call it from any new posting path.
-- **Audit trail is append-only.** `AuditService` records mutations.
+### Audit trail
 
-Journal status enum: `0 = Draft, 1 = Posted, 2 = Void`.
+`SaveChangesAsync` writes `AuditLogs` rows for Accounts, JournalEntries,
+JournalLines, Contacts, Products, SalesInvoices, PurchaseBills, FixedAssets,
+EmployeeCompensations, PayrollRuns.
+`AuditService` records explicit events. Nothing in the API edits audit rows,
+but the `AuditPrune` scheduled job deletes rows older than
+`Audit:RetentionDays` when that setting is positive (default 0: off).
 
----
+## Migrations
+
+Production runs `MigrateAsync()` at boot and stops if it fails. Migrations are
+PostgreSQL-only. Generate them with the Npgsql provider, never in
+Development (that is how the snapshot once came to carry SQLite types):
+
+```bash
+ASPNETCORE_ENVIRONMENT=Production BALANCEIO_JWT_KEY=<32+ chars> \
+BALANCEIO_DB_CONNECTION="Host=localhost;Database=scratch;Username=postgres;Password=..." \
+dotnet ef migrations add <Name> --project backend/src/BalanceIO.API
+```
+
+`MigrationDriftTests` fails when the model and the snapshot differ. Do not add
+DDL to `Program.cs` or a controller. Reference rows go in
+`ReferenceDataSeeder`. The first platform admin comes from
+`BALANCEIO_ADMIN_EMAIL` / `BALANCEIO_ADMIN_PASSWORD` (see `SECRETS.md`).
+
+## Tax module state
+
+Implemented: SPT Masa PPN 1111 summary, e-Faktur CSV export, e-Bupot CSV
+export, withholding summary (PPh 21/22/23/4(2)), PPN settlement journal,
+ekualisasi PPN, rekonsiliasi fiskal, DER test (PMK-169). Product-level
+`DppScheme` (11/12 nilai lain) and PPnBM fields exist.
+PPh 21 in the withholding summary comes from posted payroll runs.
+Not implemented: Coretax integration, faktur pajak numbering (NSFP is
+entered, never generated), real bukti potong numbers.
+Several outputs are derived from bills at report time rather than from the
+ledger. Missing faktur numbers and bukti potong numbers are reported as
+missing, never generated. Tax logic needs practitioner review before reliance.
+
+## Financial statements and reports
+
+`GET /api/Reports/financial-statements?start=&end=&comparative=`
+(`FinancialStatementsService`) builds the statement set from posted lines:
+financial position, profit or loss and OCI, changes in equity, cash flows
+(indirect), trial balance. Every label is bilingual: `Account.NameId` is the
+Indonesian name (default accounts take it from the seeded description),
+`Account.Name` the English. Each statement carries arithmetic checks that
+must pass (assets = liabilities + equity, equity roll-forward, closing cash =
+cash accounts, Dr = Cr). Classification is by code: `1-11` cash, `1-1`
+current assets, other `1` non-current (credit-normal ones are contra, e.g.
+accumulated depreciation), `2-1` current liabilities, `3` equity, `4`
+revenue, `5` cost of revenue, `6` operating expenses, `7` other income,
+`8`/`9` other expenses, `8-5000` income tax. Unclosed profit shows as
+retained earnings (before the fiscal year) and profit for the year.
+
+The page `reports/financial-statements` prints A4 (Indonesian left, figures,
+English right; reversible or monolingual) and exports Excel. Printing works
+from any dashboard page: the shell and sidebar are released under `print:`.
+`GET /api/Reports/cash-position` serves the cash dashboard. The older
+`/Reports/cash-flow` endpoint still classifies by account name and does not
+reconcile; the statements endpoint does.
+
+## Payroll
+
+`PayrollController` (`/api/Payroll`, module `payroll`, permissions
+`Payroll.View` / `Payroll.Manage` / `Payroll.Approve`), `PayrollService`,
+`PayrollCalculator`. Employees are Contacts with `IsEmployee`; PTKP, NIK and
+bank details live on the contact, pay on `EmployeeCompensation`.
+
+- One live run per month (filtered unique index; a Void run steps aside).
+  Draft → Posted → Void. Posting checks the period lock, segregation of duties
+  (the calculator cannot post), and refuses `RUN_STALE` when a fresh
+  calculation differs from the draft. Voiding is refused while a later month
+  of the same year is posted (its December settlement depends on it).
+- Entry: Dr `6-1100` earnings, Dr `6-1110` employer BPJS; Cr `2-1410` PPh 21,
+  Cr `2-1510` BPJS (both sides), Cr `2-1500` net pay. `ReferenceDataSeeder`
+  adds the three new accounts to existing companies.
+- PPh 21: TER (PP 58/2023) January–November on gross including employer JKK,
+  JKM and Kesehatan; December settles under Pasal 17 less TER withheld and may
+  be negative. Unknown PTKP is withheld as TK/0 with a warning.
+- BPJS: JKK (per-employee rate), JKM 0.3 %, JHT 3.7/2 %, JP 2/1 %, Kesehatan
+  4/1 %. Wage caps are configuration: `Payroll:JpWageCap` (default 10,547,400)
+  and `Payroll:KesehatanWageCap` (12,000,000). Update them when they change.
+- Not handled: leavers mid-year (no final-month annualisation), PPh 26,
+  NPWP/NIK surcharge, THR and bonus treatment beyond "other earnings",
+  1721-A1, payslips, bank transfer files. Needs practitioner review.
 
 ## Frontend conventions
 
-- **TanStack Query owns server state.** 30s `staleTime`, 10min
-  `gcTime`. Do not reintroduce `useEffect` + `fetch` — that pattern
-  caused a skeleton flash on every navigation and was removed.
-- **Large tables are virtualised** (`VirtualDataTable`, TanStack
-  Virtual). Journal and ledger endpoints support
-  `?page=&pageSize=&search=&status=`.
-- **Money always uses `.font-money`** or sits in a `<table>` — tabular,
-  lining, slashed-zero numerals.
-- `⌘K` command palette is global inside `/dashboard`.
-- Motion, colour semantics and typography: see `frontend/CLAUDE.md`.
+- Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
+  `components/providers/query-provider.tsx`). 25 files use it so far;
+  about 70 still call `apiClient` from `useEffect`. New code uses Query.
+- No screen may render sample data. `lib/data/*` was deleted; an empty
+  result is shown as empty, a failed request as an error.
+- `VirtualDataTable` (`components/ui/virtual-data-table.tsx`) for large lists.
+  Server paging (`?page=&pageSize=&search=&status=`) exists on journal entries
+  and audit logs only. The general ledger report is unpaged.
+- Money uses `.font-money` or sits in a `<table>`. Do arithmetic on money in
+  integer minor units or a decimal library, not JS floats.
+- Gate every write control with `useCan()(PERMISSIONS.X)` or `<RBACGuard>`
+  (`components/auth/rbac-guard.tsx`), using the permission the endpoint
+  requires. A page that exists only to perform an action uses `NoPermission`
+  as the guard's fallback.
+- `⌘K` palette: `components/command-palette.tsx`, mounted in
+  `app/dashboard/layout.tsx`.
+- The hub: `app/dashboard/(hub)/page.tsx`. Doors and entitlement from
+  `GET /api/Dashboard/modules`, status and figures from
+  `GET /api/Dashboard/module-health` (`ModuleHealthService`). Accounting is the
+  anchor card; the other four sit beneath it. Workspaces live under
+  `app/dashboard/(workspace)`.
+- Query keys for the hub and payroll carry the company id and wait for a
+  selected company; switching company resets the query cache
+  (`contexts/company-context.tsx`).
 
----
+## Model-only entities
 
-## Known issues
-
-| Issue | Where | Notes |
-|---|---|---|
-| **`Jwt.Key` hard-coded in `appsettings.json`** | backend | Anyone with the repo can forge a token for any user. Move to an environment variable and keep it out of git. **Highest-priority security item.** |
-| `.text-gradient` heading pattern | 44 files in `frontend/src/app/dashboard` | Legacy. Canonical is a Merriweather display heading with one italic gradient span. Fix incrementally. |
-| `shadow-sm` on in-flow cards | `card.tsx`, `tabs.tsx`, ~22 dashboard files | Contradicts the hairline rule in the design system. |
-| Raw hex colours | 31 in `components/dashboard`, 7 in `app/dashboard` | Do not respond to the theme. Replace with semantic tokens. |
-| Serif mis-mapped in Claude Design | design system export | Reports `Cambria (--font-serif)`; the real display serif is **Merriweather** via `--font-document-serif`. |
-| `ledger-core.tsx` | `frontend/src/components/landing` | Dead code since the hero was rebuilt. Safe to delete. |
-| i18n covers nav labels only | frontend | Everything else is hardcoded English. |
-| `journal/edit/page.tsx` hardcodes `status: "POSTED"` | frontend | Contract drift; should map the real status. |
-
----
-
-## Model-only entities — built but unreachable
-
-These have EF models and database tables, but no controller and no UI.
-Finishing them adds real capability at low cost and is the recommended
-next work:
-
-`SalesOrder` · `CreditNote` · `DeliveryOrder` · `GoodsReceipt` ·
-`PaymentVoucher`
-
----
+Tables and EF models, no controller, no UI, and no tenant query filter:
+`SalesOrder`, `CreditNote`, `DebitNote`, `DeliveryOrder`, `GoodsReceipt`,
+`JournalVoucher`, `FundTransfer`. Add the filter in the same change as the
+controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 
 ## Roadmap
 
-1. **Finish the model-only entities above.** Cheapest capability gain
-   available.
-2. **Deepen tax compliance.** e-Faktur export, faktur pajak numbering,
-   PPh 21/23 withholding automation, Coretax readiness. This is the
-   moat.
-3. **Bank reconciliation.** The single biggest daily pain for anyone
-   keeping books. Watch for: Indonesian number format (`1.234.567,89`),
-   import de-duplication, timing differences, bank-side sign
-   convention, transfer fees, statement continuity, and VA numbers
-   buried in free-text descriptions.
-4. **Payroll.** Qualifies under the ledger rule, and PPh 21 / BPJS are
-   compliance problems.
+1. Finish the model-only entities.
+2. Tax: real NSFP handling, Coretax readiness, ledger-sourced withholding.
+3. Bank reconciliation: exists (`BankReconciliationService`); hardening for
+   Indonesian number formats, import de-duplication, timing differences.
+4. Payroll: leavers, THR, 1721-A1, bank transfer files.
+5. Inventory: stock per warehouse (`Warehouse` is master data only) and
+   FIFO/moving-average valuation (adjustments and opname value at the
+   product's buy price). Fixed assets: fiscal groups (Golongan 1–4) beside
+   commercial depreciation.
 
-None of steps 1–3 add a new module — and they are what users will feel
-most.
+## Known issues
 
-### Module hub (agreed, not yet built)
+Details and evidence: `docs/AUDIT-2026-10.md`.
 
-`/dashboard` becomes a map of the five modules rather than a KPI
-dashboard. Each card shows that module's **balance state** and doubles
-as its entry point.
-
-| Module | In balance when |
+| Issue | Where |
 |---|---|
-| Accounting | Dr = Cr, nothing unposted, period lock current |
-| Payroll | staff paid, PPh 21 accrued — **not built, show inactive** |
-| Inventory | book quantity matches the last stock count |
-| Fixed Assets | depreciation posted through the current period |
-| Tax | PPN output/input reconciled, no filing overdue |
-
-Backend supplies this in one call (`GET /Dashboard/module-health`) so
-the figures are computed server-side and stay consistent with the
-reports. Accounting logic does not belong in the frontend.
-
-Build order agreed: hub first, then Accounting and Tax as pilot
-modules, so the pattern is proven twice before it is replicated.
+| Invoice-level and bill-level discount unbalances the journal; refused with `UNBALANCED` | `SalesInvoicesController`, `PurchaseBillsController` |
+| Withholding (PPh 22/23/4(2)) is not journaled; reports derive from bills | `TaxReportsService` |
+| PPN: luxury goods/PPnBM never computed, `TaxRates` table unused, rounding rule unconfirmed, kurang/lebih bayar accounts unconfirmed | tax services |
+| Payroll: no leaver annualisation, PPh 26 or 1721-A1; BPJS wage caps are configuration that must be kept current | `PayrollCalculator` |
+| Historical journal lines may hold an account Id instead of a Code and be invisible to reports | database (detection query in the audit report) |
+| `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
+| About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
+| Sales/purchases-by-customer/vendor/product reports total invoices on the client in JS numbers | `app/dashboard/(workspace)/reports` |
+| Payments (Midtrans) not connected; a plan change is recorded as a request | `SubscriptionsController` |
+| `npm run lint` fails: 444 errors, mostly `no-explicit-any` | frontend |
+| `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
+| i18n covers navigation labels only | frontend |

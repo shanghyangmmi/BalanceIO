@@ -10,6 +10,8 @@ import { apiClient } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/utils/formatter";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface DraftJournal {
   id: string;
@@ -23,6 +25,7 @@ interface DraftJournal {
 }
 
 export default function PostJournalsPage() {
+    const can = useCan();
   const [drafts, setDrafts] = useState<DraftJournal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -165,7 +168,7 @@ export default function PostJournalsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {selectedIds.size > 0 && (
+          {selectedIds.size > 0 && can(PERMISSIONS.FinanceCreate) && (
             <Button onClick={handlePost} disabled={isPosting} className="bg-emerald-600 hover:bg-emerald-700">
               {isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               <CheckSquare className="mr-2 h-4 w-4" />

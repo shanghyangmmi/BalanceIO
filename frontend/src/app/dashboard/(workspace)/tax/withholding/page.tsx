@@ -222,13 +222,13 @@ export default function WithholdingTaxPage() {
                                             {data.pph21Lines?.length === 0 ? (
                                                 <TableRow>
                                                     <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
-                                                        Tidak ada pemotongan PPh 21 pada masa pajak ini.
+                                                        {data.pph21Note ?? "Tidak ada pemotongan PPh 21 pada masa pajak ini."}
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
                                                 data.pph21Lines.map((row: any) => (
                                                     <TableRow key={row.id}>
-                                                        <TableCell className="font-bold">{row.buktiPotongNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.buktiPotongNumber ?? "Issued in Coretax"}</TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || row.counterpartyNik || "—"}</TableCell>
                                                         <TableCell><Badge variant="outline" className="text-[10px]">{row.ptkpStatus}</Badge></TableCell>
@@ -280,7 +280,7 @@ export default function WithholdingTaxPage() {
                                             ) : (
                                                 data.pph23Lines.map((row: any) => (
                                                     <TableRow key={row.id}>
-                                                        <TableCell className="font-bold">{row.buktiPotongNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.buktiPotongNumber ?? "Issued in Coretax"}</TableCell>
                                                         <TableCell><Badge variant="outline" className="text-[10px]">{row.kodeObjekPajak}</Badge></TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || "—"}</TableCell>
@@ -332,7 +332,7 @@ export default function WithholdingTaxPage() {
                                             ) : (
                                                 data.pph42Lines.map((row: any) => (
                                                     <TableRow key={row.id}>
-                                                        <TableCell className="font-bold">{row.buktiPotongNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.buktiPotongNumber ?? "Issued in Coretax"}</TableCell>
                                                         <TableCell><Badge variant="outline" className="text-[10px]">{row.kodeObjekPajak}</Badge></TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || "—"}</TableCell>
@@ -383,7 +383,7 @@ export default function WithholdingTaxPage() {
                                             ) : (
                                                 data.pph22Lines.map((row: any) => (
                                                     <TableRow key={row.id}>
-                                                        <TableCell className="font-bold">{row.buktiPotongNumber}</TableCell>
+                                                        <TableCell className="font-bold">{row.buktiPotongNumber ?? "Issued in Coretax"}</TableCell>
                                                         <TableCell><Badge variant="outline" className="text-[10px]">{row.kodeObjekPajak}</Badge></TableCell>
                                                         <TableCell>{row.counterpartyName}</TableCell>
                                                         <TableCell>{row.counterpartyNpwp || "—"}</TableCell>

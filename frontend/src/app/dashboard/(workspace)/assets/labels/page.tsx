@@ -17,6 +17,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface FixedAssetLocation {
   id: string;
@@ -25,6 +27,7 @@ interface FixedAssetLocation {
 }
 
 export default function AssetLocationsPage() {
+    const can = useCan();
   const [locations, setLocations] = useState<FixedAssetLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -115,9 +118,9 @@ export default function AssetLocationsPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-gradient">Asset Locations</h2>
-        <Button onClick={openNew}>
+        {can(PERMISSIONS.AssetsManage) && <Button onClick={openNew}>
           <PlusCircle className="mr-2 h-4 w-4" /> New Location
-        </Button>
+        </Button>}
       </div>
 
       <Card>
@@ -151,12 +154,12 @@ export default function AssetLocationsPage() {
                   </TableCell>
                   <TableCell>{loc.address}</TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(loc)}>
+                    {can(PERMISSIONS.AssetsManage) && <Button variant="ghost" size="icon" onClick={() => openEdit(loc)}>
                       <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDelete(loc.id)}>
+                    </Button>}
+                    {can(PERMISSIONS.AssetsManage) && <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleDelete(loc.id)}>
                       <Trash className="h-4 w-4" />
-                    </Button>
+                    </Button>}
                   </TableCell>
                 </TableRow>
               ))}

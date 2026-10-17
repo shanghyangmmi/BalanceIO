@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useCompanyData } from "@/hooks/use-company-data";
-import { usePermission } from "@/contexts/permission-context";
 import { formatCurrency, formatDate } from "@/lib/utils/formatter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface BudgetSummary {
     id: string;
@@ -54,8 +55,8 @@ interface LineDraft {
 }
 
 export default function BudgetsPage() {
+    const can = useCan();
     const { company } = useCompanyData();
-    const { isReadOnly } = usePermission();
     const [budgets, setBudgets] = React.useState<BudgetSummary[]>([]);
     const [accounts, setAccounts] = React.useState<AccountItem[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -240,7 +241,7 @@ export default function BudgetsPage() {
                             </Button>
                         </Link>
 
-                        {!isReadOnly && (
+                        {can(PERMISSIONS.FinanceCreate) && (
                             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                                 <DialogTrigger asChild>
                                     <Button size="sm" className="gap-1.5 text-xs font-mono">
@@ -525,23 +526,23 @@ export default function BudgetsPage() {
                                                     </Button>
                                                 </Link>
 
-                                                {!isReadOnly && b.status === "Draft" && (
+                                                {b.status === "Draft" && (
                                                     <>
-                                                        <Button
+                                                        {can(PERMISSIONS.FinanceEdit) && <Button
                                                             size="sm"
                                                             onClick={() => handleApprove(b.id, b.name)}
                                                             className="h-7 text-xs font-mono gap-1"
                                                         >
                                                             <CheckCircle2 className="h-3 w-3" /> Setujui
-                                                        </Button>
-                                                        <Button
+                                                        </Button>}
+                                                        {can(PERMISSIONS.FinanceDelete) && <Button
                                                             size="icon"
                                                             variant="ghost"
                                                             onClick={() => handleDelete(b.id)}
                                                             className="h-7 w-7 text-destructive hover:bg-destructive/10"
                                                         >
                                                             <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
+                                                        </Button>}
                                                     </>
                                                 )}
                                             </div>

@@ -28,14 +28,14 @@ const STATUS: Record<
   { label: string; text: string; dot: string; rule: string; glow: string }
 > = {
   balanced: {
-    label: "In balance",
+    label: "In sync",
     text: "text-emerald-700 dark:text-emerald-400",
     dot: "bg-emerald-600 dark:bg-emerald-400",
     rule: "bg-emerald-600/70 dark:bg-emerald-400/70",
     glow: "bg-emerald-500/[0.06]",
   },
   attention: {
-    label: "Needs attention",
+    label: "Review required",
     text: "text-amber-700 dark:text-amber-400",
     dot: "bg-amber-600 dark:bg-amber-400",
     rule: "bg-amber-600/70 dark:bg-amber-400/70",
@@ -49,7 +49,7 @@ const STATUS: Record<
     glow: "bg-red-500/[0.07]",
   },
   inactive: {
-    label: "Inactive",
+    label: "No activity",
     text: "text-muted-foreground",
     dot: "bg-muted-foreground/50",
     rule: "bg-foreground/15",

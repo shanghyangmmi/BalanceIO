@@ -24,6 +24,8 @@ export interface Account {
   level: number;
   isHeader: boolean;
   normalBalance: string;
+  /** Bahasa Indonesia name for bilingual statements; falls back to name. */
+  nameId?: string | null;
   description?: string;
   isSystemDefault: boolean;
   parentId?: string;

@@ -44,6 +44,8 @@ import {
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // Supported rate types
 const RATE_TYPES = {
@@ -72,6 +74,7 @@ function formatMoney(amount: number) {
 }
 
 export default function ExchangeRatesPage() {
+    const can = useCan();
   const [activeTab, setActiveTab] = useState("bi-rates");
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [selectedCurrency, setSelectedCurrency] = useState("all");
@@ -301,7 +304,7 @@ export default function ExchangeRatesPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
+          {can(PERMISSIONS.FinanceEdit) && <Button
             onClick={handleSyncBI}
             disabled={isSyncingBI || isSyncingKMK}
             variant="outline"
@@ -310,9 +313,9 @@ export default function ExchangeRatesPage() {
           >
             <Building2 className={cn("h-3.5 w-3.5 text-blue-600 dark:text-blue-400", isSyncingBI && "animate-spin")} />
             {isSyncingBI ? "Syncing BI..." : "Sync Kurs BI"}
-          </Button>
+          </Button>}
 
-          <Button
+          {can(PERMISSIONS.FinanceEdit) && <Button
             onClick={handleSyncKMK}
             disabled={isSyncingBI || isSyncingKMK}
             size="sm"
@@ -320,16 +323,16 @@ export default function ExchangeRatesPage() {
           >
             <FileText className={cn("h-3.5 w-3.5", isSyncingKMK && "animate-spin")} />
             {isSyncingKMK ? "Syncing KMK..." : "Sync Kurs KMK"}
-          </Button>
+          </Button>}
 
-          <Button
+          {can(PERMISSIONS.FinanceEdit) && <Button
             onClick={() => setManualModalOpen(true)}
             variant="outline"
             size="sm"
             className="gap-1.5 text-xs"
           >
             <Plus className="h-3.5 w-3.5" /> Manual Rate
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -411,9 +414,9 @@ export default function ExchangeRatesPage() {
               ) : rates.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground text-xs space-y-2">
                   <p>No exchange rates recorded for {selectedDate}.</p>
-                  <Button size="sm" variant="outline" onClick={handleSyncBI} className="text-xs gap-1.5">
+                  {can(PERMISSIONS.FinanceEdit) && <Button size="sm" variant="outline" onClick={handleSyncBI} className="text-xs gap-1.5">
                     <RefreshCw className="h-3.5 w-3.5" /> Sync Rates for {selectedDate}
-                  </Button>
+                  </Button>}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -546,9 +549,9 @@ export default function ExchangeRatesPage() {
               </div>
             </div>
 
-            <Button onClick={handleSyncKMK} size="sm" variant="outline" className="text-xs gap-1.5">
+            {can(PERMISSIONS.FinanceEdit) && <Button onClick={handleSyncKMK} size="sm" variant="outline" className="text-xs gap-1.5">
               <RefreshCw className={cn("h-3.5 w-3.5", isSyncingKMK && "animate-spin")} /> Fetch Latest KMK
-            </Button>
+            </Button>}
           </div>
 
           {/* KMK Table */}
@@ -568,9 +571,9 @@ export default function ExchangeRatesPage() {
               ) : rates.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground text-xs space-y-2">
                   <p>No KMK tax rates found for {selectedDate}.</p>
-                  <Button size="sm" onClick={handleSyncKMK} className="bg-emerald-600 text-white text-xs gap-1.5">
+                  {can(PERMISSIONS.FinanceEdit) && <Button size="sm" onClick={handleSyncKMK} className="bg-emerald-600 text-white text-xs gap-1.5">
                     <RefreshCw className="h-3.5 w-3.5" /> Sync KMK for {selectedDate}
-                  </Button>
+                  </Button>}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -878,14 +881,14 @@ export default function ExchangeRatesPage() {
                       Posting generates a balanced adjusting journal entry (<code className="font-mono">7-2000 FX Gain</code> or <code className="font-mono">8-3000 FX Loss</code>).
                     </p>
 
-                    <Button
+                    {can(PERMISSIONS.FinanceCreate) && <Button
                       onClick={handlePostRetrans}
                       disabled={isPostingRetrans || retransPreview.items.length === 0}
                       className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
                     >
                       {isPostingRetrans ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                       Post PSAK 221 Retranslation Journal
-                    </Button>
+                    </Button>}
                   </div>
                 </div>
               )}

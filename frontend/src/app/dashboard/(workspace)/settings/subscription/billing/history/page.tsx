@@ -1,4 +1,6 @@
 "use client";
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +24,7 @@ interface Payment {
     paidAt: string | null;
 }
 
-export default function PaymentHistoryPage() {
+function PaymentHistoryPageContent() {
     const { company } = useCompanyData();
     const [payments, setPayments] = useState<Payment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -146,4 +148,14 @@ export default function PaymentHistoryPage() {
             )}
         </div>
     );
+}
+
+// The page's data is readable only with Settings.View; without it, say so
+// rather than firing requests the API refuses.
+export default function PaymentHistoryPage() {
+  return (
+    <RBACGuard permission={PERMISSIONS.SettingsView} fallback={<NoPermission permission={PERMISSIONS.SettingsView} />}>
+      <PaymentHistoryPageContent />
+    </RBACGuard>
+  );
 }

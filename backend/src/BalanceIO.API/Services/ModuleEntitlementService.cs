@@ -60,9 +60,9 @@ public class ModuleEntitlementService
     /// <summary>
     /// Modules with no implementation behind them. Never entitled, whatever
     /// a plan claims - selling a door that opens onto nothing is worse than
-    /// not listing it.
+    /// not listing it. Empty while every listed module is built.
     /// </summary>
-    public static readonly string[] UnbuiltModules = { "payroll" };
+    public static readonly string[] UnbuiltModules = Array.Empty<string>();
 
     public async Task<ModuleEntitlement> GetAsync(Guid companyId)
     {
