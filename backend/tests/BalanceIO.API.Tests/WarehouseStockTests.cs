@@ -225,3 +225,41 @@ public class WarehouseStockTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(12m, movements.Sum(m => m.Quantity));
     }
 }
+
+public class DocumentNumberTests(ApiFactory factory) : IClassFixture<ApiFactory>
+{
+    /// <summary>
+    /// The invoice and bill forms send no number; the server generates it.
+    /// Validation used to reject the empty number before the controller ran,
+    /// so neither document could be created from the UI.
+    /// </summary>
+    [Fact]
+    public async Task Invoice_bill_and_opname_are_numbered_by_the_server()
+    {
+        var t = await factory.CreateTenantAsync("PT Nomor");
+        var contact = Guid.NewGuid();
+        await factory.WithDb(async db =>
+        {
+            db.Contacts.Add(new Contact { Id = contact, CompanyId = t.CompanyId, Code = "C-1", Name = "Pihak", IsCustomer = true, IsVendor = true });
+            await db.SaveChangesAsync();
+        }, t.CompanyId);
+
+        var invoice = await t.OwnerClient().PostJson("/api/SalesInvoices", new
+        {
+            invoiceDate = "2026-03-01", dueDate = "2026-03-31", contactId = contact, currency = "IDR",
+            lines = new[] { new { description = "Jasa", quantity = 1m, unitPrice = 100m, taxRate = 0m, isTaxable = false } },
+        });
+        Assert.Equal(HttpStatusCode.Created, invoice.StatusCode);
+        Assert.False(string.IsNullOrEmpty((await invoice.Json()).GetProperty("invoiceNumber").GetString()));
+
+        var bill = await t.OwnerClient().PostJson("/api/PurchaseBills", new
+        {
+            billDate = "2026-03-01", dueDate = "2026-03-31", contactId = contact, currency = "IDR",
+            lines = new[] { new { description = "Sewa", quantity = 1m, unitPrice = 100m, taxRate = 0m } },
+        });
+        Assert.True(bill.IsSuccessStatusCode, await bill.Body());
+
+        var opname = await t.OwnerClient().PostJson("/api/StockOpname", new { opnameDate = "2026-03-01" });
+        Assert.True(opname.IsSuccessStatusCode, await opname.Body());
+    }
+}
