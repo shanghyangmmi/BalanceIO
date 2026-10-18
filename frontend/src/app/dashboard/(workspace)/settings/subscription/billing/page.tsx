@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Zap, Crown, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { usePlanCheckout } from "@/components/billing/plan-checkout";
 import { useCompanyData } from "@/hooks/use-company-data";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -72,18 +73,10 @@ function BillingPageContent() {
         }).format(price);
     };
 
-    const handleUpgrade = async (planId: string) => {
+    const checkout = usePlanCheckout();
+    const handleUpgrade = (planId: string) => {
         if (!company?.id) return;
-        try {
-            const result = await apiClient.post<{ message: string }>("/subscriptions/upgrade", {
-                companyId: company.id,
-                planId,
-                billingCycle
-            });
-            toast.info(result.message);
-        } catch (error: any) {
-            toast.error(error.message || "Failed to upgrade");
-        }
+        checkout.start({ planId, billingCycle });
     };
 
     const getPlanIcon = (name: string) => {
@@ -215,6 +208,7 @@ function BillingPageContent() {
                     );
                 })}
             </div>
+            {checkout.dialog}
         </div>
     );
 }

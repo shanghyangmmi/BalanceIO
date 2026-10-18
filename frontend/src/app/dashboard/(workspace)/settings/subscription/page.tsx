@@ -1,8 +1,7 @@
 "use client"
 
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { Check, Lock } from "lucide-react"
-import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { apiClient } from "@/lib/api-client"
@@ -14,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { NoPermission, RBACGuard, useCan } from "@/components/auth/rbac-guard"
 import { useCompany } from "@/contexts/company-context"
 import { useModuleDoors } from "@/hooks/use-module-doors"
+import { PaymentReturnBanner, usePlanCheckout } from "@/components/billing/plan-checkout"
 
 /** Mirrors GET /api/Plans. */
 interface Plan {
@@ -69,11 +69,7 @@ function SubscriptionContent() {
     enabled: !!company,
     retry: retryUnlessClientError,
   })
-  const upgrade = useMutation({
-    mutationFn: (planId: string) =>
-      apiClient.post<{ message: string }>("/Subscriptions/upgrade", { companyId: company!.id, planId, billingCycle: "monthly" }),
-    onSuccess: (res) => toast.info(res.message),
-  })
+  const checkout = usePlanCheckout()
 
   const currentPlanId = current.data?.plan.id
 
@@ -82,9 +78,11 @@ function SubscriptionContent() {
       <div>
         <h3 className="font-display text-lg font-bold">Subscription</h3>
         <p className="text-[13px] text-muted-foreground">
-          The plan decides which modules open. Online payment is not connected yet; a plan change is recorded as a request.
+          The plan decides which modules open. A new plan activates when its payment is confirmed.
         </p>
       </div>
+
+      <PaymentReturnBanner />
 
       <section className="rounded-xl border border-foreground/10 bg-card/60 p-5 sm:p-6">
         <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Current plan</div>
@@ -163,16 +161,17 @@ function SubscriptionContent() {
                       <Button
                         variant="outline"
                         className="mt-6 rounded-full border-foreground/15"
-                        disabled={upgrade.isPending || !company}
-                        onClick={() => upgrade.mutate(plan.id)}
+                        disabled={checkout.pending || !company}
+                        onClick={() => checkout.start({ planId: plan.id, billingCycle: "monthly" })}
                       >
-                        Request {plan.name}
+                        {plan.priceMonthly === 0 ? `Switch to ${plan.name}` : `Upgrade to ${plan.name}`}
                       </Button>
                     )}
                   </div>
                 )
               })}
       </section>
+      {checkout.dialog}
     </div>
   )
 }
