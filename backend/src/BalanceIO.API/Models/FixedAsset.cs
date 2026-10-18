@@ -18,8 +18,10 @@ public class FixedAsset
     [System.Text.Json.Serialization.JsonIgnore]
     public Company? Company { get; set; }
 
+    /// <summary>Generated from the category prefix when the client sends none.</summary>
     [Required]
     [MaxLength(50)]
+    [Microsoft.AspNetCore.Mvc.ModelBinding.Validation.ValidateNever]
     public string Code { get; set; } = string.Empty;
 
     [Required]

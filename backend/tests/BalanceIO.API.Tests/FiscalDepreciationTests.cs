@@ -165,6 +165,21 @@ public class FiscalDepreciationApiTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
+    public async Task Asset_created_without_a_code_takes_its_category_prefix_and_fiscal_default()
+    {
+        var s = await SeedAsync();
+        var category = await factory.WithDb(db => db.FixedAssetCategories.AsNoTracking().Select(c => c.Id).SingleAsync(), s.T.CompanyId);
+        var res = await s.T.OwnerClient().PostJson("/api/Assets", new
+        {
+            name = "Laptop", categoryId = category, acquisitionDate = "2026-02-01", acquisitionCost = 42_000_000m, usefulLifeMonths = 48,
+        });
+        Assert.True(res.IsSuccessStatusCode, await res.Body());
+        var asset = await res.Json();
+        Assert.StartsWith("VEH-", asset.GetProperty("code").GetString());
+        Assert.Equal((int)FiscalGroup.Group2, asset.GetProperty("fiscalGroup").GetInt32());
+    }
+
+    [Fact]
     public async Task Disposal_before_the_last_depreciation_is_refused()
     {
         var s = await SeedAsync();

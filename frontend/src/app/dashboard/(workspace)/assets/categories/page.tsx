@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FISCAL_GROUPS } from "@/components/assets/asset-form";
 import { Badge } from "@/components/ui/badge";
 import { useCan } from "@/components/auth/rbac-guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -29,6 +30,8 @@ interface FixedAssetCategory {
   codePrefix: string;
   defaultUsefulLifeMonths: number;
   defaultDepreciationMethod: number; // Enum: 0=StraightLine, 1=Declining, etc.
+  defaultFiscalGroup: number;
+  defaultFiscalMethod: number;
 }
 
 const DEPRECIATION_METHODS = [
@@ -50,7 +53,9 @@ export default function AssetCategoriesPage() {
     description: "",
     codePrefix: "AST",
     defaultUsefulLifeMonths: 60,
-    defaultDepreciationMethod: 0
+    defaultDepreciationMethod: 0,
+    defaultFiscalGroup: 0,
+    defaultFiscalMethod: 0,
   });
   const [saving, setSaving] = useState(false);
 
@@ -112,7 +117,9 @@ export default function AssetCategoriesPage() {
       description: "",
       codePrefix: "AST",
       defaultUsefulLifeMonths: 60,
-      defaultDepreciationMethod: 0
+      defaultDepreciationMethod: 0,
+      defaultFiscalGroup: 0,
+      defaultFiscalMethod: 0,
     });
   };
 
@@ -123,7 +130,9 @@ export default function AssetCategoriesPage() {
       description: cat.description || "",
       codePrefix: cat.codePrefix,
       defaultUsefulLifeMonths: cat.defaultUsefulLifeMonths,
-      defaultDepreciationMethod: cat.defaultDepreciationMethod
+      defaultDepreciationMethod: cat.defaultDepreciationMethod,
+      defaultFiscalGroup: cat.defaultFiscalGroup ?? 0,
+      defaultFiscalMethod: cat.defaultFiscalMethod ?? 0,
     });
     setIsDialogOpen(true);
   };
@@ -161,13 +170,14 @@ export default function AssetCategoriesPage() {
                 <TableHead>Prefix</TableHead>
                 <TableHead>Default Method</TableHead>
                 <TableHead>Useful Life</TableHead>
+                <TableHead>Fiscal group</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {categories.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                     No categories found. Create one to get started.
                   </TableCell>
                 </TableRow>
@@ -184,6 +194,7 @@ export default function AssetCategoriesPage() {
                   <TableCell><Badge variant="outline">{cat.codePrefix}</Badge></TableCell>
                   <TableCell>{getMethodLabel(cat.defaultDepreciationMethod)}</TableCell>
                   <TableCell>{Math.floor(cat.defaultUsefulLifeMonths / 12)} Years ({cat.defaultUsefulLifeMonths} mo)</TableCell>
+                  <TableCell>{FISCAL_GROUPS.find(g => g.value === (cat.defaultFiscalGroup ?? 0))?.label}</TableCell>
                   <TableCell className="text-right space-x-2">
                     {can(PERMISSIONS.AssetsManage) && <Button variant="ghost" size="icon" onClick={() => openEdit(cat)}>
                       <Pencil className="h-4 w-4" />
@@ -266,6 +277,38 @@ export default function AssetCategoriesPage() {
                   = {Math.floor((formData.defaultUsefulLifeMonths || 0) / 12)} Years
                 </div>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Default fiscal group</Label>
+                <Select
+                  value={String(formData.defaultFiscalGroup ?? 0)}
+                  onValueChange={v => setFormData({ ...formData, defaultFiscalGroup: parseInt(v) })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {FISCAL_GROUPS.map(g => (
+                      <SelectItem key={g.value} value={String(g.value)}>{g.label}{g.years ? ` · ${g.years} years` : ""}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(formData.defaultFiscalGroup ?? 0) >= 1 && (formData.defaultFiscalGroup ?? 0) <= 4 && (
+                <div className="space-y-2">
+                  <Label>Default fiscal method</Label>
+                  <Select
+                    value={String(formData.defaultFiscalMethod ?? 0)}
+                    onValueChange={v => setFormData({ ...formData, defaultFiscalMethod: parseInt(v) })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Garis lurus</SelectItem>
+                      <SelectItem value="1">Saldo menurun</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <DialogFooter>

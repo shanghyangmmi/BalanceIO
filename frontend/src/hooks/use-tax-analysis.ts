@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import { retryUnlessClientError } from "@/lib/query-retry"
+import { useCompany } from "@/contexts/company-context"
 
 /** Types mirror DTOs/TaxAnalysisDTOs.cs, written from real responses. */
 
@@ -31,6 +32,8 @@ export interface FiscalReconciliation {
   corrections: FiscalCorrectionLine[]
   classifiedAccounts: number
   classifiableAccounts: number
+  /** Fixed assets in use in the year without a fiscal group; their depreciation is not reconciled. */
+  unclassifiedAssets: number
 }
 
 export function useFiscalReconciliation(year: number | null) {
@@ -83,6 +86,62 @@ export function useDebtToEquity(year: number | null) {
       apiClient.get<DebtToEquity>(
         year ? `/Dashboard/tax/debt-to-equity?year=${year}` : "/Dashboard/tax/debt-to-equity",
       ),
+    retry: retryUnlessClientError,
+  })
+}
+
+// ── Penyusutan fiskal ─────────────────────────────────────────────────
+
+/** Mirrors DTOs/FiscalDepreciationDTOs.cs. */
+export interface FiscalDepreciationRow {
+  assetId: string
+  code: string
+  name: string
+  group: string
+  groupLabel: string
+  method: "StraightLine" | "DecliningBalance" | ""
+  lifeYears: number | null
+  acquisitionDate: string
+  cost: number
+  fiscalOpening: number
+  fiscalCharge: number
+  fiscalClosing: number
+  commercialCharge: number
+  disposalDate: string | null
+  proceeds: number | null
+  fiscalGainLoss: number | null
+  commercialGainLoss: number | null
+  correction: number
+}
+
+export interface FiscalDepreciationGroup {
+  group: string
+  groupLabel: string
+  assets: number
+  cost: number
+  fiscalCharge: number
+  fiscalClosing: number
+  commercialCharge: number
+  correction: number
+}
+
+export interface FiscalDepreciationReport {
+  year: number
+  currency: string
+  rows: FiscalDepreciationRow[]
+  groups: FiscalDepreciationGroup[]
+  fiscalCharge: number
+  commercialCharge: number
+  correction: number
+  unclassified: number
+}
+
+export function useFiscalDepreciation(year: number) {
+  const { company } = useCompany()
+  return useQuery({
+    queryKey: ["fiscal-depreciation", company?.id, year],
+    queryFn: () => apiClient.get<FiscalDepreciationReport>(`/Assets/fiscal-depreciation?year=${year}`),
+    enabled: !!company,
     retry: retryUnlessClientError,
   })
 }

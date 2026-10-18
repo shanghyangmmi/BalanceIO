@@ -151,6 +151,7 @@ export const MODULE_NAVS: ModuleNav[] = [
         items: [
           { label: "Ekualisasi", href: "/dashboard/tax/equalisation", icon: Scale, permission: PERMISSIONS.FinanceReport },
           { label: "Rekonsiliasi Fiskal", href: "/dashboard/tax/reconciliation", icon: FileSpreadsheet, permission: PERMISSIONS.FinanceReport },
+          { label: "Penyusutan Fiskal", href: "/dashboard/tax/fiscal-depreciation", icon: CalendarClock, permission: PERMISSIONS.AssetsView },
           { label: "Debt to Equity", href: "/dashboard/tax/debt-to-equity", icon: PieChart, permission: PERMISSIONS.FinanceReport },
         ],
       },
@@ -209,6 +210,7 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "Amortization", href: "/dashboard/assets/amortization", icon: Repeat2, permission: PERMISSIONS.AssetsDepreciate },
           { label: "Disposal", href: "/dashboard/assets/disposal", icon: Trash2, permission: PERMISSIONS.AssetsManage },
           { label: "Revaluation", href: "/dashboard/assets/revaluation", icon: Scale, permission: PERMISSIONS.AssetsManage },
+          { label: "Fiscal Depreciation", href: "/dashboard/tax/fiscal-depreciation", icon: FileSpreadsheet, permission: PERMISSIONS.AssetsView },
         ],
       },
       {

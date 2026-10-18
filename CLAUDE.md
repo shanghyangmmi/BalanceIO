@@ -204,6 +204,25 @@ way, straight to inventory. Transfers carry no
 value. Reports: `GET /api/Reports/inventory-movements` (stock card),
 `/inventory-aging` (receipt dates), `/inventory-valuation`.
 
+## Fixed assets
+
+Commercial depreciation is `AssetChargeService` (straight line, posted
+monthly). Tax depreciation is separate: each asset and category carries a
+`FiscalGroup` (Kelompok 1–4, permanent / non-permanent building, not
+depreciable) and `FiscalMethod`, and `FiscalDepreciation` computes the
+schedule under Pasal 11 as amended by UU HPP (from the month of acquisition,
+straight line or double-rate declining balance with the remainder in the last
+year, buildings straight line, whole rupiah, disposal stops at the month
+before). `GET /api/Assets/fiscal-depreciation?year=` sets it beside the
+commercial charge per asset and group (Lampiran 1A), and
+`TaxAnalysisService.ReconcileAsync` adds the difference, including book value
+written off on disposal, as correction `ASET`. Assets without a group are left
+out and counted. `POST /api/Assets/{id}/dispose` posts Dr accumulated
+depreciation, Dr proceeds (`proceedsAccountId`), Cr cost, gain `7-3000` or
+loss `8-4000`; it checks the period lock and refuses a date before
+depreciation already charged (`DEPRECIATED_PAST_DISPOSAL`). Fiscal rules need
+practitioner review.
+
 ## Payments
 
 `PaymentService` is gateway-agnostic; gateways implement `IPaymentGateway`
@@ -257,8 +276,6 @@ controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 3. Bank reconciliation: exists (`BankReconciliationService`); hardening for
    Indonesian number formats, import de-duplication, timing differences.
 4. Payroll: leavers, THR, 1721-A1, bank transfer files.
-5. Fixed assets: fiscal groups (Golongan 1–4) beside
-   commercial depreciation.
 
 ## Known issues
 

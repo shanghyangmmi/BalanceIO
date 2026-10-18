@@ -21,17 +21,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useEffect, useState } from "react"
 import { apiClient } from "@/lib/api-client"
 import { Loader2 } from "lucide-react"
+import { formatModuleMoney } from "@/lib/utils/module-money"
 
 const disposalSchema = z.object({
     assetId: z.string().min(1, "Asset is required"),
     date: z.string().min(1, "Date is required"),
     type: z.enum(["SALE", "SCRAP", "LOST", "DONATION"]),
     salePrice: z.number().optional(),
+    proceedsAccountId: z.string().optional(),
     reason: z.string().optional(),
+}).refine((v) => v.type !== "SALE" || !v.salePrice || !!v.proceedsAccountId, {
+    message: "Choose the account that received the proceeds",
+    path: ["proceedsAccountId"],
 })
+
+// Active (0) and fully depreciated (1) assets can be disposed of; the form
+// used to list only status 1, so an asset still being depreciated never appeared.
+const disposable = (a: any) => a.status === 0 || a.status === 1
 
 export function AssetDisposalForm() {
     const [assets, setAssets] = useState<any[]>([]);
+    const [accounts, setAccounts] = useState<{ id: string; code: string; name: string; type: string; isHeader?: boolean }[]>([]);
     const [loading, setLoading] = useState(false);
 
     const form = useForm<z.infer<typeof disposalSchema>>({
@@ -47,11 +57,9 @@ export function AssetDisposalForm() {
     useEffect(() => {
         const fetchAssets = async () => {
             try {
-                // Fetch only active assets (status=1)
-                const allAssets = await apiClient.get<any[]>("/Assets");
-                // Filter for active assets locally if API doesn't filter
-                const activeAssets = allAssets.filter((a: any) => a.status === 1);
-                setAssets(activeAssets);
+                const [allAssets, allAccounts] = await Promise.all([apiClient.get<any[]>("/Assets"), apiClient.getAccounts()]);
+                setAssets(allAssets.filter(disposable));
+                setAccounts((allAccounts as unknown as typeof accounts).filter((a) => a.type === "Asset" && !a.isHeader));
             } catch (error) {
                 console.error(error);
                 toast.error("Failed to load assets");
@@ -68,18 +76,18 @@ export function AssetDisposalForm() {
                 date: values.date,
                 amount: isSale ? values.salePrice : 0,
                 reason: values.reason || values.type,
-                isSale: isSale
+                isSale: isSale,
+                proceedsAccountId: isSale && values.salePrice ? values.proceedsAccountId : null,
             };
 
-            await apiClient.post(`/Assets/${values.assetId}/dispose`, payload);
-            toast.success("Asset disposal recorded successfully");
+            const result = await apiClient.post<{ gainOrLoss: number }>(`/Assets/${values.assetId}/dispose`, payload);
+            const amount = formatModuleMoney(Math.abs(result.gainOrLoss), "IDR");
+            toast.success(result.gainOrLoss === 0 ? "Disposal posted at book value" : `Disposal posted: ${result.gainOrLoss > 0 ? "gain" : "loss"} of ${amount}`);
             form.reset();
-            // Refresh assets list
             const allAssets = await apiClient.get<any[]>("/Assets");
-            setAssets(allAssets.filter((a: any) => a.status === 1));
+            setAssets(allAssets.filter(disposable));
         } catch (error) {
-            console.error(error);
-            toast.error("Failed to dispose asset");
+            toast.error(error instanceof Error ? error.message : "Failed to dispose asset");
         } finally {
             setLoading(false);
         }
@@ -89,7 +97,10 @@ export function AssetDisposalForm() {
         <Card>
             <CardHeader>
                 <CardTitle>Record Asset Disposal</CardTitle>
-                <CardDescription>Sell, write-off, or donate a fixed asset.</CardDescription>
+                <CardDescription>
+                    Posts the disposal: accumulated depreciation and cost come off the books, proceeds go to the account chosen,
+                    and the difference to Gain (7-3000) or Loss (8-4000) on Asset Disposal. Charge depreciation up to the disposal date first.
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 <Form {...form}>
@@ -173,6 +184,29 @@ export function AssetDisposalForm() {
                                                     value={field.value ?? ''}
                                                 />
                                             </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            )}
+
+                            {form.watch("type") === "SALE" && (
+                                <FormField
+                                    control={form.control}
+                                    name="proceedsAccountId"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Proceeds received in</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value || undefined}>
+                                                <FormControl>
+                                                    <SelectTrigger><SelectValue placeholder="Cash, bank or receivable" /></SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {accounts.map((a) => (
+                                                        <SelectItem key={a.id} value={a.id}>{a.code} · {a.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                             <FormMessage />
                                         </FormItem>
                                     )}
