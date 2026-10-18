@@ -171,6 +171,32 @@ bank details live on the contact, pay on `EmployeeCompensation`.
   NPWP/NIK surcharge, THR and bonus treatment beyond "other earnings",
   1721-A1, payslips, bank transfer files. Needs practitioner review.
 
+## Inventory and warehouses
+
+Every stock change goes through `InventoryLedger` (`MoveAsync`, `ReverseAsync`,
+`TransferAsync`): it updates `Product.StockOnHand` and writes an
+`InventoryMovement` carrying a `WarehouseId`. Stock per warehouse is the sum
+of movements; `StockOnHand` is the company total. Sales invoices, purchase
+bills, purchase orders and stock opname take an optional `WarehouseId`; none
+means the company's default warehouse (created as `MAIN` when missing; one per
+company, `DEFAULT_WAREHOUSE`). Outflows are refused with `NEGATIVE_STOCK` /
+`INSUFFICIENT_STOCK` per warehouse. A warehouse holding stock cannot be
+deleted (`WAREHOUSE_IN_USE`). `ReferenceDataSeeder` assigns older movements
+to the default warehouse and adds an `OpeningBalance` for any gap. Valuation
+is still at the product's buy price.
+
+## Payments
+
+`PaymentService` is gateway-agnostic; gateways implement `IPaymentGateway`
+(`ManualPaymentGateway`, `MidtransPaymentGateway`). `Payments:Provider`
+chooses one; an unconfigured choice falls back to manual transfer. Checkout
+(`POST /api/Subscriptions/upgrade`) saves a Pending `Payment` before calling
+the gateway. Notifications arrive at `POST /api/payments/webhook/{provider}`
+(anonymous; rejected with 401 unless the signature verifies and the amount
+equals the payment). Manual transfers are confirmed by a platform admin
+(`POST /api/admin/payments/{id}/confirm`). Success activates the plan once.
+A new gateway is one class plus a registration in `Program.cs`.
+
 ## Frontend conventions
 
 - Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
@@ -212,8 +238,7 @@ controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 3. Bank reconciliation: exists (`BankReconciliationService`); hardening for
    Indonesian number formats, import de-duplication, timing differences.
 4. Payroll: leavers, THR, 1721-A1, bank transfer files.
-5. Inventory: stock per warehouse (`Warehouse` is master data only) and
-   FIFO/moving-average valuation (adjustments and opname value at the
+5. Inventory: FIFO/moving-average valuation (adjustments and opname value at the
    product's buy price). Fixed assets: fiscal groups (Golongan 1–4) beside
    commercial depreciation.
 
@@ -231,7 +256,7 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
 | About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
 | Sales/purchases-by-customer/vendor/product reports total invoices on the client in JS numbers | `app/dashboard/(workspace)/reports` |
-| Payments (Midtrans) not connected; a plan change is recorded as a request | `SubscriptionsController` |
+| Midtrans is implemented but untested against the live sandbox; no recurring billing or auto-renew | `MidtransPaymentGateway` |
 | `npm run lint` fails: 444 errors, mostly `no-explicit-any` | frontend |
 | `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
 | i18n covers navigation labels only | frontend |
