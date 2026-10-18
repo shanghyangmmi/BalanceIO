@@ -127,6 +127,27 @@ public class ModuleEntitlementService
             }
         }
 
+        // Demo accounts and local development: grant the full module suite (Enterprise Demo)
+        // so that all modules can be demonstrated and tested without artificial paywalls.
+        var isDemoOrDev = false;
+        if (!live)
+        {
+            var isDemo = await _context.UserCompanies
+                .AsNoTracking()
+                .AnyAsync(uc => uc.CompanyId == companyId && uc.User!.Email == "demo@balanceio.id");
+            var isDev = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development";
+
+            if (isDemo || isDev)
+            {
+                isDemoOrDev = true;
+                live = true;
+                foreach (var mod in AllModules)
+                {
+                    granted.Add(mod);
+                }
+            }
+        }
+
         foreach (var unbuilt in UnbuiltModules)
         {
             granted.Remove(unbuilt);
@@ -134,7 +155,7 @@ public class ModuleEntitlementService
 
         return new ModuleEntitlement
         {
-            PlanName = live ? subscription!.PlanName : null,
+            PlanName = live ? (subscription?.PlanName ?? (isDemoOrDev ? "Enterprise (Demo)" : null)) : null,
             Granted  = granted,
             Features = features,
         };
