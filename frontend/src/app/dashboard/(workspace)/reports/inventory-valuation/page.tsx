@@ -109,7 +109,7 @@ export default function InventoryValuationPage() {
       {/* Notes */}
       <div className="mt-8 pt-4 border-t border-dashed border-zinc-300 dark:border-zinc-700">
         <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">
-          Valuation based on Average Cost (Buy Price).
+          Valued at moving-average cost: each receipt re-averages the unit cost, each issue leaves at it.
         </p>
       </div>
     </ReportLayout>

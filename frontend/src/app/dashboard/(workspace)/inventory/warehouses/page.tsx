@@ -30,7 +30,7 @@ const EMPTY: Draft = { code: "", name: "", address: "", city: "", type: 0, isAct
 /**
  * Where stock is kept, and how much of it each place holds. Quantities are
  * the sum of the movements recorded against each warehouse; together they
- * equal each product's stock on hand. Value is at the product's buy price.
+ * equal each product's stock on hand. Value is at the company-wide moving average.
  */
 export default function WarehousesPage() {
   const can = useCan()

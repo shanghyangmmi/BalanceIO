@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useCan } from "@/components/auth/rbac-guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
+import { minorToNumber, sumMinor } from "@/lib/utils/minor-units";
 
 export default function InventoryPage() {
     const can = useCan();
@@ -46,7 +47,7 @@ export default function InventoryPage() {
   };
 
   const calculateMetrics = (data: Product[]) => {
-    const totalValue = data.reduce((sum, p) => sum + (p.stockOnHand * p.buyPrice), 0);
+    const totalValue = minorToNumber(sumMinor(data.filter(p => p.trackInventory).map(p => p.inventoryValue)));
     const lowStockCount = data.filter(p => p.trackInventory && p.stockOnHand <= p.reorderLevel).length;
 
     setMetrics({
@@ -92,7 +93,7 @@ export default function InventoryPage() {
             <div className="text-2xl font-bold">
               {isLoading ? "..." : formatCurrency(metrics.totalValue)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Based on Buy Price</p>
+            <p className="text-xs text-muted-foreground mt-1">At moving-average cost</p>
           </CardContent>
         </Card>
         <Card>

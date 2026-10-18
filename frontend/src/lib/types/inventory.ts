@@ -8,6 +8,10 @@ export interface Product {
     sellPrice: number;
     buyPrice: number;
     stockOnHand: number;
+    /** Moving-average unit cost; kept at the last average when stock is zero. */
+    averageCost: number;
+    /** Carrying value of stockOnHand at moving-average cost. */
+    inventoryValue: number;
     reorderLevel: number;
     trackInventory: boolean;
     isActive: boolean;
