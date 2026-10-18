@@ -47,8 +47,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm test
-      - run: npx tsc --noEmit
+      # next build writes next-env.d.ts (gitignored), which declares image
+      # imports; tsc before it fails on any .png import.
       - run: npm run build
+      - run: npx tsc --noEmit
       # The lint baseline is not clean (see docs/AUDIT-2026-10.md), so it is
       # reported but does not gate the build yet.
       - run: npm run lint
