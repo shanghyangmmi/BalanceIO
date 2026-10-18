@@ -116,6 +116,7 @@ public static class DefaultCoASeeder
         A("3-3000", "Current Year Earnings", "Equity", "Equity", 2, false, "Credit", "3-0000", "Laba Tahun Berjalan");
         A("3-4000", "Dividends", "Equity", "Equity", 2, false, "Debit", "3-0000", "Dividen");
         A("3-5000", "Owner's Drawings", "Equity", "Equity", 2, false, "Debit", "3-0000", "Prive Pemilik");
+        A("3-9000", "Opening Balance Equity", "Equity", "Equity", 2, false, "Credit", "3-0000", "Ekuitas Saldo Awal");
 
         // ===================================================================
         // 4. SALES / REVENUE (4-xxxx) — Normal Balance: Credit
@@ -134,6 +135,7 @@ public static class DefaultCoASeeder
         A("5-2000", "Direct Labor", "Expense", "CostOfSales", 2, false, "Debit", "5-0000", "Biaya Tenaga Kerja Langsung");
         A("5-3000", "Manufacturing Overhead", "Expense", "CostOfSales", 2, false, "Debit", "5-0000", "Biaya Overhead Pabrik");
         A("5-4000", "Freight / Shipping Cost", "Expense", "CostOfSales", 2, false, "Debit", "5-0000", "Biaya Pengiriman");
+        A("5-5000", "Purchase Discounts", "Expense", "CostOfSales", 2, false, "Credit", "5-0000", "Diskon Pembelian");
         A("5-9000", "Inventory Variance", "Expense", "CostOfSales", 2, false, "Debit", "5-0000", "Selisih Persediaan");
 
         // ===================================================================

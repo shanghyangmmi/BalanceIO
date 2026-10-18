@@ -194,9 +194,10 @@ public class AssetsController : ControllerBase
         }
         NormaliseFiscal(asset);
         asset.DisposalJournalEntryId = null;
+        asset.AcquisitionJournalEntryId = null;
 
-        // Initialize book value
-        asset.BookValue = asset.AcquisitionCost - asset.ResidualValue;
+        // Initialize book value to full acquisition cost
+        asset.BookValue = asset.AcquisitionCost;
         asset.AccumulatedDepreciation = 0;
         asset.CreatedAt = DateTime.UtcNow;
         asset.Status = AssetStatus.Active;
@@ -430,6 +431,125 @@ public class AssetsController : ControllerBase
         return Ok(new { message = "Asset disposed", journalEntryId = entry.Id, bookValue, gainOrLoss = gain });
     }
 
+    // POST: api/assets/{id}/post-acquisition
+    /// <summary>
+    /// Brings the asset onto the books at cost:
+    /// Dr Asset Account (asset.AcquisitionCost)
+    /// Cr Cash/Bank or Accounts Payable (asset.AcquisitionCost)
+    /// </summary>
+    [HttpPost("{id}/post-acquisition")]
+    [RequiresPermission(Permissions.AssetsManage)]
+    public async Task<IActionResult> PostAcquisition(Guid id, [FromBody] PostAcquisitionRequest? request = null)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+        var companyId = _context.CurrentCompanyId.Value;
+
+        var asset = await _context.FixedAssets
+            .Include(a => a.Category)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (asset == null)
+            return NotFound();
+
+        if (asset.AcquisitionJournalEntryId.HasValue)
+            return BadRequest(new { code = "ALREADY_ACQUIRED", message = "Acquisition journal has already been posted for this asset." });
+
+        if (asset.Status != AssetStatus.Active)
+            return BadRequest(new { code = "NOT_ACTIVE", message = "Only active assets can post an acquisition journal." });
+
+        if (asset.AcquisitionCost <= 0m)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "Acquisition cost must be positive to post an acquisition journal." });
+
+        var date = request?.Date ?? asset.AcquisitionDate;
+        await _periodLock.ValidateTransactionDate(companyId, date);
+
+        // Resolve Asset account code
+        string? assetCode = null;
+        if (asset.AssetAccountId.HasValue)
+        {
+            var acc = await _context.Accounts.FindAsync(asset.AssetAccountId.Value);
+            assetCode = acc?.Code;
+        }
+
+        if (string.IsNullOrEmpty(assetCode))
+        {
+            return BadRequest(new { code = "MISSING_ACCOUNT", message = "Asset account is required to post acquisition journal." });
+        }
+
+        // Resolve Payment / Payable account code
+        string? paymentCode = null;
+        if (!string.IsNullOrWhiteSpace(request?.PaymentAccountId))
+        {
+            if (Guid.TryParse(request.PaymentAccountId, out var accId))
+            {
+                var acc = await _context.Accounts.FindAsync(accId);
+                paymentCode = acc?.Code;
+            }
+            else
+            {
+                paymentCode = request.PaymentAccountId;
+            }
+        }
+
+        if (string.IsNullOrEmpty(paymentCode))
+        {
+            var defaultPayment = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "1-1102" || a.Code == "1-1101" || a.Code == "1-1100" || a.Code == "2-1100" || (a.AccountGroup == "Asset" && a.Name.Contains("Bank")));
+            paymentCode = defaultPayment?.Code ?? "1-1102";
+        }
+
+        var label = string.IsNullOrWhiteSpace(asset.Code) ? asset.Name : $"{asset.Code} {asset.Name}";
+        var entry = new JournalEntry
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Date = date,
+            ReferenceNumber = $"ACQ-{asset.Code}",
+            Currency = "IDR",
+            Notes = $"Acquisition of {label}" + (string.IsNullOrWhiteSpace(request?.Notes) ? "" : $": {request.Notes.Trim()}"),
+            Status = JournalEntryStatus.Posted,
+            CreatedAt = DateTime.UtcNow,
+            Lines = new List<JournalLine>
+            {
+                new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = assetCode,
+                    Description = $"Asset Acquisition, {label}",
+                    Debit = asset.AcquisitionCost,
+                    Credit = 0m
+                },
+                new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = paymentCode,
+                    Description = $"Payment/Payable for {label}",
+                    Debit = 0m,
+                    Credit = asset.AcquisitionCost
+                }
+            }
+        };
+
+        _context.JournalEntries.Add(entry);
+        asset.AcquisitionJournalEntryId = entry.Id;
+        asset.UpdatedAt = DateTime.UtcNow;
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            Action = "POST_ACQUISITION",
+            TargetEntity = "FixedAsset:" + id,
+            Timestamp = DateTime.UtcNow,
+            Details = $"Asset acquisition posted. Cost {asset.AcquisitionCost:N2}, Asset account {assetCode}, Payment account {paymentCode}",
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        });
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Acquisition journal posted", journalEntryId = entry.Id });
+    }
+
     // DELETE: api/assets/{id}
     [HttpDelete("{id}")]
     [RequiresPermission(Permissions.AssetsManage)]
@@ -487,4 +607,11 @@ public class DisposeRequest
     public bool IsSale { get; set; }
     /// <summary>Account (Id or code) that received the proceeds; required when Amount is above zero.</summary>
     public string? ProceedsAccountId { get; set; }
+}
+
+public class PostAcquisitionRequest
+{
+    public DateOnly? Date { get; set; }
+    public string? PaymentAccountId { get; set; }
+    public string? Notes { get; set; }
 }

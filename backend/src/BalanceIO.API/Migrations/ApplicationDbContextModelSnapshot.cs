@@ -1576,6 +1576,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateOnly>("AcquisitionDate")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("AcquisitionJournalEntryId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("AssetAccountId")
                         .HasColumnType("uuid");
 

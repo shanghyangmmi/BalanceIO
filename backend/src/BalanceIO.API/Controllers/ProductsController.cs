@@ -100,8 +100,62 @@ public class ProductsController : ControllerBase
         _context.Products.Add(product);
         if (opening != 0m)
         {
+            var totalValue = Math.Round(opening * product.BuyPrice, 2, MidpointRounding.ToEven);
+            Guid? journalEntryId = null;
+
+            if (opening > 0m && totalValue > 0m)
+            {
+                var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+                if (_context.CurrentCompanyId.HasValue)
+                {
+                    await _periodLock.ValidateTransactionDate(_context.CurrentCompanyId.Value, today);
+                }
+
+                var defaultInv = await _context.Accounts
+                    .FirstOrDefaultAsync(a => a.Code == "1-1400" || a.Code.StartsWith("1140") || (a.Name.Contains("Inventory") && !a.IsHeader));
+                var inventoryAccount = product.InventoryAccountId.HasValue
+                    ? (await _context.Accounts.FindAsync(product.InventoryAccountId.Value))?.Code ?? defaultInv?.Code ?? "1-1400"
+                    : defaultInv?.Code ?? "1-1400";
+
+                var defaultEquity = await _context.Accounts
+                    .FirstOrDefaultAsync(a => a.Code == "3-9000" || a.Code == "3-2000" || (a.AccountGroup == "Equity" && a.NormalBalance == "Credit" && !a.IsHeader));
+                var equityAccount = defaultEquity?.Code ?? "3-9000";
+
+                var journal = new JournalEntry
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = _context.CurrentCompanyId ?? Guid.Empty,
+                    Date = today,
+                    ReferenceNumber = $"OPEN-{product.Code}",
+                    Notes = $"Opening stock for {product.Name} ({opening} {product.Unit} @ {product.BuyPrice:N2})",
+                    Status = JournalEntryStatus.Posted,
+                    CreatedAt = DateTime.UtcNow,
+                    Lines = new List<JournalLine>
+                    {
+                        new JournalLine
+                        {
+                            Id = Guid.NewGuid(),
+                            AccountId = inventoryAccount,
+                            Description = $"Opening stock - {product.Name}",
+                            Debit = totalValue,
+                            Credit = 0m
+                        },
+                        new JournalLine
+                        {
+                            Id = Guid.NewGuid(),
+                            AccountId = equityAccount,
+                            Description = $"Opening stock equity - {product.Name}",
+                            Debit = 0m,
+                            Credit = totalValue
+                        }
+                    }
+                };
+                _context.JournalEntries.Add(journal);
+                journalEntryId = journal.Id;
+            }
+
             await _inventory.MoveAsync(product, null, opening, InventoryMovementType.OpeningBalance,
-                DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), Math.Round(opening * product.BuyPrice, 2, MidpointRounding.ToEven), $"OPEN-{product.Code}", null,
+                DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), totalValue, $"OPEN-{product.Code}", journalEntryId,
                 "Opening stock entered with the product");
         }
         await _context.SaveChangesAsync();

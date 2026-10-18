@@ -401,6 +401,8 @@ public class SalesInvoicesController : ControllerBase
 
     private async Task<JournalEntry> CreateJournalEntry(SalesInvoice invoice)
     {
+        var rate = invoice.ExchangeRate > 0 ? invoice.ExchangeRate : 1m;
+
         // Get default accounts
         var receivableAccountId = invoice.Contact?.DefaultReceivableAccountId;
         
@@ -408,7 +410,7 @@ public class SalesInvoicesController : ControllerBase
         if (receivableAccountId == null)
         {
             var defaultAR = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.Code.StartsWith("1130") || a.Name.Contains("Receivable"));
+                .FirstOrDefaultAsync(a => a.Code == "1-1200" || a.Code.StartsWith("1120") || a.Code.StartsWith("1130") || a.Name.Contains("Receivable") || a.Name.Contains("Piutang"));
             receivableAccountId = defaultAR?.Id;
         }
 
@@ -418,13 +420,18 @@ public class SalesInvoicesController : ControllerBase
             Date = invoice.InvoiceDate,
             ReferenceNumber = invoice.InvoiceNumber,
             ContactId = invoice.ContactId.ToString(),
-            Currency = invoice.Currency,
-            Notes = $"Sales Invoice {invoice.InvoiceNumber}",
+            Currency = "IDR",
+            Notes = $"Sales Invoice {invoice.InvoiceNumber}" + (rate != 1m ? $" (FX {invoice.Currency} @ {rate:N2})" : ""),
             Status = JournalEntryStatus.Posted,
             CreatedAt = DateTime.UtcNow,
             ProjectId = invoice.ProjectId,
             Lines = new List<JournalLine>()
         };
+
+        var arAmount = Math.Round(invoice.Total * rate, 2, MidpointRounding.ToEven);
+        var discountAmount = invoice.DiscountAmount > 0 
+            ? Math.Round(invoice.DiscountAmount * rate, 2, MidpointRounding.ToEven) 
+            : 0m;
 
         // Debit: Accounts Receivable
         journalEntry.Lines.Add(new JournalLine
@@ -433,11 +440,32 @@ public class SalesInvoicesController : ControllerBase
             JournalEntryId = journalEntry.Id,
             AccountId = (receivableAccountId ?? Guid.Empty).ToString(),
             Description = $"Invoice {invoice.InvoiceNumber} - {invoice.Contact?.Name}",
-            Debit = invoice.Total,
+            Debit = arAmount,
             Credit = 0
         });
 
+        // Debit: Sales Discount (contra-revenue) if invoice carries a discount
+        if (discountAmount > 0)
+        {
+            var defaultDiscount = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "4-4000" || a.Code.StartsWith("4400") || a.Code == "4-9000" || a.Name.Contains("Sales Discount") || a.Name.Contains("Diskon Penjualan"));
+            var defaultRev = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "4-1000" || a.Code.StartsWith("4100") || (a.Code.StartsWith("4") && !a.IsHeader));
+            var discountAccount = defaultDiscount?.Code ?? defaultRev?.Code ?? "4-1000";
+
+            journalEntry.Lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                JournalEntryId = journalEntry.Id,
+                AccountId = discountAccount,
+                Description = $"Discount - Invoice {invoice.InvoiceNumber}",
+                Debit = discountAmount,
+                Credit = 0
+            });
+        }
+
         // Credit: Revenue accounts (from line items)
+        var revenueLines = new List<JournalLine>();
         foreach (var line in invoice.Lines)
         {
             var revenueAccountId = line.AccountId ?? line.Product?.IncomeAccountId;
@@ -445,26 +473,30 @@ public class SalesInvoicesController : ControllerBase
             if (revenueAccountId == null)
             {
                 var defaultRevenue = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.Code.StartsWith("4100") || a.Name.Contains("Revenue"));
+                    .FirstOrDefaultAsync(a => a.Code == "4-1000" || a.Code.StartsWith("4100") || a.Name.Contains("Revenue"));
                 revenueAccountId = defaultRevenue?.Id;
             }
 
-            journalEntry.Lines.Add(new JournalLine
+            var lineRevenue = Math.Round((line.LineTotal - line.TaxAmount) * rate, 2, MidpointRounding.ToEven);
+            var revLine = new JournalLine
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
                 AccountId = (revenueAccountId ?? Guid.Empty).ToString(),
                 Description = line.Description,
                 Debit = 0,
-                Credit = line.LineTotal - line.TaxAmount
-            });
+                Credit = lineRevenue
+            };
+            revenueLines.Add(revLine);
+            journalEntry.Lines.Add(revLine);
 
             // Credit: Tax payable (if taxable)
             if (line.IsTaxable && line.TaxAmount > 0)
             {
                 var taxAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.Code.StartsWith("2140") || a.Name.Contains("Tax Payable") || a.Name.Contains("PPN"));
+                    .FirstOrDefaultAsync(a => a.Code == "2-1300" || a.Code.StartsWith("2140") || a.Name.Contains("Tax Payable") || a.Name.Contains("PPN") || a.Name.Contains("VAT Out"));
 
+                var lineTax = Math.Round(line.TaxAmount * rate, 2, MidpointRounding.ToEven);
                 journalEntry.Lines.Add(new JournalLine
                 {
                     Id = Guid.NewGuid(),
@@ -472,13 +504,25 @@ public class SalesInvoicesController : ControllerBase
                     AccountId = (taxAccount?.Id ?? Guid.Empty).ToString(),
                     Description = $"PPN - {line.Description}",
                     Debit = 0,
-                    Credit = line.TaxAmount
+                    Credit = lineTax
                 });
             }
+        }
 
-            // Debit: COGS (5-1000) & Credit: Inventory (1-1400) for tracked inventory products.
-            // The stock leaves here at moving-average cost, and COGS is
-            // exactly the value the movement took off the inventory.
+        // Decimal balance check across FX and rounding:
+        var totalInvoiceDebits = arAmount + discountAmount;
+        var totalInvoiceCredits = journalEntry.Lines.Where(l => l.Credit > 0).Sum(l => l.Credit);
+        var diff = totalInvoiceDebits - totalInvoiceCredits;
+        if (diff != 0m && revenueLines.Count > 0)
+        {
+            revenueLines[0].Credit += diff;
+        }
+
+        // Debit: COGS (5-1000) & Credit: Inventory (1-1400) for tracked inventory products.
+        // The stock leaves here at moving-average cost, and COGS is
+        // exactly the value the movement took off the inventory (already base IDR).
+        foreach (var line in invoice.Lines)
+        {
             if (line.ProductId.HasValue)
             {
                 var product = await _context.Products.FindAsync(line.ProductId.Value);
@@ -492,7 +536,6 @@ public class SalesInvoicesController : ControllerBase
 
                     if (cogsAmount > 0)
                     {
-                        // Resolve COGS account (product's ExpenseAccountId or 5-1000)
                         var cogsAccountId = product.ExpenseAccountId?.ToString();
                         if (string.IsNullOrEmpty(cogsAccountId))
                         {
@@ -501,7 +544,6 @@ public class SalesInvoicesController : ControllerBase
                             cogsAccountId = defaultCogs?.Code ?? "5-1000";
                         }
 
-                        // Resolve Inventory account (product's InventoryAccountId or 1-1400)
                         var inventoryAccountId = product.InventoryAccountId?.ToString();
                         if (string.IsNullOrEmpty(inventoryAccountId))
                         {
@@ -510,7 +552,6 @@ public class SalesInvoicesController : ControllerBase
                             inventoryAccountId = defaultInventory?.Code ?? "1-1400";
                         }
 
-                        // Debit COGS
                         journalEntry.Lines.Add(new JournalLine
                         {
                             Id = Guid.NewGuid(),
@@ -521,7 +562,6 @@ public class SalesInvoicesController : ControllerBase
                             Credit = 0
                         });
 
-                        // Credit Inventory
                         journalEntry.Lines.Add(new JournalLine
                         {
                             Id = Guid.NewGuid(),

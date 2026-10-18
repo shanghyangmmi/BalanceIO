@@ -111,6 +111,10 @@ public class PurchaseBillsController : ControllerBase
         // Calculate totals
         CalculateTotals(bill);
 
+        var validationError = await ValidateTrackedInventoryLinesAsync(bill.Lines);
+        if (validationError != null)
+            return BadRequest(new { code = "INVALID_ACCOUNT_FOR_TRACKED_ITEM", message = validationError });
+
         bill.CreatedAt = DateTime.UtcNow;
         bill.CreatedByUserId = GetCurrentUserId();
         bill.CreatedBy = GetCurrentUserEmail();
@@ -152,6 +156,10 @@ public class PurchaseBillsController : ControllerBase
 
         if (existing.Status == BillStatus.Posted || existing.Status == BillStatus.Void)
             return BadRequest("Cannot edit posted or voided bill");
+
+        var validationError = await ValidateTrackedInventoryLinesAsync(bill.Lines);
+        if (validationError != null)
+            return BadRequest(new { code = "INVALID_ACCOUNT_FOR_TRACKED_ITEM", message = validationError });
 
         // Update fields
         existing.VendorInvoiceNumber = bill.VendorInvoiceNumber;
@@ -539,20 +547,27 @@ public class PurchaseBillsController : ControllerBase
             .FirstOrDefaultAsync(a => a.Code == "6-1400" || a.Code.StartsWith("6") || (a.AccountGroup == "Expense" && !a.IsHeader));
         var fallbackExpenseCode = defaultExpenseAccount?.Code ?? "6-1400";
 
+        var rate = bill.ExchangeRate > 0 ? bill.ExchangeRate : 1m;
+
         var journalEntry = new JournalEntry
         {
             Id = Guid.NewGuid(),
             Date = bill.BillDate,
             ReferenceNumber = bill.BillNumber,
             ContactId = bill.ContactId.ToString(),
-            Currency = bill.Currency,
-            Notes = $"Purchase Bill {bill.BillNumber} - {bill.Contact?.Name ?? "Vendor"}",
+            Currency = "IDR",
+            Notes = $"Purchase Bill {bill.BillNumber} - {bill.Contact?.Name ?? "Vendor"}" + (rate != 1m ? $" (FX {bill.Currency} @ {rate:N2})" : ""),
             Status = JournalEntryStatus.Posted,
             CreatedAt = DateTime.UtcNow,
             Lines = new List<JournalLine>()
         };
 
-        // Credit: Trade Payables (full bill total)
+        var apAmount = Math.Round(bill.Total * rate, 2, MidpointRounding.ToEven);
+        var discountAmount = bill.DiscountAmount > 0 
+            ? Math.Round(bill.DiscountAmount * rate, 2, MidpointRounding.ToEven) 
+            : 0m;
+
+        // Credit: Trade Payables (full bill total in base currency)
         journalEntry.Lines.Add(new JournalLine
         {
             Id = Guid.NewGuid(),
@@ -560,10 +575,29 @@ public class PurchaseBillsController : ControllerBase
             AccountId = payableAccountId,
             Description = $"Bill {bill.BillNumber} - {bill.Contact?.Name ?? "Vendor"}",
             Debit = 0,
-            Credit = bill.Total
+            Credit = apAmount
         });
 
+        // Credit: Purchase Discount if bill carries a discount
+        if (discountAmount > 0)
+        {
+            var defaultDiscount = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "5-5000" || a.Code.StartsWith("5500") || a.Code == "5-9100" || a.Name.Contains("Purchase Discount") || a.Name.Contains("Diskon Pembelian") || a.Code == "5-9000");
+            var discountCode = defaultDiscount?.Code ?? "5-5000";
+
+            journalEntry.Lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                JournalEntryId = journalEntry.Id,
+                AccountId = discountCode,
+                Description = $"Discount - Bill {bill.BillNumber}",
+                Debit = 0,
+                Credit = discountAmount
+            });
+        }
+
         // Debit: Line item expense / inventory + VAT In
+        var debitLines = new List<JournalLine>();
         foreach (var line in bill.Lines)
         {
             string lineDebitAccount;
@@ -602,19 +636,23 @@ public class PurchaseBillsController : ControllerBase
             {
                 // Received goods: the receipt's value comes off goods received
                 // not invoiced; only the price difference touches inventory.
-                journalEntry.Lines.Add(new JournalLine
+                var convertedReceived = Math.Round(received * rate, 2, MidpointRounding.ToEven);
+                var grniLine = new JournalLine
                 {
                     Id = Guid.NewGuid(),
                     JournalEntryId = journalEntry.Id,
                     AccountId = grniCode!,
                     Description = $"Received not invoiced - {line.Description}",
-                    Debit = received,
+                    Debit = convertedReceived,
                     Credit = 0
-                });
-                var difference = netAmount - received;
+                };
+                debitLines.Add(grniLine);
+                journalEntry.Lines.Add(grniLine);
+
+                var difference = Math.Round((netAmount - received) * rate, 2, MidpointRounding.ToEven);
                 if (difference != 0m)
                 {
-                    journalEntry.Lines.Add(new JournalLine
+                    var diffLine = new JournalLine
                     {
                         Id = Guid.NewGuid(),
                         JournalEntryId = journalEntry.Id,
@@ -622,38 +660,81 @@ public class PurchaseBillsController : ControllerBase
                         Description = $"Price difference - {line.Description}",
                         Debit = difference > 0m ? difference : 0m,
                         Credit = difference < 0m ? -difference : 0m
-                    });
+                    };
+                    if (difference > 0m) debitLines.Add(diffLine);
+                    journalEntry.Lines.Add(diffLine);
                 }
             }
             else
             {
-                journalEntry.Lines.Add(new JournalLine
+                var convertedNet = Math.Round(netAmount * rate, 2, MidpointRounding.ToEven);
+                var netLine = new JournalLine
                 {
                     Id = Guid.NewGuid(),
                     JournalEntryId = journalEntry.Id,
                     AccountId = lineDebitAccount,
                     Description = line.Description,
-                    Debit = netAmount,
+                    Debit = convertedNet,
                     Credit = 0
-                });
+                };
+                debitLines.Add(netLine);
+                journalEntry.Lines.Add(netLine);
             }
 
             // Debit: PPN Masukan (VAT In) if taxable
             if (line.IsTaxable && line.TaxAmount > 0)
             {
-                journalEntry.Lines.Add(new JournalLine
+                var convertedTax = Math.Round(line.TaxAmount * rate, 2, MidpointRounding.ToEven);
+                var taxLine = new JournalLine
                 {
                     Id = Guid.NewGuid(),
                     JournalEntryId = journalEntry.Id,
                     AccountId = taxAccountCode,
                     Description = $"PPN Masukan - {line.Description}",
-                    Debit = line.TaxAmount,
+                    Debit = convertedTax,
                     Credit = 0
-                });
+                };
+                debitLines.Add(taxLine);
+                journalEntry.Lines.Add(taxLine);
             }
+        }
+
+        // Decimal balance check across FX and rounding:
+        var totalBillCredits = apAmount + discountAmount;
+        var totalBillDebits = journalEntry.Lines.Where(l => l.Debit > 0).Sum(l => l.Debit);
+        var balanceDiff = totalBillCredits - totalBillDebits;
+        if (balanceDiff != 0m && debitLines.Count > 0)
+        {
+            debitLines[0].Debit += balanceDiff;
         }
 
         _context.JournalEntries.Add(journalEntry);
         return journalEntry;
+    }
+
+    private async Task<string?> ValidateTrackedInventoryLinesAsync(IEnumerable<PurchaseBillLine> lines)
+    {
+        foreach (var line in lines)
+        {
+            if (line.ProductId.HasValue && line.AccountId.HasValue)
+            {
+                var product = await _context.Products.FindAsync(line.ProductId.Value);
+                if (product != null && product.TrackInventory)
+                {
+                    var customAcc = await _context.Accounts.FindAsync(line.AccountId.Value);
+                    var isInventory = customAcc != null && (
+                        customAcc.AccountGroup == "Inventory" ||
+                        customAcc.Code.StartsWith("1-14") ||
+                        customAcc.Code.StartsWith("114") ||
+                        (product.InventoryAccountId.HasValue && customAcc.Id == product.InventoryAccountId.Value));
+
+                    if (!isInventory)
+                    {
+                        return $"Line with tracked item '{product.Name}' must post to an inventory asset account.";
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

@@ -59,22 +59,22 @@ public class SalesPostingTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     /// <summary>
-    /// Known defect, reported as Needs owner decision: the journal credits revenue before the
-    /// invoice-level discount but debits receivables after it. Until the allocation of the
-    /// discount (and its effect on the PPN base) is decided, the ledger guard must refuse it.
+    /// Phase 1.1: invoice discounts post a balanced contra-revenue line,
+    /// and the trial balance stays in exact balance.
     /// </summary>
     [Fact]
-    public async Task Invoice_level_discount_is_refused_rather_than_posted_unbalanced()
+    public async Task Invoice_level_discount_posts_balanced_journal()
     {
         var (t, contact) = await Setup();
         var created = await t.OwnerClient().PostJson("/api/SalesInvoices", Invoice(contact, 10));
         var id = (await created.Json()).GetProperty("id").GetGuid();
 
         var posted = await t.OwnerClient().PostJson($"/api/SalesInvoices/{id}/post", new { });
-        Assert.Equal(HttpStatusCode.BadRequest, posted.StatusCode);
-        Assert.Contains("UNBALANCED", await posted.Body());
+        Assert.True(posted.IsSuccessStatusCode, await posted.Body());
 
-        var posted2 = await factory.WithDb(db => db.JournalEntries.IgnoreQueryFilters().CountAsync(j => j.CompanyId == t.CompanyId), t.CompanyId);
-        Assert.Equal(0, posted2);
+        var tb = await (await t.OwnerClient().GetAsync("/api/Reports/trial-balance?asOf=2026-12-31")).Json();
+        var debit = tb.GetProperty("totalDebit").GetDecimal();
+        var credit = tb.GetProperty("totalCredit").GetDecimal();
+        Assert.Equal(debit, credit);
     }
 }

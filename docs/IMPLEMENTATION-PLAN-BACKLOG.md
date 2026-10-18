@@ -171,7 +171,7 @@ graph TD
 
 ---
 
-### Phase 1: Accounting Correctness Gaps
+### Phase 1: Accounting Correctness Gaps [COMPLETED]
 
 #### 1.1 Invoice-Level and Bill-Level Discount Balanced Journal Posting
 * **Goal:** Prevent `UNBALANCED` ledger integrity exceptions when documents have discounts.

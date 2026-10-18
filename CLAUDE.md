@@ -68,6 +68,13 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
   already-revoked token triggers reuse breach detection and revokes all active sessions.
 - Segregation of duties: `Company.EnforceSegregationOfDuties` (default true)
   blocks the creator of an entry from posting it.
+- Discounts & FX Conversion: Sales invoice discounts post to contra-revenue (`4-4000 Sales Discounts`, Dr),
+  purchase bill discounts post to contra-expense (`5-5000 Purchase Discounts`, Cr). Invoices/bills in foreign
+  currencies convert line amounts, discounts, and taxes by `ExchangeRate` to post GL in base IDR.
+- Opening Stock: Product creation with opening inventory posts a balanced journal (Dr `1-1400 Inventory`,
+  Cr `3-9000 Opening Balance Equity`) linked to `InventoryLedger`.
+- Fixed Assets: Initial `BookValue` equals `AcquisitionCost`. Acquisition posting via `POST /api/assets/{id}/post-acquisition`
+  creates Dr Asset / Cr Cash or Payable journal entry and transitions asset to Active.
 
 ### Choke points
 
@@ -289,7 +296,6 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 
 | Issue | Where |
 |---|---|
-| Invoice-level and bill-level discount unbalances the journal; refused with `UNBALANCED` | `SalesInvoicesController`, `PurchaseBillsController` |
 | Withholding (PPh 22/23/4(2)) is not journaled; reports derive from bills | `TaxReportsService` |
 | PPN: luxury goods/PPnBM never computed, `TaxRates` table unused, rounding rule unconfirmed, kurang/lebih bayar accounts unconfirmed | tax services |
 | Payroll: no leaver annualisation, PPh 26 or 1721-A1; BPJS wage caps are configuration that must be kept current | `PayrollCalculator` |

@@ -87,6 +87,9 @@ public class FixedAsset
 
     public string? DisposalReason { get; set; }
 
+    /// <summary>The entry that brought the asset onto the books at cost.</summary>
+    public Guid? AcquisitionJournalEntryId { get; set; }
+
     /// <summary>The entry that took the asset off the books.</summary>
     public Guid? DisposalJournalEntryId { get; set; }
 
