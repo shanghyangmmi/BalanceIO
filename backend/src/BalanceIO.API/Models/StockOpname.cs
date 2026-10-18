@@ -22,6 +22,9 @@ public class StockOpname
     [Required]
     public DateOnly OpnameDate { get; set; }
 
+    /// <summary>The warehouse stock leaves or enters. Null means the company's default.</summary>
+    public Guid? WarehouseId { get; set; }
+
     public string? Description { get; set; }
 
     public StockOpnameStatus Status { get; set; } = StockOpnameStatus.Draft;

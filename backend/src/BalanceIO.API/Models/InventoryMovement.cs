@@ -8,7 +8,11 @@ public enum InventoryMovementType
     Purchase,
     Sale,
     OpnameAdjustment,
-    ManualAdjustment
+    ManualAdjustment,
+    /// <summary>One leg of a move between warehouses: out of one, into the other. No value moves.</summary>
+    Transfer,
+    /// <summary>Aligns the movement record with stock that was recorded without one.</summary>
+    OpeningBalance,
 }
 
 /// <summary>
@@ -31,6 +35,13 @@ public class InventoryMovement
 
     [ForeignKey("ProductId")]
     public Product? Product { get; set; }
+
+    /// <summary>Where the stock moved. Null only on rows written before warehouses held stock.</summary>
+    public Guid? WarehouseId { get; set; }
+
+    [ForeignKey("WarehouseId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Warehouse? Warehouse { get; set; }
 
     [Required]
     public DateOnly MovementDate { get; set; }

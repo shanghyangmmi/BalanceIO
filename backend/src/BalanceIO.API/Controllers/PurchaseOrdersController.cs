@@ -15,8 +15,11 @@ public class PurchaseOrdersController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
 
-    public PurchaseOrdersController(ApplicationDbContext context)
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+
+    public PurchaseOrdersController(ApplicationDbContext context, BalanceIO.API.Services.InventoryLedger inventory)
     {
+        _inventory = inventory;
         _context = context;
     }
 
@@ -171,8 +174,11 @@ public class PurchaseOrdersController : ControllerBase
             var product = await _context.Products.FindAsync(line.ProductId);
             if (product != null && product.TrackInventory)
             {
-                product.StockOnHand += line.Quantity;
-                product.UpdatedAt = DateTime.UtcNow;
+                // Receipt is a movement like any other; it used to change the
+                // quantity with no record of where or why.
+                await _inventory.MoveAsync(product, order.WarehouseId, line.Quantity, InventoryMovementType.Purchase,
+                    DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), line.UnitPrice, order.OrderNumber, null,
+                    $"Received on purchase order {order.OrderNumber}");
             }
         }
 

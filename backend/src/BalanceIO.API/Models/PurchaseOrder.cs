@@ -73,6 +73,9 @@ public class PurchaseOrder
     public List<PurchaseOrderLine> Lines { get; set; } = new();
 
     // Audit
+    /// <summary>The warehouse stock leaves or enters. Null means the company's default.</summary>
+    public Guid? WarehouseId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? ApprovedAt { get; set; }

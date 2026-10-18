@@ -16,8 +16,11 @@ public class PurchaseBillsController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IPeriodLockService _periodLockService;
 
-    public PurchaseBillsController(ApplicationDbContext context, IPeriodLockService periodLockService)
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+
+    public PurchaseBillsController(ApplicationDbContext context, IPeriodLockService periodLockService, BalanceIO.API.Services.InventoryLedger inventory)
     {
+        _inventory = inventory;
         _context = context;
         _periodLockService = periodLockService;
     }
@@ -236,7 +239,15 @@ public class PurchaseBillsController : ControllerBase
         bill.PostedAt = DateTime.UtcNow;
         bill.AmountDue = bill.Total;
 
-        // 2. Track Inventory additions and movements
+        // 2. Track Inventory additions and movements. Goods on a bill raised
+        // from a purchase order that was already received entered stock at
+        // receipt; adding them again here counted them twice.
+        var receivedViaOrder = bill.PurchaseOrderId.HasValue && await _context.PurchaseOrders
+            .AnyAsync(o => o.Id == bill.PurchaseOrderId && o.Status == PurchaseOrderStatus.Received);
+        var orderWarehouse = bill.PurchaseOrderId.HasValue
+            ? await _context.PurchaseOrders.Where(o => o.Id == bill.PurchaseOrderId).Select(o => o.WarehouseId).FirstOrDefaultAsync()
+            : null;
+
         foreach (var line in bill.Lines)
         {
             if (line.ProductId.HasValue)
@@ -244,30 +255,17 @@ public class PurchaseBillsController : ControllerBase
                 var product = line.Product ?? await _context.Products.FindAsync(line.ProductId.Value);
                 if (product != null && product.TrackInventory)
                 {
-                    product.StockOnHand += line.Quantity;
-
                     // Update unit buy price if provided
                     if (line.UnitPrice > 0)
                     {
                         product.BuyPrice = line.UnitPrice;
                     }
 
-                    var totalCost = line.Quantity * line.UnitPrice;
-
-                    _context.InventoryMovements.Add(new InventoryMovement
+                    if (!receivedViaOrder)
                     {
-                        Id = Guid.NewGuid(),
-                        CompanyId = _context.CurrentCompanyId.Value,
-                        ProductId = product.Id,
-                        MovementDate = bill.BillDate,
-                        Type = InventoryMovementType.Purchase,
-                        Quantity = line.Quantity,
-                        UnitCost = line.UnitPrice,
-                        TotalCost = totalCost,
-                        ReferenceNumber = bill.BillNumber,
-                        JournalEntryId = journalEntry.Id,
-                        Notes = $"Purchase Bill {bill.BillNumber}"
-                    });
+                        await _inventory.MoveAsync(product, bill.WarehouseId ?? orderWarehouse, line.Quantity, InventoryMovementType.Purchase,
+                            bill.BillDate, line.UnitPrice, bill.BillNumber, journalEntry.Id, $"Purchase Bill {bill.BillNumber}");
+                    }
                 }
             }
         }
@@ -320,37 +318,10 @@ public class PurchaseBillsController : ControllerBase
             }
         }
 
-        // 2. Reverse inventory that was added when posted
-        if (bill.Status == BillStatus.Posted)
-        {
-            foreach (var line in bill.Lines)
-            {
-                if (line.ProductId.HasValue)
-                {
-                    var product = line.Product ?? await _context.Products.FindAsync(line.ProductId.Value);
-                    if (product != null && product.TrackInventory)
-                    {
-                        product.StockOnHand -= line.Quantity;
-
-                        var totalCost = line.Quantity * line.UnitPrice;
-
-                        _context.InventoryMovements.Add(new InventoryMovement
-                        {
-                            Id = Guid.NewGuid(),
-                            CompanyId = _context.CurrentCompanyId.Value,
-                            ProductId = product.Id,
-                            MovementDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                            Type = InventoryMovementType.ManualAdjustment,
-                            Quantity = -line.Quantity,
-                            UnitCost = line.UnitPrice,
-                            TotalCost = -totalCost,
-                            ReferenceNumber = $"VOID-{bill.BillNumber}",
-                            Notes = $"Void of Purchase Bill {bill.BillNumber}"
-                        });
-                    }
-                }
-            }
-        }
+        // 2. Reverse the stock this bill added, from the warehouses it entered.
+        // A bill whose goods came in on a received order added none.
+        await _inventory.ReverseAsync(_context.CurrentCompanyId!.Value, bill.BillNumber, InventoryMovementType.Purchase,
+            DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), $"VOID-{bill.BillNumber}", $"Void of Purchase Bill {bill.BillNumber}");
 
         bill.Status = BillStatus.Void;
         bill.VoidedAt = DateTime.UtcNow;

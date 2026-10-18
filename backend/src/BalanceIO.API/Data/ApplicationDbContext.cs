@@ -324,6 +324,7 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<PayrollLine>().HasIndex(e => e.ContactId);
 
         modelBuilder.Entity<Warehouse>().HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
+        modelBuilder.Entity<InventoryMovement>().HasIndex(e => new { e.CompanyId, e.WarehouseId, e.ProductId });
     }
 
     /// <summary>

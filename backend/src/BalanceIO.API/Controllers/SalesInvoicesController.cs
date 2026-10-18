@@ -17,8 +17,11 @@ public class SalesInvoicesController : ControllerBase
     private readonly INotificationService _notificationService;
     private readonly IPeriodLockService _periodLockService;
 
-    public SalesInvoicesController(ApplicationDbContext context, INotificationService notificationService, IPeriodLockService periodLockService)
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+
+    public SalesInvoicesController(ApplicationDbContext context, INotificationService notificationService, IPeriodLockService periodLockService, BalanceIO.API.Services.InventoryLedger inventory)
     {
+        _inventory = inventory;
         _context = context;
         _notificationService = notificationService;
         _periodLockService = periodLockService;
@@ -187,25 +190,9 @@ public class SalesInvoicesController : ControllerBase
                 var product = await _context.Products.FindAsync(line.ProductId.Value);
                 if (product != null && product.TrackInventory)
                 {
-                    product.StockOnHand -= line.Quantity;
-                    
-                    var unitCost = product.BuyPrice;
-                    var totalCost = line.Quantity * unitCost;
-
-                    _context.InventoryMovements.Add(new InventoryMovement
-                    {
-                        Id = Guid.NewGuid(),
-                        CompanyId = _context.CurrentCompanyId.Value,
-                        ProductId = product.Id,
-                        MovementDate = invoice.InvoiceDate,
-                        Type = InventoryMovementType.Sale,
-                        Quantity = -line.Quantity,
-                        UnitCost = unitCost,
-                        TotalCost = -totalCost,
-                        ReferenceNumber = invoice.InvoiceNumber,
-                        JournalEntryId = journalEntry.Id,
-                        Notes = $"Sales Invoice {invoice.InvoiceNumber}"
-                    });
+                    await _inventory.MoveAsync(product, invoice.WarehouseId, -line.Quantity, InventoryMovementType.Sale,
+                        invoice.InvoiceDate, product.BuyPrice, invoice.InvoiceNumber, journalEntry.Id,
+                        $"Sales Invoice {invoice.InvoiceNumber}");
 
                     if (product.StockOnHand <= product.ReorderLevel)
                     {
@@ -266,35 +253,10 @@ public class SalesInvoicesController : ControllerBase
             }
         }
 
-        // Return stock on void
-        foreach (var line in invoice.Lines)
-        {
-            if (line.ProductId.HasValue)
-            {
-                var product = await _context.Products.FindAsync(line.ProductId.Value);
-                if (product != null && product.TrackInventory)
-                {
-                    product.StockOnHand += line.Quantity;
-
-                    var unitCost = product.BuyPrice;
-                    var totalCost = line.Quantity * unitCost;
-
-                    _context.InventoryMovements.Add(new InventoryMovement
-                    {
-                        Id = Guid.NewGuid(),
-                        CompanyId = _context.CurrentCompanyId.Value,
-                        ProductId = product.Id,
-                        MovementDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                        Type = InventoryMovementType.ManualAdjustment,
-                        Quantity = line.Quantity,
-                        UnitCost = unitCost,
-                        TotalCost = totalCost,
-                        ReferenceNumber = $"VOID-{invoice.InvoiceNumber}",
-                        Notes = $"Void of Sales Invoice {invoice.InvoiceNumber}"
-                    });
-                }
-            }
-        }
+        // Return the stock this invoice took, to the warehouses it left.
+        await _inventory.ReverseAsync(_context.CurrentCompanyId.Value, invoice.InvoiceNumber, InventoryMovementType.Sale,
+            DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), $"VOID-{invoice.InvoiceNumber}",
+            $"Void of Sales Invoice {invoice.InvoiceNumber}");
 
         invoice.Status = InvoiceStatus.Void;
         invoice.VoidedAt = DateTime.UtcNow;

@@ -36,6 +36,9 @@ public class PurchaseBill
     public Contact? Contact { get; set; }
 
     // Link to Purchase Order if applicable
+    /// <summary>The warehouse stock leaves or enters. Null means the company's default.</summary>
+    public Guid? WarehouseId { get; set; }
+
     public Guid? PurchaseOrderId { get; set; }
     public PurchaseOrder? PurchaseOrder { get; set; }
 

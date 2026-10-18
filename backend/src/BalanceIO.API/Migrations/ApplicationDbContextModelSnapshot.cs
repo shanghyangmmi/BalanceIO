@@ -1984,13 +1984,20 @@ namespace BalanceIO.API.Migrations
                     b.Property<decimal>("UnitCost")
                         .HasColumnType("decimal(19,4)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("JournalEntryId");
 
                     b.HasIndex("ProductId");
 
+                    b.HasIndex("WarehouseId");
+
                     b.HasIndex("CompanyId", "ProductId", "MovementDate");
+
+                    b.HasIndex("CompanyId", "WarehouseId", "ProductId");
 
                     b.ToTable("InventoryMovements");
                 });
@@ -3110,6 +3117,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateTime?>("VoidedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
@@ -3277,6 +3287,9 @@ namespace BalanceIO.API.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -3669,6 +3682,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateTime?>("VoidedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
@@ -3998,6 +4014,9 @@ namespace BalanceIO.API.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -4340,6 +4359,9 @@ namespace BalanceIO.API.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");
 
                     b.Property<string>("Name")
@@ -4825,11 +4847,17 @@ namespace BalanceIO.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("BalanceIO.API.Models.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId");
+
                     b.Navigation("Company");
 
                     b.Navigation("JournalEntry");
 
                     b.Navigation("Product");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.JournalEntry", b =>

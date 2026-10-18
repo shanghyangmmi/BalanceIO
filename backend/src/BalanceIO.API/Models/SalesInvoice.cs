@@ -82,6 +82,9 @@ public class SalesInvoice
     [MaxLength(500)]
     public string? Terms { get; set; }
 
+    /// <summary>The warehouse stock leaves or enters. Null means the company's default.</summary>
+    public Guid? WarehouseId { get; set; }
+
     public Guid? ProjectId { get; set; }
     [ForeignKey("ProjectId")]
     public Project? Project { get; set; }

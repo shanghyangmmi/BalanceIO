@@ -18,11 +18,14 @@ public class MigrationController : ControllerBase
     private readonly IPeriodLockService _periodLockService;
     private readonly ILogger<MigrationController> _logger;
 
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+
     public MigrationController(
         ApplicationDbContext context,
         IPeriodLockService periodLockService,
-        ILogger<MigrationController> logger)
+        ILogger<MigrationController> logger, BalanceIO.API.Services.InventoryLedger inventory)
     {
+        _inventory = inventory;
         _context = context;
         _periodLockService = periodLockService;
         _logger = logger;
@@ -1041,7 +1044,6 @@ public class MigrationController : ControllerBase
                     BuyPrice = unitCost,
                     SellPrice = sellPrice,
                     TrackInventory = true,
-                    StockOnHand = qty,
                     CreatedAt = DateTime.UtcNow
                 };
                 _context.Products.Add(product);
@@ -1050,28 +1052,15 @@ public class MigrationController : ControllerBase
             }
             else
             {
-                product.StockOnHand += qty;
                 product.BuyPrice = unitCost;
                 product.UpdatedAt = DateTime.UtcNow;
             }
 
             if (qty > 0)
             {
-                var movement = new InventoryMovement
-                {
-                    Id = Guid.NewGuid(),
-                    CompanyId = companyId,
-                    ProductId = product.Id,
-                    MovementDate = request.ConversionDate,
-                    Type = InventoryMovementType.ManualAdjustment,
-                    Quantity = qty,
-                    UnitCost = unitCost,
-                    TotalCost = qty * unitCost,
-                    ReferenceNumber = $"OP-STOCK-{batch.BatchNumber}",
-                    Notes = $"Migration Opening Inventory · Batch {batch.BatchNumber}",
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.InventoryMovements.Add(movement);
+                var movement = await _inventory.MoveAsync(product, null, qty, InventoryMovementType.ManualAdjustment,
+                    request.ConversionDate, unitCost, $"OP-STOCK-{batch.BatchNumber}", null,
+                    $"Migration Opening Inventory · Batch {batch.BatchNumber}");
                 summary.CreatedMovementIds.Add(movement.Id);
             }
         }

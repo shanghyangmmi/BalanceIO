@@ -22,3 +22,10 @@ public sealed class PayrollRuleException(string code, string message, int status
     public string Code { get; } = code;
     public int Status { get; } = status;
 }
+
+/// <summary>An inventory request the rules refuse (unknown warehouse, insufficient stock).</summary>
+public sealed class InventoryRuleException(string code, string message, int status = 400) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+    public int Status { get; } = status;
+}

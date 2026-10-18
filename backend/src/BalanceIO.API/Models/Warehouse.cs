@@ -10,8 +10,10 @@ public enum WarehouseType
 }
 
 /// <summary>
-/// A place stock is kept. Master data only: stock quantities and valuation
-/// are company-wide, not held per warehouse.
+/// A place stock is kept. Stock per warehouse is the sum of the inventory
+/// movements recorded against it; Product.StockOnHand is the company-wide
+/// total of the same movements. Every company with stock has exactly one
+/// default warehouse, which receives movements that name none.
 /// </summary>
 public class Warehouse
 {
@@ -35,6 +37,9 @@ public class Warehouse
     public WarehouseType Type { get; set; } = WarehouseType.Warehouse;
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Receives movements that name no warehouse. One per company.</summary>
+    public bool IsDefault { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

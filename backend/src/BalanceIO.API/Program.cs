@@ -78,6 +78,7 @@ builder.Services.AddScoped<TaxAnalysisService>();
 builder.Services.AddScoped<TaxReportsService>();
 builder.Services.AddScoped<PayrollService>();
 builder.Services.AddScoped<FinancialStatementsService>();
+builder.Services.AddScoped<InventoryLedger>();
 builder.Services.AddScoped<BankReconciliationService>();
 builder.Services.AddScoped<BudgetingService>();
 builder.Services.AddScoped<E2EAccountingValidationService>();
@@ -118,7 +119,12 @@ builder.Services.AddCors(options =>
             .AllowCredentials());
 });
 
-builder.Services.AddControllers();
+// EF fixes up back-references (a line's parent document), so any action
+// that returns a document with its lines produced a cycle and a 500 after
+// the work had already been saved: purchase order receipt, stock opname
+// initialise, vouchers. Cycles are written once and then cut.
+builder.Services.AddControllers().AddJsonOptions(o =>
+    o.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
 
 var app = builder.Build();
 

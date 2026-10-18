@@ -22,8 +22,11 @@ public class ProductsController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly BalanceIO.API.Services.IPeriodLockService _periodLock;
 
-    public ProductsController(ApplicationDbContext context, BalanceIO.API.Services.IPeriodLockService periodLock)
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+
+    public ProductsController(ApplicationDbContext context, BalanceIO.API.Services.IPeriodLockService periodLock, BalanceIO.API.Services.InventoryLedger inventory)
     {
+        _inventory = inventory;
         _context = context;
         _periodLock = periodLock;
     }
@@ -88,7 +91,17 @@ public class ProductsController : ControllerBase
 
         product.CreatedAt = DateTime.UtcNow;
 
+        // Opening stock entered with the product is a movement into the
+        // default warehouse, so the warehouses add up to the total.
+        var opening = product.TrackInventory ? product.StockOnHand : 0m;
+        product.StockOnHand = 0m;
         _context.Products.Add(product);
+        if (opening != 0m)
+        {
+            await _inventory.MoveAsync(product, null, opening, InventoryMovementType.OpeningBalance,
+                DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), product.BuyPrice, $"OPEN-{product.Code}", null,
+                "Opening stock entered with the product");
+        }
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = product.Id }, product);
@@ -171,8 +184,11 @@ public class ProductsController : ControllerBase
             return BadRequest(new { code = "VALIDATION_FAILED", message = "Quantity cannot be zero." });
         if (string.IsNullOrWhiteSpace(adjustment.Reason))
             return BadRequest(new { code = "VALIDATION_FAILED", message = "A reason is required for a stock adjustment." });
-        if (product.StockOnHand + adjustment.Quantity < 0m)
-            return BadRequest(new { code = "NEGATIVE_STOCK", message = $"Only {product.StockOnHand} {product.Unit} on hand; the adjustment would leave stock negative." });
+        var warehouseId = await _inventory.ResolveAsync(companyId, adjustment.WarehouseId);
+        var inWarehouse = await _inventory.QuantityAsync(companyId, product.Id, warehouseId);
+        if (inWarehouse + adjustment.Quantity < 0m)
+            return BadRequest(new { code = "NEGATIVE_STOCK", message = $"Only {inWarehouse:0.####} {product.Unit} in that warehouse; the adjustment would leave it negative." });
+        adjustment.WarehouseId = warehouseId;
 
         var date = adjustment.Date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         await _periodLock.ValidateTransactionDate(companyId, date);
@@ -214,23 +230,8 @@ public class ProductsController : ControllerBase
             entryId = entry.Id;
         }
 
-        _context.InventoryMovements.Add(new InventoryMovement
-        {
-            Id = Guid.NewGuid(),
-            CompanyId = companyId,
-            ProductId = product.Id,
-            MovementDate = date,
-            Type = InventoryMovementType.ManualAdjustment,
-            Quantity = adjustment.Quantity,
-            UnitCost = unitCost,
-            TotalCost = adjustment.Quantity * unitCost,
-            ReferenceNumber = reference,
-            JournalEntryId = entryId,
-            Notes = reason,
-        });
-
-        product.StockOnHand += adjustment.Quantity;
-        product.UpdatedAt = DateTime.UtcNow;
+        await _inventory.MoveAsync(product, adjustment.WarehouseId, adjustment.Quantity, InventoryMovementType.ManualAdjustment,
+            date, unitCost, reference, entryId, reason);
 
         await _context.SaveChangesAsync();
 
@@ -254,4 +255,6 @@ public class StockAdjustment
     public DateOnly? Date { get; set; }
     /// <summary>Defaults to the product's buy price.</summary>
     public decimal? UnitCost { get; set; }
+    /// <summary>Defaults to the company's default warehouse.</summary>
+    public Guid? WarehouseId { get; set; }
 }

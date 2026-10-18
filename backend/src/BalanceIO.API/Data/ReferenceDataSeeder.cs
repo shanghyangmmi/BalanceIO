@@ -17,6 +17,7 @@ public static class ReferenceDataSeeder
         await SeedTaxRatesAsync(db, ct);
         await SeedRequiredAccountsAsync(db, logger, ct);
         await BackfillIndonesianNamesAsync(db, logger, ct);
+        await AssignStockToWarehousesAsync(db, logger, ct);
     }
 
     private static async Task SeedTaxRatesAsync(ApplicationDbContext db, CancellationToken ct)
@@ -102,5 +103,80 @@ public static class ReferenceDataSeeder
 
         if (updated > 0)
             logger.LogInformation("Set the Indonesian name on {Count} default account(s).", updated);
+    }
+
+    /// <summary>
+    /// Stock per warehouse is the sum of movements per warehouse, which holds
+    /// only if every movement names one and every unit of stock has a
+    /// movement. Before warehouses held stock neither was true: movements had
+    /// no warehouse, and purchase order receipts and product creation changed
+    /// stock without one. For each company that keeps stock this creates the
+    /// default warehouse, assigns the unassigned movements to it, and records
+    /// an OpeningBalance movement for any difference between the movements
+    /// and stock on hand. Idempotent: a company already aligned is untouched.
+    /// </summary>
+    private static async Task AssignStockToWarehousesAsync(ApplicationDbContext db, ILogger logger, CancellationToken ct)
+    {
+        var companies = await db.Products.IgnoreQueryFilters()
+            .Where(p => p.TrackInventory)
+            .Select(p => p.CompanyId)
+            .Union(db.InventoryMovements.IgnoreQueryFilters().Select(m => m.CompanyId))
+            .Distinct()
+            .ToListAsync(ct);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+
+        foreach (var companyId in companies)
+        {
+            var warehouse = await db.Warehouses.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(w => w.CompanyId == companyId && w.IsDefault, ct);
+            if (warehouse is null)
+            {
+                var code = await db.Warehouses.IgnoreQueryFilters().AnyAsync(w => w.CompanyId == companyId && w.Code == "MAIN", ct)
+                    ? $"MAIN-{Guid.NewGuid().ToString("N")[..4].ToUpperInvariant()}"
+                    : "MAIN";
+                warehouse = new Warehouse { Id = Guid.NewGuid(), CompanyId = companyId, Code = code, Name = "Gudang Utama", IsDefault = true, IsActive = true };
+                db.Warehouses.Add(warehouse);
+                await db.SaveChangesAsync(ct);
+            }
+
+            var assigned = await db.InventoryMovements.IgnoreQueryFilters()
+                .Where(m => m.CompanyId == companyId && m.WarehouseId == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.WarehouseId, warehouse.Id), ct);
+
+            // Summed in memory: SQLite stores decimal(19,4) as REAL.
+            var moved = (await db.InventoryMovements.IgnoreQueryFilters().AsNoTracking()
+                    .Where(m => m.CompanyId == companyId)
+                    .Select(m => new { m.ProductId, m.Quantity })
+                    .ToListAsync(ct))
+                .GroupBy(m => m.ProductId)
+                .ToDictionary(g => g.Key, g => g.Sum(m => m.Quantity));
+
+            var products = await db.Products.IgnoreQueryFilters().AsNoTracking()
+                .Where(p => p.CompanyId == companyId && p.TrackInventory)
+                .Select(p => new { p.Id, p.Code, p.StockOnHand, p.BuyPrice })
+                .ToListAsync(ct);
+
+            var aligned = 0;
+            foreach (var p in products)
+            {
+                var gap = p.StockOnHand - (moved.TryGetValue(p.Id, out var q) ? q : 0m);
+                if (gap == 0m) continue;
+                db.InventoryMovements.Add(new InventoryMovement
+                {
+                    Id = Guid.NewGuid(), CompanyId = companyId, ProductId = p.Id, WarehouseId = warehouse.Id,
+                    MovementDate = today, Type = InventoryMovementType.OpeningBalance,
+                    Quantity = gap, UnitCost = p.BuyPrice, TotalCost = gap * p.BuyPrice,
+                    ReferenceNumber = $"OPEN-{p.Code}",
+                    Notes = "Stock on hand recorded before warehouses held stock",
+                });
+                aligned++;
+            }
+
+            if (aligned > 0) await db.SaveChangesAsync(ct);
+            if (assigned > 0 || aligned > 0)
+                logger.LogInformation("Company {Company}: {Assigned} movement(s) assigned to {Warehouse}, {Aligned} product(s) aligned.",
+                    companyId, assigned, warehouse.Code, aligned);
+        }
     }
 }
