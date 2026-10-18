@@ -63,6 +63,7 @@ web.config
 .githooks/
 docs/*
 !docs/AUDIT-*.md
+!docs/IMPLEMENTATION-PLAN-*.md
 
 # Frontend Unused/Trash Assets & Duplicates
 frontend/public/images/original/
