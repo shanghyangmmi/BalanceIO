@@ -1,5 +1,6 @@
 "use client"
 
+import { WarehouseSelect } from "@/components/inventory/warehouse-select"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
@@ -80,6 +81,7 @@ export function BillForm({ initialData, onSuccess }: BillFormProps = {}) {
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [warehouseId, setWarehouseId] = useState("");
 
     const form = useForm<BillFormValues>({
         resolver: zodResolver(billSchema),
@@ -177,6 +179,7 @@ export function BillForm({ initialData, onSuccess }: BillFormProps = {}) {
                 billDate: data.billDate,
                 dueDate: data.dueDate,
                 projectId: data.projectId || null,
+                warehouseId: warehouseId || null,
                 currency: data.currency || "IDR",
                 exchangeRate: data.currency === "IDR" ? 1 : (Number(data.exchangeRate) || 1),
                 lines: data.items.map(item => ({
@@ -283,6 +286,7 @@ export function BillForm({ initialData, onSuccess }: BillFormProps = {}) {
                             </FormItem>
                         )}
                     />
+                    <WarehouseSelect value={warehouseId} onChange={setWarehouseId} />
                     <FormField
                         control={form.control}
                         name="projectId"

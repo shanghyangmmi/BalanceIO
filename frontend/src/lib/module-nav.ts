@@ -187,7 +187,7 @@ export const MODULE_NAVS: ModuleNav[] = [
         items: [
           { label: "Categories", href: "/dashboard/inventory/categories", icon: Folder, permission: PERMISSIONS.InventoryManage },
           { label: "Units", href: "/dashboard/inventory/units", icon: Ruler, permission: PERMISSIONS.InventoryManage },
-          { label: "Warehouses", href: "/dashboard/inventory/warehouses", icon: Warehouse, permission: PERMISSIONS.InventoryManage },
+          { label: "Warehouses", href: "/dashboard/inventory/warehouses", icon: Warehouse, permission: PERMISSIONS.InventoryView },
           { label: "Settings", href: "/dashboard/inventory/settings", icon: Settings, permission: PERMISSIONS.InventoryManage },
         ],
       },

@@ -1,6 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { WarehouseSelect } from "@/components/inventory/warehouse-select"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
@@ -83,15 +85,18 @@ function AdjustmentForm() {
         },
     })
 
+    const [warehouseId, setWarehouseId] = useState("")
     const adjust = useMutation({
         mutationFn: (data: AdjustmentFormValues) =>
             apiClient.post<{ stockOnHand: number; value: number }>(`/Products/${data.productId}/adjust-stock`, {
                 quantity: data.type === "IN" ? data.quantity : -data.quantity,
                 reason: data.reason,
                 date: data.date,
+                warehouseId: warehouseId || null,
             }),
         onSuccess: (res) => {
             toast.success(`Recorded. Stock on hand ${res.stockOnHand}; ${formatModuleMoney(res.value, "IDR")} posted to the ledger.`)
+            queryClient.invalidateQueries({ queryKey: ["warehouses"] })
             form.reset({ ...form.getValues(), quantity: 1, reason: "" })
             return queryClient.invalidateQueries({ queryKey: ["products", company?.id] })
         },
@@ -107,6 +112,7 @@ function AdjustmentForm() {
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 gap-6">
+                    <WarehouseSelect value={warehouseId} onChange={setWarehouseId} />
                     <FormField
                         control={form.control}
                         name="date"
