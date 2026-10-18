@@ -20,10 +20,12 @@ namespace BalanceIO.API.Controllers;
 public class SubscriptionsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly BalanceIO.API.Services.Payments.PaymentService _payments;
 
-    public SubscriptionsController(ApplicationDbContext context)
+    public SubscriptionsController(ApplicationDbContext context, BalanceIO.API.Services.Payments.PaymentService payments)
     {
         _context = context;
+        _payments = payments;
     }
 
     /// <summary>
@@ -118,7 +120,10 @@ public class SubscriptionsController : ControllerBase
     }
 
     /// <summary>
-    /// Request subscription upgrade (placeholder for Midtrans)
+    /// Starts paying for a plan through the configured gateway. The answer
+    /// says what the payer does next: follow redirectUrl (hosted payment
+    /// page), or read instructions (manual transfer). The plan activates
+    /// when the payment is confirmed, not here.
     /// </summary>
     [HttpPost("upgrade")]
     [RequiresPermission(Permissions.SettingsManage)]
@@ -127,41 +132,36 @@ public class SubscriptionsController : ControllerBase
         // The permission was checked for the company in scope; only that company may be changed.
         if (request.CompanyId != _context.CurrentCompanyId) return Forbid();
 
-        var company = await _context.Companies.FindAsync(request.CompanyId);
-        if (company == null) return NotFound(new { message = "Company not found" });
-
-        var newPlan = await _context.Plans.FindAsync(request.PlanId);
-        if (newPlan == null) return NotFound(new { message = "Plan not found" });
-
-        var currentSub = await _context.Subscriptions
-            .FirstOrDefaultAsync(s => s.CompanyId == request.CompanyId && s.Status == SubscriptionStatus.Active);
-
-        // For now, just create payment record and return "pending"
-        // When Midtrans is integrated, this will redirect to payment page
-        var payment = new Payment
-        {
-            Id = Guid.NewGuid(),
-            SubscriptionId = currentSub?.Id ?? Guid.Empty,
-            Amount = request.BillingCycle == "yearly" ? newPlan.PriceYearly : newPlan.PriceMonthly,
-            Currency = "IDR",
-            Status = PaymentStatus.Pending,
-            Description = $"Upgrade to {newPlan.Name} ({request.BillingCycle})"
-        };
-
-        // TODO: When Midtrans integrated:
-        // 1. Create Midtrans Snap transaction
-        // 2. Return snap token/redirect URL
-        // 3. Wait for webhook to confirm payment
-        // 4. On success, update subscription to new plan
+        var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
+        var checkout = await _payments.StartCheckoutAsync(request.CompanyId, request.PlanId, request.BillingCycle, email);
 
         return Ok(new
         {
-            message = "Payment feature coming soon! Midtrans integration pending.",
-            paymentId = payment.Id,
-            amount = payment.Amount,
-            planName = newPlan.Name,
-            status = "pending_integration"
+            checkout.PaymentId,
+            checkout.OrderId,
+            checkout.Provider,
+            checkout.Amount,
+            checkout.Status,
+            checkout.RedirectUrl,
+            checkout.Token,
+            checkout.Instructions,
+            message = checkout.Status == "Success"
+                ? "The plan is active."
+                : checkout.RedirectUrl is not null
+                    ? "Complete the payment on the provider's page."
+                    : "Follow the payment instructions; the plan activates when payment is confirmed.",
         });
+    }
+
+    /// <summary>The state of one payment, for the page the payer returns to.</summary>
+    [HttpGet("payments/status/{orderId}")]
+    [RequiresPermission(Permissions.SettingsView)]
+    public async Task<ActionResult<object>> GetPaymentStatus(string orderId)
+    {
+        var payment = await _context.Payments.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.GatewayOrderId == orderId && p.CompanyId == _context.CurrentCompanyId);
+        if (payment is null) return NotFound();
+        return Ok(new { payment.Id, orderId = payment.GatewayOrderId, status = payment.Status.ToString(), payment.Amount, payment.Provider, payment.PaidAt, payment.CheckoutUrl });
     }
 
     /// <summary>
@@ -174,8 +174,7 @@ public class SubscriptionsController : ControllerBase
         if (companyId != _context.CurrentCompanyId) return Forbid();
 
         var payments = await _context.Payments
-            .Include(p => p.Subscription)
-            .Where(p => p.Subscription != null && p.Subscription.CompanyId == companyId)
+            .Where(p => p.CompanyId == companyId || (p.Subscription != null && p.Subscription.CompanyId == companyId))
             .OrderByDescending(p => p.CreatedAt)
             .Select(p => new
             {
@@ -186,6 +185,9 @@ public class SubscriptionsController : ControllerBase
                 p.PaymentMethod,
                 p.InvoiceNumber,
                 p.Description,
+                p.Provider,
+                OrderId = p.GatewayOrderId,
+                p.CheckoutUrl,
                 p.CreatedAt,
                 p.PaidAt
             })

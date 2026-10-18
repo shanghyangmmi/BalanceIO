@@ -29,3 +29,10 @@ public sealed class InventoryRuleException(string code, string message, int stat
     public string Code { get; } = code;
     public int Status { get; } = status;
 }
+
+/// <summary>A payment request the rules refuse.</summary>
+public sealed class PaymentRuleException(string code, string message, int status = 400) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+    public int Status { get; } = status;
+}

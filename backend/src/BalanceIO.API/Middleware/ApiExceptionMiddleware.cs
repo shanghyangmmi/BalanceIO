@@ -26,6 +26,7 @@ public class ApiExceptionMiddleware(RequestDelegate next, ILogger<ApiExceptionMi
                 LedgerIntegrityException l => (StatusCodes.Status400BadRequest, l.Code),
                 PayrollRuleException p => (p.Status, p.Code),
                 InventoryRuleException i => (i.Status, i.Code),
+                PaymentRuleException pr => (pr.Status, pr.Code),
                 ValidationException => (StatusCodes.Status400BadRequest, "VALIDATION_FAILED"),
                 _ => (StatusCodes.Status500InternalServerError, "INTERNAL_ERROR"),
             };

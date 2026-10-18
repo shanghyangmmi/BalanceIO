@@ -21,6 +21,7 @@ values being present.
 | `BALANCEIO_SMTP_PASSWORD` | `SmtpSettings:Password` | Warning; email disabled |
 | `BALANCEIO_AWS_ACCESS_KEY` | `AWS:AccessKey` | Warning; upload disabled |
 | `BALANCEIO_AWS_SECRET_KEY` | `AWS:SecretKey` | Warning; upload disabled |
+| `Payments__Midtrans__ServerKey` | `Payments:Midtrans:ServerKey` | Only read when `Payments__Provider=midtrans`; without it checkout falls back to manual transfer (warning) and Midtrans notifications are refused |
 
 The framework's own `Jwt__Key` / `SmtpSettings__Password` double-underscore
 form binds to the same configuration keys and also works. The explicit
@@ -47,6 +48,18 @@ setup. That fallback is stable rather than random on purpose — a new key
 per boot would sign every developer out on each `dotnet watch` reload.
 
 ---
+
+### Payments
+
+`Payments:Provider` picks the gateway: `manual` (default: bank transfer,
+confirmed by a platform admin at `POST /api/admin/payments/{id}/confirm`)
+or `midtrans`. Set `Payments:ReturnUrl` to the page the payer comes back to,
+`Payments:Manual:Instructions` to the transfer instructions, and
+`Payments:Midtrans:IsProduction` to `true` only with a production server key.
+Register `https://<api>/api/payments/webhook/midtrans` as the Midtrans
+notification URL. Another provider is a class implementing
+`IPaymentGateway`, registered in `Program.cs`; its webhook is
+`/api/payments/webhook/<name>`.
 
 ## Generating a key
 

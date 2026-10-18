@@ -37,6 +37,25 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         }
     }
 
+    /// <summary>
+    /// A host on the same database with extra configuration. Built under the
+    /// lock, like this one, so it reads this factory's database and not the
+    /// one another test class set last.
+    /// </summary>
+    public WebApplicationFactory<Program> WithSettings(params (string Key, string Value)[] settings)
+    {
+        lock (EnvLock)
+        {
+            Environment.SetEnvironmentVariable("BALANCEIO_DB_CONNECTION", $"Data Source={_dbPath}");
+            var derived = WithWebHostBuilder(b =>
+            {
+                foreach (var (key, value) in settings) b.UseSetting(key, value);
+            });
+            _ = derived.Server;
+            return derived;
+        }
+    }
+
     public async Task<T> WithDb<T>(Func<ApplicationDbContext, Task<T>> action, Guid? companyId = null)
     {
         using var scope = Services.CreateScope();

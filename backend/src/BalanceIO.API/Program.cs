@@ -79,6 +79,14 @@ builder.Services.AddScoped<TaxReportsService>();
 builder.Services.AddScoped<PayrollService>();
 builder.Services.AddScoped<FinancialStatementsService>();
 builder.Services.AddScoped<InventoryLedger>();
+
+// Payment gateways. Each implements IPaymentGateway; Payments:Provider picks
+// the active one (manual when unset). Adding a provider is one class and
+// one line here.
+builder.Services.AddScoped<BalanceIO.API.Services.Payments.IPaymentGateway, BalanceIO.API.Services.Payments.ManualPaymentGateway>();
+builder.Services.AddHttpClient<BalanceIO.API.Services.Payments.MidtransPaymentGateway>(c => c.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddScoped<BalanceIO.API.Services.Payments.IPaymentGateway>(sp => sp.GetRequiredService<BalanceIO.API.Services.Payments.MidtransPaymentGateway>());
+builder.Services.AddScoped<BalanceIO.API.Services.Payments.PaymentService>();
 builder.Services.AddScoped<BankReconciliationService>();
 builder.Services.AddScoped<BudgetingService>();
 builder.Services.AddScoped<E2EAccountingValidationService>();

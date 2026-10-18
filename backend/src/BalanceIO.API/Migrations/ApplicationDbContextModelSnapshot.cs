@@ -2305,6 +2305,17 @@ namespace BalanceIO.API.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(19,4)");
 
+                    b.Property<string>("BillingCycle")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2339,13 +2350,20 @@ namespace BalanceIO.API.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid?>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<DateTime?>("RefundedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("SubscriptionId")
+                    b.Property<Guid?>("SubscriptionId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("WebhookPayload")
@@ -4920,9 +4938,7 @@ namespace BalanceIO.API.Migrations
                 {
                     b.HasOne("BalanceIO.API.Models.Subscription", "Subscription")
                         .WithMany("Payments")
-                        .HasForeignKey("SubscriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("SubscriptionId");
 
                     b.Navigation("Subscription");
                 });
