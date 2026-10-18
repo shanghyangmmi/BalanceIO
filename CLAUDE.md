@@ -142,7 +142,11 @@ retained earnings (before the fiscal year) and profit for the year.
 The page `reports/financial-statements` prints A4 (Indonesian left, figures,
 English right; reversible or monolingual) and exports Excel. Printing works
 from any dashboard page: the shell and sidebar are released under `print:`.
-`GET /api/Reports/cash-position` serves the cash dashboard. The older
+`GET /api/Reports/cash-position` serves the cash dashboard.
+`TradeReportsController` serves `sales-by-customer`, `sales-by-product`
+(with cost of sales from the invoices' stock movements), `purchases-by-vendor`
+and `purchases-by-product` for `?start=&end=`: posted documents only, net of
+PPN, totalled in decimal per currency. The older
 `/Reports/cash-flow` endpoint still classifies by account name and does not
 reconcile; the statements endpoint does.
 
@@ -269,7 +273,6 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | Historical journal lines may hold an account Id instead of a Code and be invisible to reports | database (detection query in the audit report) |
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
 | About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
-| Sales/purchases-by-customer/vendor/product reports total invoices on the client in JS numbers | `app/dashboard/(workspace)/reports` |
 | Midtrans is implemented but untested against the live sandbox; no recurring billing or auto-renew | `MidtransPaymentGateway` |
 | `npm run lint` fails: 444 errors, mostly `no-explicit-any` | frontend |
 | `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
