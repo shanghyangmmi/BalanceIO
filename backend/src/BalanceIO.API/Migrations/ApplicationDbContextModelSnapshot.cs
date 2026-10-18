@@ -2840,6 +2840,9 @@ namespace BalanceIO.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("AverageCost")
+                        .HasColumnType("decimal(19,4)");
+
                     b.Property<decimal>("BuyPrice")
                         .HasColumnType("decimal(19,4)");
 
@@ -2869,6 +2872,9 @@ namespace BalanceIO.API.Migrations
 
                     b.Property<Guid?>("InventoryAccountId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal>("InventoryValue")
+                        .HasColumnType("decimal(19,4)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");

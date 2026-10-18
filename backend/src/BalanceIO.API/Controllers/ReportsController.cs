@@ -368,22 +368,21 @@ public class ReportsController : ControllerBase
     public async Task<ActionResult<InventoryValuationResponse>> GetInventoryValuation()
     {
         var products = await _context.Products
-            .Where(p => p.Type == ProductType.Product && p.TrackInventory && p.IsActive)
+            .Where(p => p.Type == ProductType.Product && p.TrackInventory && (p.IsActive || p.StockOnHand != 0m || p.InventoryValue != 0m))
             .ToListAsync();
 
         var report = new InventoryValuationResponse();
 
         foreach (var p in products)
         {
-            var value = p.StockOnHand * p.BuyPrice; // Evaluating at Cost (BuyPrice)
             report.Items.Add(new InventoryReportItem
             {
                 ProductId = p.Id,
                 Code = p.Code,
                 Name = p.Name,
                 Quantity = p.StockOnHand,
-                AverageCost = p.BuyPrice,
-                TotalValue = value
+                AverageCost = p.AverageCost,
+                TotalValue = p.InventoryValue
             });
         }
 
@@ -392,6 +391,183 @@ public class ReportsController : ControllerBase
 
         return report;
     }
+    /// <summary>
+    /// Stock card from the movement ledger: per product, the balance before
+    /// the period, every movement in it with the running quantity and value,
+    /// and the closing balance. Value runs company-wide (the average is
+    /// company-wide), so a warehouse filter returns quantities only.
+    /// </summary>
+    [HttpGet("inventory-movements")]
+    [RequiresPermission(Permissions.InventoryView)]
+    public async Task<IActionResult> GetInventoryMovements([FromQuery] DateOnly? start, [FromQuery] DateOnly? end,
+        [FromQuery] Guid? productId, [FromQuery] Guid? warehouseId)
+    {
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, to.Month, 1);
+        if (from > to)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "Start is after end." });
+        var withValue = !warehouseId.HasValue;
+
+        // Read in memory: SQLite stores decimal(19,4) as REAL.
+        var movements = await _context.InventoryMovements.AsNoTracking()
+            .Where(m => m.MovementDate <= to
+                     && (!productId.HasValue || m.ProductId == productId)
+                     && (!warehouseId.HasValue || m.WarehouseId == warehouseId))
+            .OrderBy(m => m.MovementDate).ThenBy(m => m.CreatedAt)
+            .Select(m => new
+            {
+                m.Id, m.ProductId, m.WarehouseId, m.MovementDate, m.Type, m.Quantity, m.UnitCost, m.TotalCost,
+                m.ReferenceNumber, m.Notes,
+            })
+            .ToListAsync();
+
+        var productIds = movements.Select(m => m.ProductId).Distinct().ToList();
+        var products = await _context.Products.AsNoTracking()
+            .Where(p => productIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Code, p.Name, p.Unit })
+            .ToDictionaryAsync(p => p.Id);
+        var warehouses = await _context.Warehouses.AsNoTracking()
+            .Select(w => new { w.Id, w.Code })
+            .ToDictionaryAsync(w => w.Id, w => w.Code);
+
+        var cards = movements
+            .Where(m => products.ContainsKey(m.ProductId))
+            .GroupBy(m => m.ProductId)
+            .Select(g =>
+            {
+                var p = products[g.Key];
+                var before = g.Where(m => m.MovementDate < from).ToList();
+                var qty = before.Sum(m => m.Quantity);
+                var value = before.Sum(m => m.TotalCost);
+                var openingQty = qty;
+                var openingValue = value;
+                var lines = new List<object>();
+                decimal qtyIn = 0m, qtyOut = 0m, valueIn = 0m, valueOut = 0m;
+
+                foreach (var m in g.Where(m => m.MovementDate >= from))
+                {
+                    qty += m.Quantity;
+                    value += m.TotalCost;
+                    if (m.Quantity > 0m) qtyIn += m.Quantity; else qtyOut -= m.Quantity;
+                    if (m.TotalCost > 0m) valueIn += m.TotalCost; else valueOut -= m.TotalCost;
+                    lines.Add(new
+                    {
+                        m.Id, Date = m.MovementDate, Type = m.Type.ToString(), Reference = m.ReferenceNumber, m.Notes,
+                        Warehouse = m.WarehouseId.HasValue && warehouses.TryGetValue(m.WarehouseId.Value, out var code) ? code : null,
+                        QuantityIn = m.Quantity > 0m ? m.Quantity : 0m,
+                        QuantityOut = m.Quantity < 0m ? -m.Quantity : 0m,
+                        m.UnitCost,
+                        Value = withValue ? m.TotalCost : (decimal?)null,
+                        BalanceQuantity = qty,
+                        BalanceValue = withValue ? value : (decimal?)null,
+                    });
+                }
+
+                return new
+                {
+                    ProductId = p.Id, p.Code, p.Name, p.Unit,
+                    OpeningQuantity = openingQty,
+                    OpeningValue = withValue ? openingValue : (decimal?)null,
+                    QuantityIn = qtyIn, QuantityOut = qtyOut,
+                    ValueIn = withValue ? valueIn : (decimal?)null,
+                    ValueOut = withValue ? valueOut : (decimal?)null,
+                    ClosingQuantity = qty,
+                    ClosingValue = withValue ? value : (decimal?)null,
+                    Movements = lines,
+                };
+            })
+            .Where(c => c.Movements.Count > 0 || c.OpeningQuantity != 0m || (c.OpeningValue ?? 0m) != 0m)
+            .OrderBy(c => c.Code)
+            .ToList();
+
+        return Ok(new
+        {
+            Start = from, End = to, WarehouseId = warehouseId, WithValue = withValue,
+            OpeningValue = withValue ? cards.Sum(c => c.OpeningValue ?? 0m) : (decimal?)null,
+            ValueIn = withValue ? cards.Sum(c => c.ValueIn ?? 0m) : (decimal?)null,
+            ValueOut = withValue ? cards.Sum(c => c.ValueOut ?? 0m) : (decimal?)null,
+            ClosingValue = withValue ? cards.Sum(c => c.ClosingValue ?? 0m) : (decimal?)null,
+            Products = cards,
+        });
+    }
+
+    /// <summary>
+    /// Age of the stock on hand. Units on hand are taken to be the most
+    /// recently received (first in, first out for ageing; cost stays at the
+    /// moving average), so each unit's age is the age of the receipt it is
+    /// attributed to. Transfers do not reset age. Value per bucket is at the
+    /// average, with the last bucket taking the rounding so the buckets add
+    /// up to the carrying value.
+    /// </summary>
+    [HttpGet("inventory-aging")]
+    [RequiresPermission(Permissions.InventoryView)]
+    public async Task<IActionResult> GetInventoryAging([FromQuery] DateOnly? asOf)
+    {
+        var date = asOf ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        int[] limits = [30, 60, 90];
+
+        var products = await _context.Products.AsNoTracking()
+            .Where(p => p.TrackInventory && p.StockOnHand > 0m)
+            .Select(p => new { p.Id, p.Code, p.Name, p.Unit, p.StockOnHand, p.InventoryValue, p.AverageCost })
+            .ToListAsync();
+        var ids = products.Select(p => p.Id).ToList();
+
+        // Read in memory: SQLite stores decimal(19,4) as REAL.
+        var movements = await _context.InventoryMovements.AsNoTracking()
+            .Where(m => ids.Contains(m.ProductId) && m.MovementDate <= date && m.Type != InventoryMovementType.Transfer)
+            .Select(m => new { m.ProductId, m.MovementDate, m.Quantity, m.Type })
+            .ToListAsync();
+        var byProduct = movements.ToLookup(m => m.ProductId);
+
+        var rows = products.OrderBy(p => p.Code).Select(p =>
+        {
+            var buckets = new decimal[limits.Length + 1];
+            var remaining = p.StockOnHand;
+            foreach (var receipt in byProduct[p.Id].Where(m => m.Quantity > 0m).OrderByDescending(m => m.MovementDate))
+            {
+                if (remaining <= 0m) break;
+                var take = Math.Min(remaining, receipt.Quantity);
+                var age = date.DayNumber - receipt.MovementDate.DayNumber;
+                var bucket = Array.FindIndex(limits, l => age <= l);
+                buckets[bucket < 0 ? limits.Length : bucket] += take;
+                remaining -= take;
+            }
+            // Stock with no receipt on record is of unknown age; it is shown as the oldest.
+            buckets[limits.Length] += remaining;
+
+            var values = new decimal[buckets.Length];
+            var last = Array.FindLastIndex(buckets, q => q != 0m);
+            for (var i = 0; i < buckets.Length; i++)
+                values[i] = i == last ? 0m : Math.Round(buckets[i] * p.AverageCost, 2, MidpointRounding.ToEven);
+            if (last >= 0) values[last] = p.InventoryValue - values.Sum();
+
+            var lastSale = byProduct[p.Id].Where(m => m.Type == InventoryMovementType.Sale && m.Quantity < 0m)
+                .Select(m => (DateOnly?)m.MovementDate).Max();
+
+            return new
+            {
+                ProductId = p.Id, p.Code, p.Name, p.Unit,
+                Quantity = p.StockOnHand, Value = p.InventoryValue, p.AverageCost,
+                Buckets = buckets.Select((q, i) => new { Quantity = q, Value = values[i] }).ToList(),
+                LastSale = lastSale,
+                DaysSinceLastSale = lastSale.HasValue ? date.DayNumber - lastSale.Value.DayNumber : (int?)null,
+            };
+        }).ToList();
+
+        return Ok(new
+        {
+            AsOf = date,
+            Buckets = new[] { "0-30", "31-60", "61-90", "90+" },
+            Totals = Enumerable.Range(0, limits.Length + 1).Select(i => new
+            {
+                Quantity = rows.Sum(r => r.Buckets[i].Quantity),
+                Value = rows.Sum(r => r.Buckets[i].Value),
+            }).ToList(),
+            Value = rows.Sum(r => r.Value),
+            Rows = rows,
+        });
+    }
+
     [HttpGet("trial-balance")]
     [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TrialBalanceResponse>> GetTrialBalance([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)

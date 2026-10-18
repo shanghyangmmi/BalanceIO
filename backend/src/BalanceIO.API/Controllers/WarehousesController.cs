@@ -109,7 +109,7 @@ public class WarehousesController : ControllerBase, IAsyncActionFilter
         var productIds = movements.Select(m => m.ProductId).Distinct().ToList();
         var products = await _context.Products.AsNoTracking()
             .Where(p => productIds.Contains(p.Id))
-            .Select(p => new { p.Id, p.Code, p.Name, p.Unit, p.BuyPrice })
+            .Select(p => new { p.Id, p.Code, p.Name, p.Unit, p.AverageCost })
             .ToDictionaryAsync(p => p.Id);
 
         var rows = movements
@@ -130,8 +130,9 @@ public class WarehousesController : ControllerBase, IAsyncActionFilter
                     ProductName = p.Name,
                     p.Unit,
                     r.Quantity,
-                    UnitCost = p.BuyPrice,
-                    Value = Math.Round(r.Quantity * p.BuyPrice, 2, MidpointRounding.ToEven),
+                    // The average is company-wide; a warehouse's share is its quantity at it.
+                    UnitCost = p.AverageCost,
+                    Value = Math.Round(r.Quantity * p.AverageCost, 2, MidpointRounding.ToEven),
                 };
             })
             .OrderBy(r => r.WarehouseCode).ThenBy(r => r.ProductCode)

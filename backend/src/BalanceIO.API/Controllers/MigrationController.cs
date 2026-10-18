@@ -1059,7 +1059,7 @@ public class MigrationController : ControllerBase
             if (qty > 0)
             {
                 var movement = await _inventory.MoveAsync(product, null, qty, InventoryMovementType.ManualAdjustment,
-                    request.ConversionDate, unitCost, $"OP-STOCK-{batch.BatchNumber}", null,
+                    request.ConversionDate, Math.Round(qty * unitCost, 2, MidpointRounding.ToEven), $"OP-STOCK-{batch.BatchNumber}", null,
                     $"Migration Opening Inventory · Batch {batch.BatchNumber}");
                 summary.CreatedMovementIds.Add(movement.Id);
             }

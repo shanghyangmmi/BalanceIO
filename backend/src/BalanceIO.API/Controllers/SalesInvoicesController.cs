@@ -182,7 +182,7 @@ public class SalesInvoicesController : ControllerBase
         invoice.PostedAt = DateTime.UtcNow;
         invoice.UpdatedAt = DateTime.UtcNow;
 
-        // Inventory Logic: Deduct stock, record inventory movement, and check low stock alerts
+        // Stock left with the journal entry; warn on what is now low.
         foreach (var line in invoice.Lines)
         {
             if (line.ProductId.HasValue)
@@ -190,10 +190,6 @@ public class SalesInvoicesController : ControllerBase
                 var product = await _context.Products.FindAsync(line.ProductId.Value);
                 if (product != null && product.TrackInventory)
                 {
-                    await _inventory.MoveAsync(product, invoice.WarehouseId, -line.Quantity, InventoryMovementType.Sale,
-                        invoice.InvoiceDate, product.BuyPrice, invoice.InvoiceNumber, journalEntry.Id,
-                        $"Sales Invoice {invoice.InvoiceNumber}");
-
                     if (product.StockOnHand <= product.ReorderLevel)
                     {
                         await _notificationService.CreateAsync(
@@ -480,14 +476,19 @@ public class SalesInvoicesController : ControllerBase
                 });
             }
 
-            // Debit: COGS (5-1000) & Credit: Inventory (1-1400) for tracked inventory products
+            // Debit: COGS (5-1000) & Credit: Inventory (1-1400) for tracked inventory products.
+            // The stock leaves here at moving-average cost, and COGS is
+            // exactly the value the movement took off the inventory.
             if (line.ProductId.HasValue)
             {
                 var product = await _context.Products.FindAsync(line.ProductId.Value);
                 if (product != null && product.TrackInventory)
                 {
-                    var unitCost = product.BuyPrice;
-                    var cogsAmount = line.Quantity * unitCost;
+                    var issue = await _inventory.MoveAsync(product, invoice.WarehouseId, -line.Quantity, InventoryMovementType.Sale,
+                        invoice.InvoiceDate, null, invoice.InvoiceNumber, journalEntry.Id,
+                        $"Sales Invoice {invoice.InvoiceNumber}");
+                    var unitCost = issue.UnitCost;
+                    var cogsAmount = -issue.TotalCost;
 
                     if (cogsAmount > 0)
                     {

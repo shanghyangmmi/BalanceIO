@@ -39,12 +39,15 @@ public class StockPosition
     /// <summary>Tracked items at or under their reorder level, where one is set.</summary>
     public int LowStock { get; set; }
 
+    /// <summary>Carrying value of tracked stock at moving-average cost.</summary>
+    public decimal StockValue { get; set; }
+
     /// <summary>
-    /// Quantity times buy price. Named for what it is: this is not a moving
-    /// average or a FIFO layer, and calling it "valuation" would imply a
-    /// costing method the product does not run.
+    /// Posted balance of the inventory accounts. It differs from StockValue
+    /// by goods received on an order and not yet billed, opening stock
+    /// entered without a journal, and anything posted to the account by hand.
     /// </summary>
-    public decimal StockAtBuyPrice { get; set; }
+    public decimal InventoryAccountBalance { get; set; }
 
     /// <summary>
     /// Tracked items with no inventory account set. Their movements have

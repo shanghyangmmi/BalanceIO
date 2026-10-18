@@ -209,8 +209,8 @@ public class StockOpnameController : ControllerBase
                 var product = line.Product ?? await _context.Products.FindAsync(line.ProductId);
                 if (product != null)
                 {
-                    var unitCost = product.BuyPrice;
-                    var varianceAmount = Math.Abs(line.Difference) * unitCost;
+                    // Surplus and shortage both at the moving average.
+                    var varianceAmount = Math.Abs(InventoryLedger.AtAverage(product, line.Difference));
 
                     var invAccountCode = product.InventoryAccountId.HasValue 
                         ? (await _context.Accounts.FindAsync(product.InventoryAccountId.Value))?.Code ?? defaultInventoryCode
@@ -268,7 +268,7 @@ public class StockOpnameController : ControllerBase
 
                     // Record Inventory Movement
                     await _inventory.MoveAsync(product, opname.WarehouseId, line.Difference, InventoryMovementType.OpnameAdjustment,
-                        opname.OpnameDate, unitCost, opname.OpnameNumber, varianceAmount > 0 ? journalEntryId : null,
+                        opname.OpnameDate, line.Difference > 0 ? varianceAmount : -varianceAmount, opname.OpnameNumber, varianceAmount > 0 ? journalEntryId : null,
                         $"Stock Opname {opname.OpnameNumber} adjustment");
                 }
             }

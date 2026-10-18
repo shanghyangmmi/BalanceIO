@@ -78,12 +78,21 @@ public class InventoryLedger
     /// <summary>
     /// Records a movement and changes the product's total by the same
     /// quantity. Positive quantities add stock, negative remove it.
+    ///
+    /// Value follows moving-average cost. <paramref name="totalCost"/> is the
+    /// signed change in carrying value: the net purchase amount for a
+    /// receipt, the original amount for a reversal. Null values the movement
+    /// at the current average, which is what an issue costs. The returned
+    /// movement's TotalCost is the amount to post to the inventory account.
     /// </summary>
     public async Task<InventoryMovement> MoveAsync(
         Product product, Guid? warehouseId, decimal quantity, InventoryMovementType type,
-        DateOnly date, decimal unitCost, string? reference, Guid? journalEntryId, string? notes,
+        DateOnly date, decimal? totalCost, string? reference, Guid? journalEntryId, string? notes,
         bool reversal = false)
     {
+        var unit = UnitCost(product);
+        var value = totalCost ?? AtAverage(product, quantity);
+
         var movement = new InventoryMovement
         {
             Id = Guid.NewGuid(),
@@ -95,8 +104,8 @@ public class InventoryLedger
             MovementDate = date,
             Type = type,
             Quantity = quantity,
-            UnitCost = unitCost,
-            TotalCost = quantity * unitCost,
+            UnitCost = quantity != 0m && value != 0m ? Math.Round(Math.Abs(value / quantity), 4, MidpointRounding.ToEven) : unit,
+            TotalCost = value,
             ReferenceNumber = reference,
             JournalEntryId = journalEntryId,
             Notes = notes,
@@ -104,8 +113,33 @@ public class InventoryLedger
 
         _context.InventoryMovements.Add(movement);
         product.StockOnHand += quantity;
+        product.InventoryValue += value;
+        if (product.StockOnHand > 0m)
+            product.AverageCost = Math.Round(product.InventoryValue / product.StockOnHand, 4, MidpointRounding.ToEven);
         product.UpdatedAt = DateTime.UtcNow;
         return movement;
+    }
+
+    /// <summary>
+    /// What one unit costs now: the moving average while stock is held, the
+    /// last average after it runs out, the buy price before any was valued.
+    /// </summary>
+    public static decimal UnitCost(Product product) =>
+        product.StockOnHand > 0m ? Math.Round(product.InventoryValue / product.StockOnHand, 4, MidpointRounding.ToEven)
+        : product.AverageCost > 0m ? product.AverageCost
+        : product.BuyPrice;
+
+    /// <summary>
+    /// Signed value of a quantity at the current average, rounded to the
+    /// cent. An issue that empties the stock takes the whole carrying value,
+    /// so rounding never leaves value behind on zero units.
+    /// </summary>
+    public static decimal AtAverage(Product product, decimal quantity)
+    {
+        var unit = UnitCost(product);
+        if (quantity < 0m && product.StockOnHand > 0m && -quantity >= product.StockOnHand)
+            return -product.InventoryValue + Math.Round((quantity + product.StockOnHand) * unit, 2, MidpointRounding.ToEven);
+        return Math.Round(quantity * unit, 2, MidpointRounding.ToEven);
     }
 
     /// <summary>Stock of one product in one warehouse, including movements added but not yet saved.</summary>
@@ -128,9 +162,9 @@ public class InventoryLedger
 
     /// <summary>
     /// Reverses every movement of the given type recorded under a document
-    /// reference, into the warehouses they came from. Used when the document
-    /// is voided, so the reversal matches what was posted rather than what
-    /// the document says now.
+    /// reference, into the warehouses they came from and at the value they
+    /// carried. Used when the document is voided, so the reversal matches
+    /// what was posted rather than what the document says now.
     /// </summary>
     public async Task ReverseAsync(Guid companyId, string reference, InventoryMovementType type, DateOnly date, string reversalReference, string notes)
     {
@@ -142,14 +176,15 @@ public class InventoryLedger
         {
             var product = await _context.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Id == m.ProductId && p.CompanyId == companyId);
             if (product is null) continue;
-            await MoveAsync(product, m.WarehouseId, -m.Quantity, InventoryMovementType.ManualAdjustment, date, m.UnitCost,
+            await MoveAsync(product, m.WarehouseId, -m.Quantity, InventoryMovementType.ManualAdjustment, date, -m.TotalCost,
                 reversalReference, null, notes, reversal: true);
         }
     }
 
     /// <summary>
     /// Moves stock between two warehouses: an out leg and an in leg, the
-    /// company total unchanged, no value posted. Refused when the source
+    /// company total unchanged, no value posted. The average is company-wide,
+    /// so a transfer leaves it as it is. Refused when the source
     /// does not hold the quantity.
     /// </summary>
     public async Task<(InventoryMovement Out, InventoryMovement In)> TransferAsync(
@@ -170,8 +205,8 @@ public class InventoryLedger
             throw new InventoryRuleException("INSUFFICIENT_STOCK",
                 $"Only {available:0.####} {product.Unit} of {product.Name} is in the source warehouse.");
 
-        var outLeg = await MoveAsync(product, from, -quantity, InventoryMovementType.Transfer, date, product.BuyPrice, reference, null, notes);
-        var inLeg = await MoveAsync(product, to, quantity, InventoryMovementType.Transfer, date, product.BuyPrice, reference, null, notes);
+        var outLeg = await MoveAsync(product, from, -quantity, InventoryMovementType.Transfer, date, 0m, reference, null, notes);
+        var inLeg = await MoveAsync(product, to, quantity, InventoryMovementType.Transfer, date, 0m, reference, null, notes);
         return (outLeg, inLeg);
     }
 }

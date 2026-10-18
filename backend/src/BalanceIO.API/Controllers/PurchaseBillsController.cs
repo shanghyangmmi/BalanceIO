@@ -244,9 +244,10 @@ public class PurchaseBillsController : ControllerBase
         // receipt; adding them again here counted them twice.
         var receivedViaOrder = bill.PurchaseOrderId.HasValue && await _context.PurchaseOrders
             .AnyAsync(o => o.Id == bill.PurchaseOrderId && o.Status == PurchaseOrderStatus.Received);
-        var orderWarehouse = bill.PurchaseOrderId.HasValue
-            ? await _context.PurchaseOrders.Where(o => o.Id == bill.PurchaseOrderId).Select(o => o.WarehouseId).FirstOrDefaultAsync()
+        var order = bill.PurchaseOrderId.HasValue
+            ? await _context.PurchaseOrders.Where(o => o.Id == bill.PurchaseOrderId).Select(o => new { o.WarehouseId, o.OrderNumber }).FirstOrDefaultAsync()
             : null;
+        var orderWarehouse = order?.WarehouseId;
 
         foreach (var line in bill.Lines)
         {
@@ -261,10 +262,27 @@ public class PurchaseBillsController : ControllerBase
                         product.BuyPrice = line.UnitPrice;
                     }
 
+                    // The goods enter at what the journal debits to inventory.
+                    var netCost = line.LineTotal - line.TaxAmount;
                     if (!receivedViaOrder)
                     {
                         await _inventory.MoveAsync(product, bill.WarehouseId ?? orderWarehouse, line.Quantity, InventoryMovementType.Purchase,
-                            bill.BillDate, line.UnitPrice, bill.BillNumber, journalEntry.Id, $"Purchase Bill {bill.BillNumber}");
+                            bill.BillDate, netCost, bill.BillNumber, journalEntry.Id, $"Purchase Bill {bill.BillNumber}");
+                    }
+                    else
+                    {
+                        // Received at the order price; the bill settles the
+                        // price. The difference is a value-only movement on
+                        // the stock, so the average and the inventory account
+                        // both end at the billed amount.
+                        var receivedAt = await ReceiptUnitCostAsync(order!.OrderNumber, product.Id);
+                        var difference = netCost - Math.Round(line.Quantity * receivedAt, 2, MidpointRounding.ToEven);
+                        if (difference != 0m)
+                        {
+                            await _inventory.MoveAsync(product, orderWarehouse, 0m, InventoryMovementType.Purchase,
+                                bill.BillDate, difference, bill.BillNumber, journalEntry.Id,
+                                $"Price difference, Purchase Bill {bill.BillNumber} against order {order.OrderNumber}");
+                        }
                     }
                 }
             }
@@ -451,6 +469,18 @@ public class PurchaseBillsController : ControllerBase
             .CountAsync(b => b.BillNumber.StartsWith(prefix));
         
         return $"{prefix}-{(count + 1).ToString().PadLeft(4, '0')}";
+    }
+
+    /// <summary>Unit value the order's receipt gave the product.</summary>
+    private async Task<decimal> ReceiptUnitCostAsync(string orderNumber, Guid productId)
+    {
+        // Summed in memory: SQLite stores decimal(19,4) as REAL.
+        var received = await _context.InventoryMovements.AsNoTracking()
+            .Where(m => m.ReferenceNumber == orderNumber && m.ProductId == productId && m.Type == InventoryMovementType.Purchase)
+            .Select(m => new { m.Quantity, m.TotalCost })
+            .ToListAsync();
+        var quantity = received.Sum(m => m.Quantity);
+        return quantity == 0m ? 0m : received.Sum(m => m.TotalCost) / quantity;
     }
 
     private async Task<JournalEntry> CreateJournalEntry(PurchaseBill bill)

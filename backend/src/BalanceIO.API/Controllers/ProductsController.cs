@@ -95,11 +95,13 @@ public class ProductsController : ControllerBase
         // default warehouse, so the warehouses add up to the total.
         var opening = product.TrackInventory ? product.StockOnHand : 0m;
         product.StockOnHand = 0m;
+        product.InventoryValue = 0m;
+        product.AverageCost = 0m;
         _context.Products.Add(product);
         if (opening != 0m)
         {
             await _inventory.MoveAsync(product, null, opening, InventoryMovementType.OpeningBalance,
-                DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), product.BuyPrice, $"OPEN-{product.Code}", null,
+                DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), Math.Round(opening * product.BuyPrice, 2, MidpointRounding.ToEven), $"OPEN-{product.Code}", null,
                 "Opening stock entered with the product");
         }
         await _context.SaveChangesAsync();
@@ -193,10 +195,14 @@ public class ProductsController : ControllerBase
         var date = adjustment.Date ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         await _periodLock.ValidateTransactionDate(companyId, date);
 
-        var unitCost = adjustment.UnitCost ?? product.BuyPrice;
-        if (unitCost < 0m)
+        // Stock found is valued at the cost given, or the average; stock
+        // lost always leaves at the average, as an issue does.
+        if (adjustment.UnitCost < 0m)
             return BadRequest(new { code = "VALIDATION_FAILED", message = "Unit cost cannot be negative." });
-        var value = Math.Round(Math.Abs(adjustment.Quantity) * unitCost, 2, MidpointRounding.ToEven);
+        decimal? enteredValue = adjustment.Quantity > 0m && adjustment.UnitCost.HasValue
+            ? Math.Round(adjustment.Quantity * adjustment.UnitCost.Value, 2, MidpointRounding.ToEven)
+            : null;
+        var value = Math.Abs(enteredValue ?? BalanceIO.API.Services.InventoryLedger.AtAverage(product, adjustment.Quantity));
 
         var inventoryKey = product.InventoryAccountId?.ToString() ?? "1-1400";
         var codes = await _context.ResolveAccountCodesAsync(companyId, new[] { inventoryKey, "5-9000" });
@@ -231,7 +237,7 @@ public class ProductsController : ControllerBase
         }
 
         await _inventory.MoveAsync(product, adjustment.WarehouseId, adjustment.Quantity, InventoryMovementType.ManualAdjustment,
-            date, unitCost, reference, entryId, reason);
+            date, adjustment.Quantity > 0m ? value : -value, reference, entryId, reason);
 
         await _context.SaveChangesAsync();
 
@@ -253,7 +259,7 @@ public class StockAdjustment
     public string? Reason { get; set; }
     /// <summary>Defaults to today (WIB).</summary>
     public DateOnly? Date { get; set; }
-    /// <summary>Defaults to the product's buy price.</summary>
+    /// <summary>Cost of stock found. Defaults to the moving average; ignored when stock is removed.</summary>
     public decimal? UnitCost { get; set; }
     /// <summary>Defaults to the company's default warehouse.</summary>
     public Guid? WarehouseId { get; set; }

@@ -175,9 +175,14 @@ public class PurchaseOrdersController : ControllerBase
             if (product != null && product.TrackInventory)
             {
                 // Receipt is a movement like any other; it used to change the
-                // quantity with no record of where or why.
+                // quantity with no record of where or why. Goods enter at the
+                // order price net of line discount, computed here because the
+                // order's own totals come from the client; the bill settles
+                // any difference.
+                var gross = line.Quantity * line.UnitPrice;
+                var discount = line.DiscountAmount > 0m ? line.DiscountAmount : gross * line.DiscountPercent / 100m;
                 await _inventory.MoveAsync(product, order.WarehouseId, line.Quantity, InventoryMovementType.Purchase,
-                    DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), line.UnitPrice, order.OrderNumber, null,
+                    DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), Math.Round(gross - discount, 2, MidpointRounding.ToEven), order.OrderNumber, null,
                     $"Received on purchase order {order.OrderNumber}");
             }
         }

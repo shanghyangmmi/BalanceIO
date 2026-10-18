@@ -182,8 +182,19 @@ means the company's default warehouse (created as `MAIN` when missing; one per
 company, `DEFAULT_WAREHOUSE`). Outflows are refused with `NEGATIVE_STOCK` /
 `INSUFFICIENT_STOCK` per warehouse. A warehouse holding stock cannot be
 deleted (`WAREHOUSE_IN_USE`). `ReferenceDataSeeder` assigns older movements
-to the default warehouse and adds an `OpeningBalance` for any gap. Valuation
-is still at the product's buy price.
+to the default warehouse and adds an `OpeningBalance` for any gap.
+
+Valuation is moving-average cost, company-wide. `Product.InventoryValue` is
+the carrying value and `AverageCost` the unit cost; only `InventoryLedger`
+changes them. `MoveAsync` takes the signed value change (`totalCost`): the
+net purchase amount for a receipt, the original value for a reversal, null
+for an issue at the average. The movement's `TotalCost` is what the caller
+posts, so COGS, adjustments and opname equal the stock they move. An issue
+that empties the stock takes the whole value. A purchase order receipt adds
+stock at the order price without a journal; the bill posts the inventory
+debit and a value-only movement for the price difference. Transfers carry no
+value. Reports: `GET /api/Reports/inventory-movements` (stock card),
+`/inventory-aging` (receipt dates), `/inventory-valuation`.
 
 ## Payments
 
@@ -238,8 +249,7 @@ controller. (`PaymentVoucher` and `ReceiptVoucher` have controllers.)
 3. Bank reconciliation: exists (`BankReconciliationService`); hardening for
    Indonesian number formats, import de-duplication, timing differences.
 4. Payroll: leavers, THR, 1721-A1, bank transfer files.
-5. Inventory: FIFO/moving-average valuation (adjustments and opname value at the
-   product's buy price). Fixed assets: fiscal groups (Golongan 1–4) beside
+5. Fixed assets: fiscal groups (Golongan 1–4) beside
    commercial depreciation.
 
 ## Known issues

@@ -958,9 +958,25 @@ public class ModuleHealthService
             })
             .FirstOrDefaultAsync();
 
-        // Quantity times buy price, added as decimal. Not a costing method,
-        // and the DTO says so.
-        var stockAtBuyPrice = await SumExactAsync(tracked.Select(p => p.StockOnHand * p.BuyPrice));
+        // Carrying value at moving-average cost, inactive items included:
+        // the inventory account still holds them.
+        var stockValue = await SumExactAsync(_context.Products.AsNoTracking()
+            .Where(p => p.CompanyId == companyId && p.TrackInventory)
+            .Select(p => p.InventoryValue));
+
+        var inventoryAccountIds = await _context.Products.AsNoTracking()
+            .Where(p => p.CompanyId == companyId && p.InventoryAccountId != null)
+            .Select(p => p.InventoryAccountId!.Value)
+            .Distinct()
+            .ToListAsync();
+        var inventoryCodes = await _context.Accounts.AsNoTracking()
+            .Where(a => a.CompanyId == companyId && (a.Code == "1-1400" || inventoryAccountIds.Contains(a.Id)))
+            .Select(a => a.Code)
+            .ToListAsync();
+        var (inventoryDebit, inventoryCredit) = await SumDebitCreditAsync(_context.JournalLines.AsNoTracking()
+            .Where(l => l.JournalEntry!.CompanyId == companyId
+                     && l.JournalEntry.Status == JournalEntryStatus.Posted
+                     && inventoryCodes.Contains(l.AccountId)));
 
         var position = new StockPosition
         {
@@ -968,7 +984,8 @@ public class ModuleHealthService
             Negative                = counts?.Negative ?? 0,
             LowStock                = counts?.LowStock ?? 0,
             WithoutInventoryAccount = counts?.NoAccount ?? 0,
-            StockAtBuyPrice         = stockAtBuyPrice,
+            StockValue              = stockValue,
+            InventoryAccountBalance = inventoryDebit - inventoryCredit,
         };
 
         // ── counting ──────────────────────────────────────────────────

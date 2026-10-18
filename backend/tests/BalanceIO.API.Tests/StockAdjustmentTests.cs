@@ -19,7 +19,7 @@ public class StockAdjustmentTests(ApiFactory factory) : IClassFixture<ApiFactory
             db.Products.Add(new Product
             {
                 Id = product, CompanyId = t.CompanyId, Code = "PRD-0001", Name = "Kertas A4",
-                Type = ProductType.Product, TrackInventory = true, BuyPrice = 10_000m, StockOnHand = 4m, Unit = "rim",
+                Type = ProductType.Product, TrackInventory = true, BuyPrice = 10_000m, StockOnHand = 4m, InventoryValue = 40_000m, AverageCost = 10_000m, Unit = "rim",
             });
             await db.SaveChangesAsync();
         }, t.CompanyId);

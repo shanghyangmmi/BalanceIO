@@ -18,6 +18,7 @@ public static class ReferenceDataSeeder
         await SeedRequiredAccountsAsync(db, logger, ct);
         await BackfillIndonesianNamesAsync(db, logger, ct);
         await AssignStockToWarehousesAsync(db, logger, ct);
+        await ValueStockAtAverageAsync(db, logger, ct);
     }
 
     private static async Task SeedTaxRatesAsync(ApplicationDbContext db, CancellationToken ct)
@@ -178,5 +179,27 @@ public static class ReferenceDataSeeder
                 logger.LogInformation("Company {Company}: {Assigned} movement(s) assigned to {Warehouse}, {Aligned} product(s) aligned.",
                     companyId, assigned, warehouse.Code, aligned);
         }
+    }
+
+    /// <summary>
+    /// Moving-average costing starts from a carrying value. Stock held before
+    /// it existed had none, and its cost of sales had been taken at buy
+    /// price, so the buy price is the opening average. Only products never
+    /// valued are touched.
+    /// </summary>
+    private static async Task ValueStockAtAverageAsync(ApplicationDbContext db, ILogger logger, CancellationToken ct)
+    {
+        var unvalued = await db.Products.IgnoreQueryFilters()
+            .Where(p => p.TrackInventory && p.StockOnHand != 0m && p.InventoryValue == 0m && p.AverageCost == 0m && p.BuyPrice != 0m)
+            .ToListAsync(ct);
+        if (unvalued.Count == 0) return;
+
+        foreach (var p in unvalued)
+        {
+            p.InventoryValue = Math.Round(p.StockOnHand * p.BuyPrice, 2, MidpointRounding.ToEven);
+            p.AverageCost = p.BuyPrice;
+        }
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Opened the moving average at buy price on {Count} product(s).", unvalued.Count);
     }
 }
