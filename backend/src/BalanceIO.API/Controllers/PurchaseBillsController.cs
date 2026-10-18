@@ -228,8 +228,42 @@ public class PurchaseBillsController : ControllerBase
         if (bill.Status != BillStatus.Draft && bill.Status != BillStatus.Pending)
             return BadRequest("Only draft or pending bills can be posted");
 
+        // Goods on a bill raised from a purchase order that was already
+        // received entered stock at receipt; adding them again here counted
+        // them twice. What the receipt valued them at is what the bill clears
+        // from goods received not invoiced, where the receipt was journaled.
+        var receivedViaOrder = bill.PurchaseOrderId.HasValue && await _context.PurchaseOrders
+            .AnyAsync(o => o.Id == bill.PurchaseOrderId && o.Status == PurchaseOrderStatus.Received);
+        var order = bill.PurchaseOrderId.HasValue
+            ? await _context.PurchaseOrders.Where(o => o.Id == bill.PurchaseOrderId).Select(o => new { o.WarehouseId, o.OrderNumber }).FirstOrDefaultAsync()
+            : null;
+        var orderWarehouse = order?.WarehouseId;
+
+        var receiptValue = new Dictionary<Guid, decimal>();
+        var clearsGrni = new Dictionary<Guid, decimal>();
+        if (receivedViaOrder)
+        {
+            foreach (var line in bill.Lines.Where(l => l.ProductId.HasValue))
+            {
+                var product = line.Product ?? await _context.Products.FindAsync(line.ProductId!.Value);
+                if (product is not { TrackInventory: true }) continue;
+                var (unitCost, journaled) = await ReceiptAsync(order!.OrderNumber, product.Id);
+                var value = Math.Round(line.Quantity * unitCost, 2, MidpointRounding.ToEven);
+                receiptValue[line.Id] = value;
+                if (journaled) clearsGrni[line.Id] = value;
+            }
+        }
+
+        string? grniCode = null;
+        if (clearsGrni.Count > 0)
+        {
+            var codes = await _context.ResolveAccountCodesAsync(_context.CurrentCompanyId.Value, new[] { PurchaseOrdersController.GrniAccount });
+            if (!codes.TryGetValue(PurchaseOrdersController.GrniAccount, out grniCode))
+                return BadRequest(new { code = "MISSING_ACCOUNT", message = "Goods Received Not Invoiced (2-1150) is missing from the chart of accounts." });
+        }
+
         // 1. Create and post balanced Journal Entry
-        var journalEntry = await CreateJournalEntry(bill);
+        var journalEntry = await CreateJournalEntry(bill, clearsGrni, grniCode);
 
         bill.JournalEntryId = journalEntry.Id;
         bill.Status = BillStatus.Posted;
@@ -239,15 +273,7 @@ public class PurchaseBillsController : ControllerBase
         bill.PostedAt = DateTime.UtcNow;
         bill.AmountDue = bill.Total;
 
-        // 2. Track Inventory additions and movements. Goods on a bill raised
-        // from a purchase order that was already received entered stock at
-        // receipt; adding them again here counted them twice.
-        var receivedViaOrder = bill.PurchaseOrderId.HasValue && await _context.PurchaseOrders
-            .AnyAsync(o => o.Id == bill.PurchaseOrderId && o.Status == PurchaseOrderStatus.Received);
-        var order = bill.PurchaseOrderId.HasValue
-            ? await _context.PurchaseOrders.Where(o => o.Id == bill.PurchaseOrderId).Select(o => new { o.WarehouseId, o.OrderNumber }).FirstOrDefaultAsync()
-            : null;
-        var orderWarehouse = order?.WarehouseId;
+        // 2. Track Inventory additions and movements.
 
         foreach (var line in bill.Lines)
         {
@@ -275,8 +301,7 @@ public class PurchaseBillsController : ControllerBase
                         // price. The difference is a value-only movement on
                         // the stock, so the average and the inventory account
                         // both end at the billed amount.
-                        var receivedAt = await ReceiptUnitCostAsync(order!.OrderNumber, product.Id);
-                        var difference = netCost - Math.Round(line.Quantity * receivedAt, 2, MidpointRounding.ToEven);
+                        var difference = netCost - receiptValue.GetValueOrDefault(line.Id);
                         if (difference != 0m)
                         {
                             await _inventory.MoveAsync(product, orderWarehouse, 0m, InventoryMovementType.Purchase,
@@ -471,19 +496,24 @@ public class PurchaseBillsController : ControllerBase
         return $"{prefix}-{(count + 1).ToString().PadLeft(4, '0')}";
     }
 
-    /// <summary>Unit value the order's receipt gave the product.</summary>
-    private async Task<decimal> ReceiptUnitCostAsync(string orderNumber, Guid productId)
+    /// <summary>
+    /// Unit value the order's receipt gave the product, and whether the
+    /// receipt was journaled to goods received not invoiced. Receipts from
+    /// before that journal existed were not.
+    /// </summary>
+    private async Task<(decimal UnitCost, bool Journaled)> ReceiptAsync(string orderNumber, Guid productId)
     {
         // Summed in memory: SQLite stores decimal(19,4) as REAL.
         var received = await _context.InventoryMovements.AsNoTracking()
             .Where(m => m.ReferenceNumber == orderNumber && m.ProductId == productId && m.Type == InventoryMovementType.Purchase)
-            .Select(m => new { m.Quantity, m.TotalCost })
+            .Select(m => new { m.Quantity, m.TotalCost, m.JournalEntryId })
             .ToListAsync();
         var quantity = received.Sum(m => m.Quantity);
-        return quantity == 0m ? 0m : received.Sum(m => m.TotalCost) / quantity;
+        var unitCost = quantity == 0m ? 0m : received.Sum(m => m.TotalCost) / quantity;
+        return (unitCost, received.Count > 0 && received.All(m => m.JournalEntryId != null));
     }
 
-    private async Task<JournalEntry> CreateJournalEntry(PurchaseBill bill)
+    private async Task<JournalEntry> CreateJournalEntry(PurchaseBill bill, IReadOnlyDictionary<Guid, decimal> clearsGrni, string? grniCode)
     {
         // 1. Resolve Accounts Payable account (Contact's DefaultPayableAccountId or 2-1100 Trade Payables)
         var payableAccountId = bill.Contact?.DefaultPayableAccountId?.ToString();
@@ -568,15 +598,45 @@ public class PurchaseBillsController : ControllerBase
 
             var netAmount = line.LineTotal - line.TaxAmount;
 
-            journalEntry.Lines.Add(new JournalLine
+            if (clearsGrni.TryGetValue(line.Id, out var received))
             {
-                Id = Guid.NewGuid(),
-                JournalEntryId = journalEntry.Id,
-                AccountId = lineDebitAccount,
-                Description = line.Description,
-                Debit = netAmount,
-                Credit = 0
-            });
+                // Received goods: the receipt's value comes off goods received
+                // not invoiced; only the price difference touches inventory.
+                journalEntry.Lines.Add(new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    JournalEntryId = journalEntry.Id,
+                    AccountId = grniCode!,
+                    Description = $"Received not invoiced - {line.Description}",
+                    Debit = received,
+                    Credit = 0
+                });
+                var difference = netAmount - received;
+                if (difference != 0m)
+                {
+                    journalEntry.Lines.Add(new JournalLine
+                    {
+                        Id = Guid.NewGuid(),
+                        JournalEntryId = journalEntry.Id,
+                        AccountId = lineDebitAccount,
+                        Description = $"Price difference - {line.Description}",
+                        Debit = difference > 0m ? difference : 0m,
+                        Credit = difference < 0m ? -difference : 0m
+                    });
+                }
+            }
+            else
+            {
+                journalEntry.Lines.Add(new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    JournalEntryId = journalEntry.Id,
+                    AccountId = lineDebitAccount,
+                    Description = line.Description,
+                    Debit = netAmount,
+                    Credit = 0
+                });
+            }
 
             // Debit: PPN Masukan (VAT In) if taxable
             if (line.IsTaxable && line.TaxAmount > 0)

@@ -94,6 +94,7 @@ public static class DefaultCoASeeder
 
         var curLiab = A("2-1000", "Current Liabilities", "Liability", "Liability", 2, true, "Credit", "2-0000");
         A("2-1100", "Trade Payables", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang Usaha");
+        A("2-1150", "Goods Received Not Invoiced", "Liability", "Liability", 3, false, "Credit", "2-1000", "Barang Diterima Belum Ditagih");
         A("2-1200", "Accrued Expenses", "Liability", "Liability", 3, false, "Credit", "2-1000", "Beban yang Masih Harus Dibayar");
         A("2-1300", "VAT Out", "Liability", "Liability", 3, false, "Credit", "2-1000", "PPN Keluaran");
         A("2-1400", "Income Tax Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "PPh Terutang");

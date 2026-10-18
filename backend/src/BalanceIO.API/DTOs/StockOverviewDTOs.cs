@@ -44,8 +44,8 @@ public class StockPosition
 
     /// <summary>
     /// Posted balance of the inventory accounts. It differs from StockValue
-    /// by goods received on an order and not yet billed, opening stock
-    /// entered without a journal, and anything posted to the account by hand.
+    /// by opening stock entered without a journal, receipts made before
+    /// receipts were journaled, and anything posted to the account by hand.
     /// </summary>
     public decimal InventoryAccountBalance { get; set; }
 

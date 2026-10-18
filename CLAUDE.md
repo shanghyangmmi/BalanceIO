@@ -191,8 +191,12 @@ net purchase amount for a receipt, the original value for a reversal, null
 for an issue at the average. The movement's `TotalCost` is what the caller
 posts, so COGS, adjustments and opname equal the stock they move. An issue
 that empties the stock takes the whole value. A purchase order receipt adds
-stock at the order price without a journal; the bill posts the inventory
-debit and a value-only movement for the price difference. Transfers carry no
+stock at the order price and posts Dr inventory, Cr `2-1150` Goods Received
+Not Invoiced (period-locked, `MISSING_ACCOUNT` without the accounts). The
+bill for a received order debits `2-1150` with the receipt value, puts the
+price difference on inventory with a value-only movement, and its void
+restores both. Receipts made before this journal existed are billed the old
+way, straight to inventory. Transfers carry no
 value. Reports: `GET /api/Reports/inventory-movements` (stock card),
 `/inventory-aging` (receipt dates), `/inventory-valuation`.
 

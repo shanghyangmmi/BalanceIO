@@ -74,10 +74,10 @@ export default function PurchaseOrdersPage() {
   const handleReceive = async (id: string) => {
     try {
       await apiClient.receivePurchaseOrder(id)
-      toast.success("Order received and stock updated")
+      toast.success("Order received: stock added and posted to goods received not invoiced")
       loadOrders()
     } catch (error) {
-      toast.error("Failed to receive order")
+      toast.error(error instanceof Error ? error.message : "Failed to receive order")
     }
   }
 

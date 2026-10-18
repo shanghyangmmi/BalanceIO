@@ -23,7 +23,7 @@ public class MovingAverageTests(ApiFactory factory) : IClassFixture<ApiFactory>
         foreach (var (code, name, type) in new[]
         {
             ("1-1130", "Accounts Receivable", "Asset"), ("1-1400", "Inventory", "Asset"), ("1-1700", "VAT In", "Asset"),
-            ("2-1100", "Trade Payables", "Liability"), ("2-1400", "PPN Payable", "Liability"),
+            ("2-1100", "Trade Payables", "Liability"), ("2-1150", "Goods Received Not Invoiced", "Liability"), ("2-1400", "PPN Payable", "Liability"),
             ("5-1000", "Cost of Goods Sold", "Expense"), ("5-9000", "Inventory Variance", "Expense"),
         })
             await factory.AddAccount(t.CompanyId, code, name, type);
@@ -200,13 +200,48 @@ public class MovingAverageTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         await Ok(await s.T.OwnerClient().PostJson($"/api/PurchaseOrders/{order}/receive", new { }));
         Assert.Equal(10_000m, (await Product(s)).InventoryValue);
+        Assert.Equal(10_000m, await Balance(s, "1-1400"));
+        Assert.Equal(-10_000m, await Balance(s, "2-1150"));   // received, not yet invoiced
 
-        await PostBill(s, 10m, 1_050m, order);
+        var bill = await PostBill(s, 10m, 1_050m, order);
         var p = await Product(s);
         Assert.Equal(10m, p.StockOnHand);
         Assert.Equal(10_500m, p.InventoryValue);
         Assert.Equal(1_050m, p.AverageCost);
         Assert.Equal(p.InventoryValue, await Balance(s, "1-1400"));
+        Assert.Equal(0m, await Balance(s, "2-1150"));
+
+        // Voiding the bill puts the receipt back in goods received not invoiced.
+        await Ok(await s.T.ReviewerClient().PostJson($"/api/PurchaseBills/{bill}/void", new { }));
+        Assert.Equal(-10_000m, await Balance(s, "2-1150"));
+        Assert.Equal(10_000m, (await Product(s)).InventoryValue);
+        Assert.Equal(10_000m, await Balance(s, "1-1400"));
+    }
+
+    [Fact]
+    public async Task Bill_for_an_order_received_before_the_journal_debits_inventory()
+    {
+        var s = await SeedAsync();
+        var order = Guid.NewGuid();
+        await factory.WithDb(async db =>
+        {
+            db.PurchaseOrders.Add(new PurchaseOrder
+            {
+                Id = order, CompanyId = s.T.CompanyId, OrderNumber = "PO-OLD-1", ContactId = s.Vendor,
+                OrderDate = new DateOnly(2026, 1, 5), Status = PurchaseOrderStatus.Received,
+                Lines = [new PurchaseOrderLine { Id = Guid.NewGuid(), ProductId = s.Product, Description = "Kardus", Quantity = 10m, UnitPrice = 1_000m }],
+            });
+            // The receipt as it was recorded: stock and value, no journal.
+            db.InventoryMovements.Add(new InventoryMovement { Id = Guid.NewGuid(), CompanyId = s.T.CompanyId, ProductId = s.Product, MovementDate = new DateOnly(2026, 1, 6), Type = InventoryMovementType.Purchase, Quantity = 10m, UnitCost = 1_000m, TotalCost = 10_000m, ReferenceNumber = "PO-OLD-1" });
+            var product = await db.Products.SingleAsync(p => p.Id == s.Product);
+            product.StockOnHand = 10m; product.InventoryValue = 10_000m; product.AverageCost = 1_000m;
+            await db.SaveChangesAsync();
+        }, s.T.CompanyId);
+
+        await PostBill(s, 10m, 1_000m, order);
+        Assert.Equal(10_000m, await Balance(s, "1-1400"));
+        Assert.Equal(0m, await Balance(s, "2-1150"));
+        Assert.Equal(10_000m, (await Product(s)).InventoryValue);
     }
 
     [Fact]

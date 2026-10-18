@@ -48,6 +48,7 @@ public static class ReferenceDataSeeder
     private static readonly (string Code, string Name, string Type, string Group, int Level, string NormalBalance, string Description, string ParentCode)[] RequiredAccounts =
     {
         (VarianceCode, "Inventory Variance", "Expense", "CostOfSales", 2, "Debit", "Selisih Persediaan", "5-0000"),
+        ("2-1150", "Goods Received Not Invoiced", "Liability", "Liability", 3, "Credit", "Barang Diterima Belum Ditagih", "2-1000"),
         ("2-1410", "PPh 21 Payable", "Liability", "Liability", 3, "Credit", "Utang PPh 21", "2-1000"),
         ("2-1510", "BPJS Payable", "Liability", "Liability", 3, "Credit", "Utang BPJS", "2-1000"),
         ("6-1110", "Employee Benefits (BPJS)", "Expense", "Expense", 3, "Debit", "Beban BPJS", "6-1000"),

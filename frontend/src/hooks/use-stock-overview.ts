@@ -13,7 +13,7 @@ export interface StockPosition {
   lowStock: number
   /** Carrying value at moving-average cost. */
   stockValue: number
-  /** Posted balance of the inventory accounts; differs by unbilled receipts and unjournaled opening stock. */
+  /** Posted balance of the inventory accounts; differs by unjournaled opening stock and anything posted by hand. */
   inventoryAccountBalance: number
   withoutInventoryAccount: number
 }

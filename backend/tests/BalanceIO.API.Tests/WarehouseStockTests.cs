@@ -24,7 +24,7 @@ public class WarehouseStockTests(ApiFactory factory) : IClassFixture<ApiFactory>
         foreach (var (code, name, type) in new[]
         {
             ("1-1130", "Accounts Receivable", "Asset"), ("1-1400", "Inventory", "Asset"), ("1-1700", "VAT In", "Asset"),
-            ("2-1100", "Trade Payables", "Liability"), ("2-1400", "PPN Payable", "Liability"),
+            ("2-1100", "Trade Payables", "Liability"), ("2-1150", "Goods Received Not Invoiced", "Liability"), ("2-1400", "PPN Payable", "Liability"),
             ("5-1000", "Cost of Goods Sold", "Expense"), ("5-9000", "Inventory Variance", "Expense"),
         })
             await factory.AddAccount(t.CompanyId, code, name, type);
