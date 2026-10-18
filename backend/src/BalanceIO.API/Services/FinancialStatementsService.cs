@@ -45,9 +45,9 @@ public class FinancialStatementsService
         Revenue, CostOfRevenue, OperatingExpense, OtherIncome, OtherExpense, IncomeTax,
     }
 
-    private sealed record Acct(string Code, string NameEn, string NameId, Class Class, bool CreditNormal);
+    private sealed record Acct(string Code, string NameEn, string NameId, Class Class, bool CreditNormal, Psak118Category Psak118Category);
 
-    private sealed record Line(string Code, DateOnly Date, decimal Debit, decimal Credit);
+    private sealed record Line(string Code, DateOnly Date, decimal Debit, decimal Credit, bool IsDiscontinued = false);
 
     public async Task<FinancialStatementPack> BuildAsync(Guid companyId, DateOnly start, DateOnly end, bool comparative, string? generatedBy)
     {
@@ -61,14 +61,15 @@ public class FinancialStatementsService
 
         var accounts = (await _context.Accounts.AsNoTracking()
                 .Where(a => a.CompanyId == companyId)
-                .Select(a => new { a.Code, a.Name, a.NameId, a.NormalBalance })
+                .Select(a => new { a.Code, a.Name, a.NameId, a.NormalBalance, a.Psak118Category })
                 .ToListAsync())
             .GroupBy(a => a.Code)
             .ToDictionary(g => g.Key, g =>
             {
                 var a = g.First();
                 return new Acct(a.Code, a.Name, string.IsNullOrWhiteSpace(a.NameId) ? a.Name : a.NameId,
-                    Classify(a.Code), string.Equals(a.NormalBalance, "Credit", StringComparison.OrdinalIgnoreCase));
+                    Classify(a.Code), string.Equals(a.NormalBalance, "Credit", StringComparison.OrdinalIgnoreCase),
+                    a.Psak118Category);
             });
 
         // Summed here rather than in SQL: SQLite stores decimal(19,4) as REAL
@@ -77,14 +78,19 @@ public class FinancialStatementsService
             .Where(l => l.JournalEntry!.CompanyId == companyId
                      && l.JournalEntry.Status == JournalEntryStatus.Posted
                      && l.JournalEntry.Date <= end)
-            .Select(l => new Line(l.AccountId, l.JournalEntry!.Date, l.Debit, l.Credit))
+            .Select(l => new Line(
+                l.AccountId,
+                l.JournalEntry!.Date,
+                l.Debit,
+                l.Credit,
+                l.CostCenter != null && l.CostCenter.IsDiscontinued))
             .ToListAsync();
 
         // A line on a code with no account still belongs in the statements;
         // dropping it would unbalance them silently.
         foreach (var code in lines.Select(l => l.Code).Distinct().Where(c => !accounts.ContainsKey(c)))
         {
-            accounts[code] = new Acct(code, $"Unknown account {code}", $"Akun tidak dikenal {code}", Classify(code), false);
+            accounts[code] = new Acct(code, $"Unknown account {code}", $"Akun tidak dikenal {code}", Classify(code), false, Psak118CategoryHelper.GetDefaultCategory(code));
         }
 
         var cur = new Period(start, end, FiscalYearStart(end, company.FiscalYearStartMonth));
@@ -156,7 +162,7 @@ public class FinancialStatementsService
                      && l.JournalEntry.Status == JournalEntryStatus.Posted
                      && l.JournalEntry.Date <= end
                      && codes.Contains(l.AccountId))
-            .Select(l => new { Line = new Line(l.AccountId, l.JournalEntry!.Date, l.Debit, l.Credit), l.JournalEntryId })
+            .Select(l => new { Line = new Line(l.AccountId, l.JournalEntry!.Date, l.Debit, l.Credit, false), l.JournalEntryId })
             .ToListAsync();
         var lines = raw.Select(r => r.Line).ToList();
 
@@ -287,33 +293,81 @@ public class FinancialStatementsService
         var b = new Builder(s, c);
         var periodWord = fullYear ? ("tahun berjalan", "the year") : ("periode berjalan", "the period");
 
-        // Every figure is credit minus debit: income positive, cost negative.
-        (decimal, decimal?) Pl(string code) => (-c.Cur.Movement(code), c.Prior is null ? null : -c.Prior.Movement(code));
+        // Every figure is credit minus debit on continuing lines: income positive, cost negative.
+        (decimal, decimal?) Pl(string code) => (-c.Cur.MovementContinuing(code), c.Prior is null ? null : -c.Prior.MovementContinuing(code));
 
-        var revenue = b.Group("Pendapatan", "Revenue", c.Codes(Class.Revenue), Pl, "Jumlah pendapatan", "Total revenue");
-        var cost = b.Group("Beban pokok pendapatan", "Cost of revenue", c.Codes(Class.CostOfRevenue), Pl, "Jumlah beban pokok pendapatan", "Total cost of revenue");
+        // ── 1. KATEGORI OPERASI (OPERATING CATEGORY) ─────────────────────────
+        b.Section("KATEGORI OPERASI", "OPERATING CATEGORY");
+
+        var revenueCodes = c.OperatingRevenueCodes();
+        var revenue = b.Group("Pendapatan usaha", "Operating revenue", revenueCodes, Pl,
+            "Jumlah pendapatan usaha", "Total operating revenue");
+
+        var costCodes = c.OperatingCostCodes();
+        var cost = b.Group("Beban pokok pendapatan", "Cost of sales", costCodes, Pl,
+            "Jumlah beban pokok pendapatan", "Total cost of sales");
+
         var gross = Add(revenue, cost);
         b.Subtotal("LABA BRUTO", "GROSS PROFIT", gross, 0);
 
-        var opex = b.Group("Beban usaha", "Operating expenses", c.Codes(Class.OperatingExpense), Pl, "Jumlah beban usaha", "Total operating expenses");
-        var operating = Add(gross, opex);
-        b.Subtotal("LABA USAHA", "OPERATING PROFIT", operating, 0);
+        var opexCodes = c.OperatingExpenseCodes();
+        var opex = b.Group("Beban operasional", "Operating expenses", opexCodes, Pl,
+            "Jumlah beban operasional", "Total operating expenses");
 
-        var other = b.Group("Pendapatan (beban) lain-lain", "Other income (expenses)", c.Codes(Class.OtherIncome, Class.OtherExpense), Pl,
-            "Jumlah pendapatan (beban) lain-lain", "Total other income (expenses)");
-        var beforeTax = Add(operating, other);
-        b.Subtotal("LABA SEBELUM PAJAK PENGHASILAN", "PROFIT BEFORE INCOME TAX", beforeTax, 0);
+        var otherOpCodes = c.OperatingOtherCodes();
+        var otherOperating = otherOpCodes.Count > 0
+            ? b.Group("Penghasilan (beban) operasi lainnya", "Other operating income (expenses)", otherOpCodes, Pl,
+                "Jumlah penghasilan (beban) operasi lainnya", "Total other operating income (expenses)")
+            : (0m, c.HasPrior ? 0m : (decimal?)null);
 
+        var operating = Add(Add(gross, opex), otherOperating);
+        b.Subtotal("LABA (RUGI) OPERASI", "OPERATING PROFIT (LOSS)", operating, 0);
+
+        // ── 2. KATEGORI INVESTASI (INVESTING CATEGORY) ───────────────────────
+        b.Section("KATEGORI INVESTASI", "INVESTING CATEGORY");
+
+        var investingCodes = c.CodesForPsak118(Psak118Category.Investing);
+        var investing = b.Group("Pendapatan (beban) investasi", "Investing income (expenses)", investingCodes, Pl,
+            "Jumlah pendapatan (beban) investasi", "Total investing income (expenses)");
+
+        // Mandatory Subtotal: Profit/Loss before financing and income taxes
+        var beforeFinancingAndTax = Add(operating, investing);
+        b.Subtotal("LABA (RUGI) SEBELUM PENDANAAN DAN PAJAK PENGHASILAN", "PROFIT (LOSS) BEFORE FINANCING AND INCOME TAXES", beforeFinancingAndTax, 0);
+
+        // ── 3. KATEGORI PENDANAAN (FINANCING CATEGORY) ───────────────────────
+        b.Section("KATEGORI PENDANAAN", "FINANCING CATEGORY");
+
+        var financingCodes = c.CodesForPsak118(Psak118Category.Financing);
+        var financing = b.Group("Beban pendanaan", "Financing expenses", financingCodes, Pl,
+            "Jumlah beban pendanaan", "Total financing expenses");
+
+        var beforeTax = Add(beforeFinancingAndTax, financing);
+        b.Subtotal("LABA (RUGI) SEBELUM PAJAK PENGHASILAN", "PROFIT (LOSS) BEFORE INCOME TAX", beforeTax, 0);
+
+        // ── 4. PAJAK PENGHASILAN (INCOME TAXES) ──────────────────────────────
+        var taxCodes = c.CodesForPsak118(Psak118Category.IncomeTax);
         var tax = (0m, c.HasPrior ? 0m : (decimal?)null);
-        foreach (var code in c.Codes(Class.IncomeTax))
+        foreach (var code in taxCodes)
         {
             var v = Pl(code);
             if (IsZero(v)) continue;
             b.Item("Beban pajak penghasilan", "Income tax expense", code, v, 0);
             tax = Add(tax, v);
         }
+        if (taxCodes.Count == 0 || IsZero(tax))
+        {
+            b.Item("Beban pajak penghasilan", "Income tax expense", null, (0m, c.HasPrior ? 0m : null), 0);
+        }
 
-        var profit = Add(beforeTax, tax);
+        var continuing = Add(beforeTax, tax);
+        b.Subtotal("LABA (RUGI) DARI OPERASI YANG DILANJUTKAN", "PROFIT (LOSS) FROM CONTINUING OPERATIONS", continuing, 0);
+
+        // ── 5. OPERASI YANG DIHENTIKAN (DISCONTINUED OPERATIONS) ─────────────
+        var discontinued = (c.Cur.DiscontinuedProfitBetween(start, end), c.Prior?.DiscontinuedProfitBetween(c.Prior.Start, c.Prior.End));
+        b.Item("Operasi yang dihentikan (setelah pajak)", "Discontinued operations (net of tax)", null, discontinued, 0);
+
+        // ── 6. LABA (RUGI) TAHUN BERJALAN (BOTTOM LINE) ──────────────────────
+        var profit = Add(continuing, discontinued);
         b.Subtotal($"LABA (RUGI) {periodWord.Item1.ToUpperInvariant()}", $"PROFIT (LOSS) FOR {periodWord.Item2.ToUpperInvariant()}", profit, 0);
 
         b.Heading("Penghasilan komprehensif lain", "Other comprehensive income");
@@ -386,13 +440,14 @@ public class FinancialStatementsService
         (decimal, decimal?) Effect(string code) => (-c.Cur.Movement(code), c.Prior is null ? null : -c.Prior.Movement(code));
 
         var contra = c.Codes(Class.NonCurrentAsset).Where(code => c.Accounts[code].CreditNormal).ToList();
-        var investing = c.Codes(Class.NonCurrentAsset).Where(code => !c.Accounts[code].CreditNormal).ToList();
+        var investingAssets = c.Codes(Class.NonCurrentAsset).Where(code => !c.Accounts[code].CreditNormal).ToList();
 
+        // ── 1. ARUS KAS DARI AKTIVITAS OPERASI ───────────────────────────────
         b.Section("ARUS KAS DARI AKTIVITAS OPERASI", "CASH FLOWS FROM OPERATING ACTIVITIES");
-        var profit = (c.Cur.ProfitBetween(start, end), c.Prior?.ProfitBetween(c.Prior.Start, c.Prior.End));
-        b.Item(fullYear ? "Laba (rugi) tahun berjalan" : "Laba (rugi) periode berjalan",
-               fullYear ? "Profit (loss) for the year" : "Profit (loss) for the period", null, profit);
-        var operating = profit;
+        var operatingProfit = (c.Cur.OperatingProfitBetween(start, end), c.Prior?.OperatingProfitBetween(c.Prior.Start, c.Prior.End));
+        b.Item(fullYear ? "Laba (rugi) operasi tahun berjalan" : "Laba (rugi) operasi periode berjalan",
+               fullYear ? "Operating profit (loss) for the year" : "Operating profit (loss) for the period", null, operatingProfit);
+        var operating = operatingProfit;
 
         var depreciation = (0m, c.HasPrior ? 0m : (decimal?)null);
         foreach (var code in contra) depreciation = Add(depreciation, Effect(code));
@@ -414,14 +469,78 @@ public class FinancialStatementsService
                 operating = Add(operating, v);
             }
         }
+
+        // Taxes paid
+        var taxEffect = (0m, c.HasPrior ? 0m : (decimal?)null);
+        foreach (var code in c.CodesForPsak118(Psak118Category.IncomeTax))
+            taxEffect = Add(taxEffect, Effect(code));
+        if (!IsZero(taxEffect))
+        {
+            b.Item("Pembayaran pajak penghasilan", "Income taxes paid", null, taxEffect, 1);
+            operating = Add(operating, taxEffect);
+        }
+
+        // Discontinued operations cash flow (if any)
+        var discontinuedProfit = (c.Cur.DiscontinuedProfitBetween(start, end), c.Prior?.DiscontinuedProfitBetween(c.Prior.Start, c.Prior.End));
+        if (!IsZero(discontinuedProfit))
+        {
+            b.Item("Arus kas dari operasi yang dihentikan", "Cash flows from discontinued operations", null, discontinuedProfit, 1);
+            operating = Add(operating, discontinuedProfit);
+        }
+
         b.Subtotal("Kas bersih dari aktivitas operasi", "Net cash from operating activities", operating, 0);
 
-        var investingTotal = b.Group("ARUS KAS DARI AKTIVITAS INVESTASI", "CASH FLOWS FROM INVESTING ACTIVITIES", investing, Effect,
-            "Kas bersih dari aktivitas investasi", "Net cash from investing activities", section: true);
-        var financingTotal = b.Group("ARUS KAS DARI AKTIVITAS PENDANAAN", "CASH FLOWS FROM FINANCING ACTIVITIES",
-            c.Codes(Class.NonCurrentLiability, Class.Equity), Effect,
-            "Kas bersih dari aktivitas pendanaan", "Net cash from financing activities", section: true);
+        // ── 2. ARUS KAS DARI AKTIVITAS INVESTASI ─────────────────────────────
+        b.Section("ARUS KAS DARI AKTIVITAS INVESTASI", "CASH FLOWS FROM INVESTING ACTIVITIES");
+        var investingTotal = (0m, c.HasPrior ? 0m : (decimal?)null);
+        foreach (var code in investingAssets)
+        {
+            var v = Effect(code);
+            if (IsZero(v)) continue;
+            b.Item(c.Accounts[code], v, 1);
+            investingTotal = Add(investingTotal, v);
+        }
+        var investingIncome = (0m, c.HasPrior ? 0m : (decimal?)null);
+        foreach (var code in c.CodesForPsak118(Psak118Category.Investing))
+        {
+            var v = Effect(code);
+            if (IsZero(v)) continue;
+            b.Item(c.Accounts[code], v, 1);
+            investingIncome = Add(investingIncome, v);
+        }
+        investingTotal = Add(investingTotal, investingIncome);
+        if (IsZero(investingTotal))
+        {
+            b.Item("Nihil", "Nil", null, (0m, c.HasPrior ? 0m : null), 1);
+        }
+        b.Subtotal("Kas bersih dari aktivitas investasi", "Net cash from investing activities", investingTotal, 0);
 
+        // ── 3. ARUS KAS DARI AKTIVITAS PENDANAAN ─────────────────────────────
+        b.Section("ARUS KAS DARI AKTIVITAS PENDANAAN", "CASH FLOWS FROM FINANCING ACTIVITIES");
+        var financingTotal = (0m, c.HasPrior ? 0m : (decimal?)null);
+        foreach (var code in c.Codes(Class.NonCurrentLiability, Class.Equity))
+        {
+            var v = Effect(code);
+            if (IsZero(v)) continue;
+            b.Item(c.Accounts[code], v, 1);
+            financingTotal = Add(financingTotal, v);
+        }
+        var financingExpense = (0m, c.HasPrior ? 0m : (decimal?)null);
+        foreach (var code in c.CodesForPsak118(Psak118Category.Financing))
+        {
+            var v = Effect(code);
+            if (IsZero(v)) continue;
+            b.Item(c.Accounts[code], v, 1);
+            financingExpense = Add(financingExpense, v);
+        }
+        financingTotal = Add(financingTotal, financingExpense);
+        if (IsZero(financingTotal))
+        {
+            b.Item("Nihil", "Nil", null, (0m, c.HasPrior ? 0m : null), 1);
+        }
+        b.Subtotal("Kas bersih dari aktivitas pendanaan", "Net cash from financing activities", financingTotal, 0);
+
+        // ── NET AND RECONCILIATION ───────────────────────────────────────────
         var net = Add(Add(operating, investingTotal), financingTotal);
         b.Subtotal("KENAIKAN (PENURUNAN) BERSIH KAS DAN SETARA KAS", "NET INCREASE (DECREASE) IN CASH AND CASH EQUIVALENTS", net, 0);
 
@@ -486,6 +605,27 @@ public class FinancialStatementsService
         public List<string> Codes(params Class[] classes) =>
             Accounts.Values.Where(a => classes.Contains(a.Class))
                 .Select(a => a.Code).OrderBy(c => c, StringComparer.Ordinal).ToList();
+
+        public List<string> OperatingRevenueCodes() =>
+            Accounts.Values.Where(a => a.Class == Class.Revenue && a.Psak118Category == Psak118Category.Operating)
+                .Select(a => a.Code).OrderBy(c => c, StringComparer.Ordinal).ToList();
+
+        public List<string> OperatingCostCodes() =>
+            Accounts.Values.Where(a => a.Class == Class.CostOfRevenue && a.Psak118Category == Psak118Category.Operating)
+                .Select(a => a.Code).OrderBy(c => c, StringComparer.Ordinal).ToList();
+
+        public List<string> OperatingExpenseCodes() =>
+            Accounts.Values.Where(a => a.Class == Class.OperatingExpense && a.Psak118Category == Psak118Category.Operating)
+                .Select(a => a.Code).OrderBy(c => c, StringComparer.Ordinal).ToList();
+
+        public List<string> OperatingOtherCodes() =>
+            Accounts.Values.Where(a => a.Psak118Category == Psak118Category.Operating 
+                                    && a.Class != Class.Revenue && a.Class != Class.CostOfRevenue && a.Class != Class.OperatingExpense && a.Class >= Class.Revenue)
+                .Select(a => a.Code).OrderBy(c => c, StringComparer.Ordinal).ToList();
+
+        public List<string> CodesForPsak118(Psak118Category category) =>
+            Accounts.Values.Where(a => a.Psak118Category == category && a.Class >= Class.Revenue)
+                .Select(a => a.Code).OrderBy(c => c, StringComparer.Ordinal).ToList();
     }
 
     private sealed class View(Dictionary<string, Acct> accounts, Dictionary<string, List<Line>> lines, Period period)
@@ -495,6 +635,8 @@ public class FinancialStatementsService
         public DateOnly FiscalYearStart => period.FiscalYearStart;
 
         private readonly Dictionary<(string, DateOnly), decimal> _balances = new();
+        private readonly Dictionary<(string, DateOnly), decimal> _continuingBalances = new();
+        private readonly Dictionary<(string, DateOnly), decimal> _discontinuedBalances = new();
 
         /// <summary>Debit minus credit, everything up to and including the date.</summary>
         public decimal BalanceAt(string code, DateOnly date)
@@ -505,10 +647,30 @@ public class FinancialStatementsService
             return value;
         }
 
+        public decimal BalanceContinuingAt(string code, DateOnly date)
+        {
+            if (_continuingBalances.TryGetValue((code, date), out var cached)) return cached;
+            var value = lines.TryGetValue(code, out var own) ? own.Where(l => l.Date <= date && !l.IsDiscontinued).Sum(l => l.Debit - l.Credit) : 0m;
+            _continuingBalances[(code, date)] = value;
+            return value;
+        }
+
+        public decimal BalanceDiscontinuedAt(string code, DateOnly date)
+        {
+            if (_discontinuedBalances.TryGetValue((code, date), out var cached)) return cached;
+            var value = lines.TryGetValue(code, out var own) ? own.Where(l => l.Date <= date && l.IsDiscontinued).Sum(l => l.Debit - l.Credit) : 0m;
+            _discontinuedBalances[(code, date)] = value;
+            return value;
+        }
+
         public decimal Balance(string code) => BalanceAt(code, End);
 
         /// <summary>Debit minus credit within the period.</summary>
         public decimal Movement(string code) => BalanceAt(code, End) - BalanceAt(code, Start.AddDays(-1));
+
+        public decimal MovementContinuing(string code) => BalanceContinuingAt(code, End) - BalanceContinuingAt(code, Start.AddDays(-1));
+
+        public decimal MovementDiscontinued(string code) => BalanceDiscontinuedAt(code, End) - BalanceDiscontinuedAt(code, Start.AddDays(-1));
 
         private IEnumerable<Acct> ProfitAccounts =>
             accounts.Values.Where(a => a.Class >= Class.Revenue);
@@ -518,6 +680,13 @@ public class FinancialStatementsService
 
         public decimal ProfitBetween(DateOnly from, DateOnly to) =>
             -ProfitAccounts.Sum(a => BalanceAt(a.Code, to) - BalanceAt(a.Code, from.AddDays(-1)));
+
+        public decimal DiscontinuedProfitBetween(DateOnly from, DateOnly to) =>
+            -ProfitAccounts.Sum(a => BalanceDiscontinuedAt(a.Code, to) - BalanceDiscontinuedAt(a.Code, from.AddDays(-1)));
+
+        public decimal OperatingProfitBetween(DateOnly from, DateOnly to) =>
+            -accounts.Values.Where(a => a.Psak118Category == Psak118Category.Operating && a.Class >= Class.Revenue)
+                .Sum(a => BalanceContinuingAt(a.Code, to) - BalanceContinuingAt(a.Code, from.AddDays(-1)));
 
         /// <summary>Total equity at a date, including profit not yet closed into it.</summary>
         public decimal EquityAt(DateOnly date) =>

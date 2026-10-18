@@ -90,6 +90,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid?>("ParentAccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Psak118Category")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(50)

@@ -326,9 +326,9 @@ graph TD
 
 ---
 
-### Phase 4: PSAK 118 (IFRS 18) Financial Statement Presentation
+### Phase 4: PSAK 118 (IFRS 18) Financial Statement Presentation [COMPLETED]
 
-#### 4.1 Categorisation Model & Subtotals
+#### 4.1 Categorisation Model & Subtotals [COMPLETED]
 * **Goal:** Full compliance with PSAK 118 presentation of profit or loss.
 * **Data Model:**
   * Extend `Account`:

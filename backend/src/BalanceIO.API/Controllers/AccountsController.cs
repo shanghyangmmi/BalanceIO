@@ -49,7 +49,9 @@ public class AccountsController : ControllerBase
                         a.IsSystemDefault,
                         a.CurrentBalance,
                         a.ParentAccountId,
-                        a.IsActive
+                        a.IsActive,
+                        a.DimensionRule,
+                        a.Psak118Category
                     })
                     .ToListAsync();
                 
@@ -92,7 +94,9 @@ public class AccountsController : ControllerBase
                     a.IsSystemDefault,
                     a.CurrentBalance,
                     a.ParentAccountId,
-                    a.IsActive
+                    a.IsActive,
+                    a.DimensionRule,
+                    a.Psak118Category
                 })
                 .ToListAsync();
 
@@ -208,6 +212,11 @@ public class AccountsController : ControllerBase
             };
         }
 
+        if (account.Psak118Category == Psak118Category.Operating)
+        {
+            account.Psak118Category = Psak118CategoryHelper.GetDefaultCategory(account.Code, account.Name);
+        }
+
         account.CreatedAt = DateTime.UtcNow;
         _context.Accounts.Add(account);
         await _context.SaveChangesAsync();
@@ -246,6 +255,8 @@ public class AccountsController : ControllerBase
         existing.NameId = string.IsNullOrWhiteSpace(account.NameId) ? null : account.NameId.Trim();
         existing.ParentAccountId = account.ParentAccountId;
         existing.IsActive = account.IsActive;
+        existing.DimensionRule = account.DimensionRule;
+        existing.Psak118Category = account.Psak118Category;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();

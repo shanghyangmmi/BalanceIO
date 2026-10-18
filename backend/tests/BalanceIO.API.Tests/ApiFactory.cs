@@ -91,6 +91,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         {
             Id = Guid.NewGuid(), CompanyId = companyId, Code = code, Name = name,
             Type = type, AccountGroup = type, NormalBalance = type == "Asset" ? "Debit" : "Credit",
+            Psak118Category = Psak118CategoryHelper.GetDefaultCategory(code, name),
         };
         await WithDb(async db => { db.Accounts.Add(account); await db.SaveChangesAsync(); }, companyId);
         return account;

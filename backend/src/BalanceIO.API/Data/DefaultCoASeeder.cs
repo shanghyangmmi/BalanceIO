@@ -30,7 +30,7 @@ public static class DefaultCoASeeder
         var accounts = new List<Account>();
 
         // Helper to create account
-        Account A(string code, string name, string type, string group, int level, bool isHeader, string normalBalance, string? parentCode = null, string? desc = null)
+        Account A(string code, string name, string type, string group, int level, bool isHeader, string normalBalance, string? parentCode = null, string? desc = null, Psak118Category? psak118 = null)
         {
             var acc = new Account
             {
@@ -48,6 +48,7 @@ public static class DefaultCoASeeder
                 IsSystemDefault = true,
                 IsActive = true,
                 CreatedAt = now,
+                Psak118Category = psak118 ?? Psak118CategoryHelper.GetDefaultCategory(code, name),
             };
             accounts.Add(acc);
             return acc;
@@ -162,17 +163,17 @@ public static class DefaultCoASeeder
         // 7. OTHER INCOME & EXPENSE (7-xxxx / 8-xxxx) — Mixed
         // ===================================================================
         var otherIncome = A("7-0000", "Other Income", "Revenue", "OtherIncomeExpense", 1, true, "Credit");
-        A("7-1000", "Interest Income", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Pendapatan Bunga");
-        A("7-2000", "Foreign Exchange Gain", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Laba Selisih Kurs");
-        A("7-3000", "Gain on Asset Disposal", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Laba Penjualan Aset Tetap");
-        A("7-4000", "Miscellaneous Income", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Pendapatan Lain-lain");
+        A("7-1000", "Interest Income", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Pendapatan Bunga", Psak118Category.Investing);
+        A("7-2000", "Foreign Exchange Gain", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Laba Selisih Kurs", Psak118Category.Investing);
+        A("7-3000", "Gain on Asset Disposal", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Laba Penjualan Aset Tetap", Psak118Category.Operating);
+        A("7-4000", "Miscellaneous Income", "Revenue", "OtherIncomeExpense", 2, false, "Credit", "7-0000", "Pendapatan Lain-lain", Psak118Category.Operating);
 
         var otherExp = A("8-0000", "Other Expenses", "Expense", "OtherIncomeExpense", 1, true, "Debit");
-        A("8-1000", "Bank Charges", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Biaya Bank");
-        A("8-2000", "Interest Expense", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Beban Bunga");
-        A("8-3000", "Foreign Exchange Loss", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Rugi Selisih Kurs");
-        A("8-4000", "Loss on Asset Disposal", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Rugi Penjualan Aset");
-        A("8-5000", "Tax Expense", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Beban Pajak");
+        A("8-1000", "Bank Charges", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Biaya Bank", Psak118Category.Financing);
+        A("8-2000", "Interest Expense", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Beban Bunga", Psak118Category.Financing);
+        A("8-3000", "Foreign Exchange Loss", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Rugi Selisih Kurs", Psak118Category.Operating);
+        A("8-4000", "Loss on Asset Disposal", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Rugi Penjualan Aset", Psak118Category.Operating);
+        A("8-5000", "Tax Expense", "Expense", "OtherIncomeExpense", 2, false, "Debit", "8-0000", "Beban Pajak", Psak118Category.IncomeTax);
 
         // Wire up ParentAccountId using code lookup
         var codeToId = accounts.ToDictionary(a => a.Code, a => a.Id);

@@ -17,6 +17,7 @@ public static class ReferenceDataSeeder
         await SeedTaxRatesAsync(db, ct);
         await SeedRequiredAccountsAsync(db, logger, ct);
         await BackfillIndonesianNamesAsync(db, logger, ct);
+        await BackfillPsak118CategoriesAsync(db, logger, ct);
         await AssignStockToWarehousesAsync(db, logger, ct);
         await ValueStockAtAverageAsync(db, logger, ct);
     }
@@ -82,6 +83,7 @@ public static class ReferenceDataSeeder
                     Type = spec.Type, AccountGroup = spec.Group, Level = spec.Level, NormalBalance = spec.NormalBalance,
                     Description = spec.Description, NameId = spec.Description, IsActive = true, IsSystemDefault = true,
                     ParentAccountId = have.TryGetValue(spec.ParentCode, out var parentId) ? parentId : null,
+                    Psak118Category = Psak118CategoryHelper.GetDefaultCategory(spec.Code, spec.Name),
                 });
                 added++;
             }
@@ -105,6 +107,37 @@ public static class ReferenceDataSeeder
 
         if (updated > 0)
             logger.LogInformation("Set the Indonesian name on {Count} default account(s).", updated);
+    }
+
+    /// <summary>
+    /// Aligns accounts with PSAK 118 / IFRS 18 categories for presentation
+    /// of profit or loss and cash flows: 7-1000/7-2000 Investing, 7-3000 Operating,
+    /// 8-1000/8-2000 Financing, 8-5000 IncomeTax.
+    /// </summary>
+    private static async Task BackfillPsak118CategoriesAsync(ApplicationDbContext db, ILogger logger, CancellationToken ct)
+    {
+        var accountsToUpdate = await db.Accounts.IgnoreQueryFilters()
+            .Where(a => a.Code.StartsWith("7-1000") || a.Code.StartsWith("7-2000") ||
+                        a.Code.StartsWith("8-1000") || a.Code.StartsWith("8-2000") ||
+                        a.Code.StartsWith("8-5000"))
+            .ToListAsync(ct);
+
+        var updated = 0;
+        foreach (var acc in accountsToUpdate)
+        {
+            var target = Psak118CategoryHelper.GetDefaultCategory(acc.Code, acc.Name);
+            if (acc.Psak118Category != target)
+            {
+                acc.Psak118Category = target;
+                updated++;
+            }
+        }
+
+        if (updated > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Updated PSAK 118 category on {Count} account(s).", updated);
+        }
     }
 
     /// <summary>
