@@ -21,8 +21,9 @@ import { cn, parseJwt } from "@/lib/utils"
 import { useLanguage } from "@/contexts/language-context"
 import { usePermission } from "@/contexts/permission-context"
 import { resolveModule } from "@/lib/module-nav"
-import { Globe, Shield } from "lucide-react"
+import { Globe, Shield, LifeBuoy } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { SupportTicketDialog } from "@/components/support/support-ticket-dialog"
 
 interface DashboardHeaderProps {
     sidebarOpen: boolean;
@@ -195,6 +196,20 @@ export function DashboardHeader({ sidebarOpen, setSidebarOpen }: DashboardHeader
 
                     <NotificationDropdown />
 
+                    <SupportTicketDialog
+                        trigger={
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 rounded-full text-zinc-600 dark:text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10 dark:hover:bg-emerald-400/10 transition-all duration-200"
+                                title="Support & Diagnostic"
+                            >
+                                <LifeBuoy className="h-4 w-4" />
+                                <span className="sr-only">Support & Diagnostic</span>
+                            </Button>
+                        }
+                    />
+
                     {/* Enhanced Separator */}
                     <div className="h-6 w-px bg-zinc-400/30 dark:bg-white/20 mx-1 shadow-sm" />
 
@@ -250,6 +265,14 @@ export function DashboardHeader({ sidebarOpen, setSidebarOpen }: DashboardHeader
                             </DropdownMenuItem>
                             <DropdownMenuItem className="cursor-pointer">{t("nav.billing")}</DropdownMenuItem>
                             <DropdownMenuItem className="cursor-pointer">{t("nav.team")}</DropdownMenuItem>
+                            <SupportTicketDialog
+                                trigger={
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                                        <LifeBuoy className="mr-2 h-4 w-4" />
+                                        Support & Diagnostic
+                                    </DropdownMenuItem>
+                                }
+                            />
                             <DropdownMenuSeparator />
                             <DropdownMenuLabel className="text-xs text-muted-foreground flex items-center gap-2">
                                 <Globe className="h-3 w-3" /> {t("nav.language")}

@@ -1164,6 +1164,68 @@ namespace BalanceIO.API.Migrations
                     b.ToTable("DeliveryOrderLines");
                 });
 
+            modelBuilder.Entity("BalanceIO.API.Models.DocumentHistoryEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DiffSummaryJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("PreviousHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ReversalDocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RowHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Timestamp");
+
+                    b.HasIndex("CompanyId", "DocumentType", "DocumentId");
+
+                    b.ToTable("DocumentHistoryEvents");
+                });
+
             modelBuilder.Entity("BalanceIO.API.Models.DocumentNumberSequence", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4271,9 +4333,156 @@ namespace BalanceIO.API.Migrations
 
                     b.HasIndex("GrantedToUserId");
 
+                    b.HasIndex("TicketId");
+
                     b.HasIndex("CompanyId", "ValidUntil");
 
                     b.ToTable("SupportAccessGrants");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedAdminUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DiagnosticContextJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TicketNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedAdminUserId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("CompanyId", "CreatedAt");
+
+                    b.HasIndex("CompanyId", "Status");
+
+                    b.HasIndex("CompanyId", "TicketNumber")
+                        .IsUnique();
+
+                    b.ToTable("SupportTickets");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicketAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("StoredFileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TicketMessageId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("StoredFileId");
+
+                    b.HasIndex("TicketMessageId");
+
+                    b.ToTable("SupportTicketAttachments");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicketMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsInternalAdminNote")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MessageText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SenderName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("SenderUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SenderUserId");
+
+                    b.HasIndex("TicketId");
+
+                    b.HasIndex("CompanyId", "CreatedAt");
+
+                    b.ToTable("SupportTicketMessages");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.SystemSetting", b =>
@@ -4806,6 +5015,17 @@ namespace BalanceIO.API.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("SalesOrderLine");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.DocumentHistoryEvent", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.EmployeeCompensation", b =>
@@ -5565,11 +5785,96 @@ namespace BalanceIO.API.Migrations
                         .WithMany()
                         .HasForeignKey("GrantedToUserId");
 
+                    b.HasOne("BalanceIO.API.Models.SupportTicket", null)
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Company");
 
                     b.Navigation("GrantedByUser");
 
                     b.Navigation("GrantedToUser");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicket", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.User", "AssignedAdminUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedAdminUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedAdminUser");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicketAttachment", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.StoredFile", "StoredFile")
+                        .WithMany()
+                        .HasForeignKey("StoredFileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.SupportTicketMessage", "TicketMessage")
+                        .WithMany("Attachments")
+                        .HasForeignKey("TicketMessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("StoredFile");
+
+                    b.Navigation("TicketMessage");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicketMessage", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.User", "SenderUser")
+                        .WithMany()
+                        .HasForeignKey("SenderUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.SupportTicket", "Ticket")
+                        .WithMany("Messages")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+
+                    b.Navigation("SenderUser");
+
+                    b.Navigation("Ticket");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.TaxRate", b =>
@@ -5709,6 +6014,16 @@ namespace BalanceIO.API.Migrations
             modelBuilder.Entity("BalanceIO.API.Models.Subscription", b =>
                 {
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicket", b =>
+                {
+                    b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.SupportTicketMessage", b =>
+                {
+                    b.Navigation("Attachments");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.User", b =>

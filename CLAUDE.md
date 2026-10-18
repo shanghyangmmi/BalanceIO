@@ -97,14 +97,26 @@ account with journal lines cannot change its code or be deleted
 include inactive accounts that still hold a balance. Do not call the synchronous
 `SaveChanges()` on ledger entities (it throws): the guards are async.
 
-### Audit trail
+### Audit trail & document history
 
 `SaveChangesAsync` writes `AuditLogs` rows for Accounts, JournalEntries,
 JournalLines, Contacts, Products, SalesInvoices, PurchaseBills, FixedAssets,
 EmployeeCompensations, PayrollRuns.
-`AuditService` records explicit events. Nothing in the API edits audit rows,
-but the `AuditPrune` scheduled job deletes rows older than
-`Audit:RetentionDays` when that setting is positive (default 0: off).
+`DocumentHistoryEvents` records append-only business document lifecycles (Created, Updated,
+Posted, Voided, Reversed, Rejected, AcquisitionPosted, Disposed) secured with cryptographic
+SHA-256 hash chaining (`RowHash`, `PreviousHash`) compliant with UU KUP Pasal 28.
+`GET /api/documents/{documentType}/{id}/history` returns the timeline for any document.
+`GET /api/audit-logs/events` provides multi-criteria filterable query over audit events.
+`AuditPrune` enforces Indonesian statutory 10-year retention (3,650 days) under UU KUP Pasal 28:
+any configuration specifying less than 3,650 days is rejected.
+
+### In-app support ticketing & diagnostic consent
+
+Tenants can raise support requests via `SupportTicketsController` (`/api/support/tickets`).
+Platform engineers triage via `AdminSupportTicketsController` (`/api/admin/support/tickets`).
+Under UU KUP and tenant isolation safeguards, support staff cannot inspect financial data
+without consent: ticket creation allows tenants to check a 24-hour diagnostic consent box,
+which issues a temporary `SupportAccessGrant` scoped strictly to support technicians.
 
 ## Migrations
 

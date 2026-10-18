@@ -26,6 +26,9 @@ public class PermissionCoverageTests(ApiFactory factory) : IClassFixture<ApiFact
         "CompanyController.GetCompany", "CompanyController.GetOnboardingStatus",
         "DashboardController.GetModuleDoors",
         "FilesController.Upload", "FilesController.List", "FilesController.Delete",
+        "DocumentsController.GetDocumentHistory",
+        "SupportTicketsController.CreateTicket", "SupportTicketsController.GetTickets",
+        "SupportTicketsController.GetTicket", "SupportTicketsController.AddMessage", "SupportTicketsController.CloseTicket",
     ];
 
     /// <summary>Sign-in, registration and password flows: anonymous or about the caller's own account.</summary>

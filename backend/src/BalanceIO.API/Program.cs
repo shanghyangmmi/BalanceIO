@@ -96,6 +96,8 @@ builder.Services.AddScoped<E2EAccountingValidationService>();
 builder.Services.AddSingleton<Argon2PasswordHasher>();
 
 builder.Services.AddScoped<SessionService>();
+builder.Services.AddScoped<IDocumentHistoryService, DocumentHistoryService>();
+builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 
 // JWT Authentication
 builder.Services.AddAuthentication(options =>

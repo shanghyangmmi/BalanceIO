@@ -24,12 +24,18 @@ public class PayrollController : ControllerBase, IAsyncActionFilter
     private readonly ApplicationDbContext _context;
     private readonly PayrollService _payroll;
     private readonly ModuleEntitlementService _entitlement;
+    private readonly IDocumentHistoryService _historyService;
 
-    public PayrollController(ApplicationDbContext context, PayrollService payroll, ModuleEntitlementService entitlement)
+    public PayrollController(
+        ApplicationDbContext context,
+        PayrollService payroll,
+        ModuleEntitlementService entitlement,
+        IDocumentHistoryService historyService)
     {
         _context = context;
         _payroll = payroll;
         _entitlement = entitlement;
+        _historyService = historyService;
     }
 
     /// <summary>Company scope and module entitlement, checked once for every action.</summary>
@@ -106,6 +112,15 @@ public class PayrollController : ControllerBase, IAsyncActionFilter
         if (actor is null) return Unauthorized();
 
         var run = await _payroll.CreateRunAsync(CompanyId, request, actor);
+        await _historyService.RecordEventAsync(
+            CompanyId,
+            "PayrollRun",
+            run.Id,
+            "Created",
+            actor.UserId,
+            actor.Label,
+            $"Payroll run created for {run.Period}");
+
         return CreatedAtAction(nameof(GetRun), new { id = run.Id }, run);
     }
 
@@ -133,7 +148,18 @@ public class PayrollController : ControllerBase, IAsyncActionFilter
     {
         var actor = Actor();
         if (actor is null) return Unauthorized();
-        return Ok(await _payroll.PostAsync(CompanyId, id, actor));
+        var result = await _payroll.PostAsync(CompanyId, id, actor);
+
+        await _historyService.RecordEventAsync(
+            CompanyId,
+            "PayrollRun",
+            id,
+            "Posted",
+            actor.UserId,
+            actor.Label,
+            $"Payroll run approved and posted to General Ledger (Journal: {result.JournalEntryId})");
+
+        return Ok(result);
     }
 
     [HttpPost("runs/{id:guid}/void")]
@@ -142,7 +168,18 @@ public class PayrollController : ControllerBase, IAsyncActionFilter
     {
         var actor = Actor();
         if (actor is null) return Unauthorized();
-        return Ok(await _payroll.VoidAsync(CompanyId, id, actor, request?.Reason));
+        var result = await _payroll.VoidAsync(CompanyId, id, actor, request?.Reason);
+
+        await _historyService.RecordEventAsync(
+            CompanyId,
+            "PayrollRun",
+            id,
+            "Voided",
+            actor.UserId,
+            actor.Label,
+            request?.Reason ?? "Payroll run voided");
+
+        return Ok(result);
     }
 
     [HttpDelete("runs/{id:guid}")]

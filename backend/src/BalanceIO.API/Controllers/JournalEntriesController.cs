@@ -16,11 +16,16 @@ public class JournalEntriesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IPeriodLockService _periodLockService;
+    private readonly IDocumentHistoryService _historyService;
 
-    public JournalEntriesController(ApplicationDbContext context, IPeriodLockService periodLockService)
+    public JournalEntriesController(
+        ApplicationDbContext context,
+        IPeriodLockService periodLockService,
+        IDocumentHistoryService historyService)
     {
         _context = context;
         _periodLockService = periodLockService;
+        _historyService = historyService;
     }
 
     private Guid? GetCurrentUserId()
@@ -153,6 +158,7 @@ public class JournalEntriesController : ControllerBase
         try
         {
             await _context.SaveChangesAsync();
+            await _historyService.RecordEventAsync(companyId, "JournalEntry", journalEntry.Id, "Created", actorId, actorLabel, "Draft entry created");
         }
         catch (DbUpdateException) when (journalEntry.IdempotencyKey != null)
         {
@@ -216,12 +222,17 @@ public class JournalEntriesController : ControllerBase
         await _periodLockService.ValidateTransactionDate(companyId, existing.Date);
         await _periodLockService.ValidateTransactionDate(companyId, request.Date);
 
-        _context.JournalLines.RemoveRange(existing.Lines);
+        var oldLines = existing.Lines.ToList();
+        _context.JournalLines.RemoveRange(oldLines);
         existing.Lines = new List<JournalLine>();
         await ApplyRequest(existing, request, companyId);
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+        if (TryGetActor(out var putActorId, out var putActorLabel))
+        {
+            await _historyService.RecordEventAsync(companyId, "JournalEntry", existing.Id, "Updated", putActorId, putActorLabel, "Draft entry updated");
+        }
         return NoContent();
     }
 
@@ -289,7 +300,7 @@ public class JournalEntriesController : ControllerBase
 
         foreach (var line in request.Lines)
         {
-            entry.Lines.Add(new JournalLine
+            var journalLine = new JournalLine
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = entry.Id,
@@ -298,7 +309,9 @@ public class JournalEntriesController : ControllerBase
                 Debit = line.Debit,
                 Credit = line.Credit,
                 Tax = line.Tax,
-            });
+            };
+            entry.Lines.Add(journalLine);
+            _context.JournalLines.Add(journalLine);
         }
     }
 
@@ -356,6 +369,11 @@ public class JournalEntriesController : ControllerBase
         entry.Status = JournalEntryStatus.Void;
         entry.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+
+        if (TryGetActor(out var voidActorId, out var voidActorLabel))
+        {
+            await _historyService.RecordEventAsync(entry.CompanyId, "JournalEntry", entry.Id, "Voided", voidActorId, voidActorLabel, "Entry voided");
+        }
 
         return Ok(new { message = "Entry voided.", id = entry.Id });
     }
@@ -417,6 +435,9 @@ public class JournalEntriesController : ControllerBase
 
         _context.JournalEntries.Add(reversal);
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(source.CompanyId, "JournalEntry", source.Id, "Reversed", reverserId, reverserLabel, "Entry reversed", reversalDocumentId: reversal.Id);
+        await _historyService.RecordEventAsync(reversal.CompanyId, "JournalEntry", reversal.Id, "Created", reverserId, reverserLabel, $"Reversal entry for {source.ReferenceNumber ?? source.Id.ToString()}");
 
         return CreatedAtAction("GetJournalEntry", new { id = reversal.Id }, reversal);
     }
@@ -556,6 +577,8 @@ public class JournalEntriesController : ControllerBase
         entry.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
+        await _historyService.RecordEventAsync(entry.CompanyId, "JournalEntry", entry.Id, "Posted", currentUserId, currentEmail, "Entry approved & posted to General Ledger");
+
         return Ok(new { message = $"Journal {entry.ReferenceNumber ?? entry.Id.ToString()} approved & posted to General Ledger by {currentEmail}.", id = entry.Id });
     }
 
@@ -588,6 +611,11 @@ public class JournalEntriesController : ControllerBase
         entry.Notes = $"[REJECTED BY {currentEmail}: {reason ?? "Needs revision"}] {entry.Notes}".Trim();
         entry.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+
+        if (TryGetActor(out var rejectActorId, out var rejectActorLabel))
+        {
+            await _historyService.RecordEventAsync(entry.CompanyId, "JournalEntry", entry.Id, "Rejected", rejectActorId, rejectActorLabel, entry.RejectionReason);
+        }
 
         return Ok(new { message = "Journal entry rejected and returned to draft.", id = entry.Id, rejectionReason = entry.RejectionReason });
     }

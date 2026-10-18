@@ -133,6 +133,12 @@ public partial class ApplicationDbContext : DbContext
     public DbSet<UserSession> UserSessions { get; set; }
     public DbSet<SupportAccessGrant> SupportAccessGrants { get; set; }
 
+    // Audit History & In-App Support Ticketing
+    public DbSet<DocumentHistoryEvent> DocumentHistoryEvents { get; set; }
+    public DbSet<SupportTicket> SupportTickets { get; set; }
+    public DbSet<SupportTicketMessage> SupportTicketMessages { get; set; }
+    public DbSet<SupportTicketAttachment> SupportTicketAttachments { get; set; }
+
     public Guid? CurrentCompanyId { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -278,10 +284,63 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<UserSession>().HasQueryFilter(e => !e.IsRevoked);
         modelBuilder.Entity<SupportAccessGrant>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
 
+        modelBuilder.Entity<DocumentHistoryEvent>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SupportTicket>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SupportTicketMessage>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SupportTicketAttachment>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+
         // --- Indexes for Performance ---
         modelBuilder.Entity<UserSession>().HasIndex(e => e.UserId);
         modelBuilder.Entity<UserSession>().HasIndex(e => e.RefreshTokenHash);
         modelBuilder.Entity<SupportAccessGrant>().HasIndex(e => new { e.CompanyId, e.ValidUntil });
+        modelBuilder.Entity<SupportAccessGrant>()
+            .HasOne<SupportTicket>()
+            .WithMany()
+            .HasForeignKey(g => g.TicketId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<DocumentHistoryEvent>().HasIndex(e => new { e.CompanyId, e.DocumentType, e.DocumentId });
+        modelBuilder.Entity<DocumentHistoryEvent>().HasIndex(e => new { e.CompanyId, e.Timestamp });
+
+        modelBuilder.Entity<SupportTicket>().HasIndex(e => new { e.CompanyId, e.TicketNumber }).IsUnique();
+        modelBuilder.Entity<SupportTicket>().HasIndex(e => new { e.CompanyId, e.Status });
+        modelBuilder.Entity<SupportTicket>().HasIndex(e => new { e.CompanyId, e.CreatedAt });
+        modelBuilder.Entity<SupportTicket>()
+            .HasOne(t => t.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(t => t.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SupportTicket>()
+            .HasOne(t => t.AssignedAdminUser)
+            .WithMany()
+            .HasForeignKey(t => t.AssignedAdminUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<SupportTicketMessage>().HasIndex(e => e.TicketId);
+        modelBuilder.Entity<SupportTicketMessage>().HasIndex(e => new { e.CompanyId, e.CreatedAt });
+        modelBuilder.Entity<SupportTicketMessage>()
+            .HasOne(m => m.Ticket)
+            .WithMany(t => t.Messages)
+            .HasForeignKey(m => m.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SupportTicketMessage>()
+            .HasOne(m => m.SenderUser)
+            .WithMany()
+            .HasForeignKey(m => m.SenderUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SupportTicketAttachment>().HasIndex(e => e.TicketMessageId);
+        modelBuilder.Entity<SupportTicketAttachment>()
+            .HasOne(a => a.TicketMessage)
+            .WithMany(m => m.Attachments)
+            .HasForeignKey(a => a.TicketMessageId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SupportTicketAttachment>()
+            .HasOne(a => a.StoredFile)
+            .WithMany()
+            .HasForeignKey(a => a.StoredFileId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<JournalEntry>().HasIndex(e => new { e.CompanyId, e.Date });
         modelBuilder.Entity<JournalEntry>().HasIndex(e => e.ProjectId);
 

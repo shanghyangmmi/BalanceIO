@@ -15,14 +15,19 @@ public class PurchaseBillsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IPeriodLockService _periodLockService;
-
     private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+    private readonly IDocumentHistoryService _historyService;
 
-    public PurchaseBillsController(ApplicationDbContext context, IPeriodLockService periodLockService, BalanceIO.API.Services.InventoryLedger inventory)
+    public PurchaseBillsController(
+        ApplicationDbContext context,
+        IPeriodLockService periodLockService,
+        BalanceIO.API.Services.InventoryLedger inventory,
+        IDocumentHistoryService historyService)
     {
         _inventory = inventory;
         _context = context;
         _periodLockService = periodLockService;
+        _historyService = historyService;
     }
 
     private Guid? GetCurrentUserId()
@@ -129,6 +134,15 @@ public class PurchaseBillsController : ControllerBase
         _context.PurchaseBills.Add(bill);
         await _context.SaveChangesAsync();
 
+        await _historyService.RecordEventAsync(
+            bill.CompanyId,
+            "PurchaseBill",
+            bill.Id,
+            "Created",
+            bill.CreatedByUserId ?? Guid.Empty,
+            bill.CreatedBy ?? "User",
+            $"Purchase Bill {bill.BillNumber} created as Draft");
+
         return CreatedAtAction(nameof(GetById), new { id = bill.Id }, bill);
     }
 
@@ -185,6 +199,15 @@ public class PurchaseBillsController : ControllerBase
         CalculateTotals(existing);
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            existing.CompanyId,
+            "PurchaseBill",
+            existing.Id,
+            "Updated",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserEmail(),
+            $"Purchase Bill {existing.BillNumber} updated");
 
         return NoContent();
     }
@@ -314,7 +337,7 @@ public class PurchaseBillsController : ControllerBase
                         {
                             await _inventory.MoveAsync(product, orderWarehouse, 0m, InventoryMovementType.Purchase,
                                 bill.BillDate, difference, bill.BillNumber, journalEntry.Id,
-                                $"Price difference, Purchase Bill {bill.BillNumber} against order {order.OrderNumber}");
+                                $"Price difference, Purchase Bill {bill.BillNumber} against order {order?.OrderNumber}");
                         }
                     }
                 }
@@ -333,6 +356,15 @@ public class PurchaseBillsController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            bill.CompanyId,
+            "PurchaseBill",
+            bill.Id,
+            "Posted",
+            currentUserId ?? Guid.Empty,
+            currentEmail,
+            $"Purchase Bill {bill.BillNumber} posted to General Ledger (Journal: {journalEntry.ReferenceNumber ?? journalEntry.Id.ToString()})");
 
         return Ok(new { message = "Bill posted successfully", bill, journalEntryId = journalEntry.Id });
     }
@@ -388,6 +420,15 @@ public class PurchaseBillsController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            bill.CompanyId,
+            "PurchaseBill",
+            bill.Id,
+            "Voided",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserEmail(),
+            $"Purchase Bill {bill.BillNumber} voided");
 
         return Ok(new { message = "Bill voided successfully" });
     }

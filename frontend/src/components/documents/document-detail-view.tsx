@@ -28,6 +28,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import Link from "next/link"
+import { DocumentTimeline } from "@/components/dashboard/document-timeline"
 
 function formatCurrency(amount: number) {
     return new Intl.NumberFormat("id-ID", {
@@ -356,6 +357,19 @@ export function DocumentDetailView({ id }: { id: string }) {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Audit Timeline & Cryptographic Hash Chain */}
+            {docType && (
+                <DocumentTimeline
+                    documentType={
+                        docType === "invoice" ? "SalesInvoice" :
+                        docType === "purchase-bill" ? "PurchaseBill" :
+                        docType === "journal" ? "JournalEntry" :
+                        "SalesInvoice"
+                    }
+                    documentId={id}
+                />
+            )}
         </div>
     )
 }

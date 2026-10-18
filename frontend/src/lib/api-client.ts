@@ -914,7 +914,82 @@ export const apiClient = {
 
     getLatestE2ELifecycleValidation: async () => {
         return apiClient.get<any>("/e2evalidation/latest-run");
+    },
+
+    // --- PHASE 2: AUDIT HISTORY & SUPPORT TICKETING ---
+    getDocumentHistory: async (documentType: string, id: string): Promise<DocumentHistoryEvent[]> => {
+        return apiClient.get<DocumentHistoryEvent[]>(`/documents/${documentType}/${id}/history`);
+    },
+
+    createSupportTicket: async (data: {
+        subject: string;
+        description: string;
+        priority: number;
+        grantTemporaryAccess: boolean;
+    }): Promise<SupportTicket> => {
+        return apiClient.post<SupportTicket>("/support/tickets", data);
+    },
+
+    getSupportTickets: async (status?: number): Promise<SupportTicket[]> => {
+        const query = status !== undefined ? `?status=${status}` : "";
+        return apiClient.get<SupportTicket[]>(`/support/tickets${query}`);
+    },
+
+    getSupportTicket: async (id: string): Promise<SupportTicket> => {
+        return apiClient.get<SupportTicket>(`/support/tickets/${id}`);
+    },
+
+    replySupportTicket: async (id: string, message: string): Promise<SupportTicketMessage> => {
+        return apiClient.post<SupportTicketMessage>(`/support/tickets/${id}/messages`, { message });
+    },
+
+    closeSupportTicket: async (id: string): Promise<void> => {
+        return apiClient.post<void>(`/support/tickets/${id}/close`, {});
     }
+}
+
+export interface DocumentHistoryEvent {
+    id: string;
+    companyId: string;
+    documentType: string;
+    documentId: string;
+    action: string;
+    userId?: string;
+    userEmail?: string;
+    reason?: string;
+    rowHash: string;
+    previousHash?: string;
+    metadataJson?: string;
+    createdAt: string;
+}
+
+export interface SupportTicket {
+    id: string;
+    companyId: string;
+    ticketNumber: string;
+    subject: string;
+    description: string;
+    priority: number;
+    status: number;
+    createdByUserId: string;
+    assignedToAdminId?: string;
+    grantedAccessExpiry?: string;
+    createdAt: string;
+    updatedAt: string;
+    resolvedAt?: string;
+    closedAt?: string;
+    messages?: SupportTicketMessage[];
+}
+
+export interface SupportTicketMessage {
+    id: string;
+    supportTicketId: string;
+    senderUserId?: string;
+    senderEmail?: string;
+    isStaffReply: boolean;
+    isInternalNote: boolean;
+    message: string;
+    createdAt: string;
 }
 
 export const adminApiClient = {

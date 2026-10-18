@@ -16,15 +16,37 @@ public class SalesInvoicesController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly IPeriodLockService _periodLockService;
-
     private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+    private readonly IDocumentHistoryService _historyService;
 
-    public SalesInvoicesController(ApplicationDbContext context, INotificationService notificationService, IPeriodLockService periodLockService, BalanceIO.API.Services.InventoryLedger inventory)
+    public SalesInvoicesController(
+        ApplicationDbContext context,
+        INotificationService notificationService,
+        IPeriodLockService periodLockService,
+        BalanceIO.API.Services.InventoryLedger inventory,
+        IDocumentHistoryService historyService)
     {
         _inventory = inventory;
         _context = context;
         _notificationService = notificationService;
         _periodLockService = periodLockService;
+        _historyService = historyService;
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("id")?.Value
+                 ?? User.FindFirst("sub")?.Value
+                 ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private string GetCurrentUserName()
+    {
+        return User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? User.FindFirst("name")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? "User";
     }
 
 
@@ -95,6 +117,15 @@ public class SalesInvoicesController : ControllerBase
         _context.SalesInvoices.Add(invoice);
         await _context.SaveChangesAsync();
 
+        await _historyService.RecordEventAsync(
+            invoice.CompanyId,
+            "SalesInvoice",
+            invoice.Id,
+            "Created",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {invoice.InvoiceNumber} created as Draft");
+
         return CreatedAtAction(nameof(GetById), new { id = invoice.Id }, invoice);
     }
 
@@ -148,6 +179,15 @@ public class SalesInvoicesController : ControllerBase
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            existing.CompanyId,
+            "SalesInvoice",
+            existing.Id,
+            "Updated",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {existing.InvoiceNumber} updated");
 
         return NoContent();
     }
@@ -206,6 +246,15 @@ public class SalesInvoicesController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        await _historyService.RecordEventAsync(
+            invoice.CompanyId,
+            "SalesInvoice",
+            invoice.Id,
+            "Posted",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {invoice.InvoiceNumber} approved and posted to General Ledger (Journal: {journalEntry.ReferenceNumber ?? journalEntry.Id.ToString()})");
+
         // Create Notification
         await _notificationService.CreateAsync(
             title: "Invoice Posted",
@@ -259,6 +308,15 @@ public class SalesInvoicesController : ControllerBase
         invoice.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            invoice.CompanyId,
+            "SalesInvoice",
+            invoice.Id,
+            "Voided",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {invoice.InvoiceNumber} voided");
 
         return Ok(new { message = "Invoice voided successfully" });
     }

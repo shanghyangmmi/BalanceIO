@@ -18,16 +18,39 @@ public class AssetsController : ControllerBase
     private readonly AssetChargeService _assetCharge;
     private readonly FiscalDepreciationService _fiscal;
     private readonly IPeriodLockService _periodLock;
+    private readonly IDocumentHistoryService _historyService;
 
     public const string GainOnDisposalAccount = "7-3000";
     public const string LossOnDisposalAccount = "8-4000";
 
-    public AssetsController(ApplicationDbContext context, AssetChargeService assetCharge, FiscalDepreciationService fiscal, IPeriodLockService periodLock)
+    public AssetsController(
+        ApplicationDbContext context,
+        AssetChargeService assetCharge,
+        FiscalDepreciationService fiscal,
+        IPeriodLockService periodLock,
+        IDocumentHistoryService historyService)
     {
         _assetCharge = assetCharge;
         _context = context;
         _fiscal = fiscal;
         _periodLock = periodLock;
+        _historyService = historyService;
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("id")?.Value
+                 ?? User.FindFirst("sub")?.Value
+                 ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private string GetCurrentUserName()
+    {
+        return User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? User.FindFirst("name")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? "User";
     }
 
     /// <summary>Buildings are straight line only; a longer life applies to permanent buildings only.</summary>
@@ -216,6 +239,15 @@ public class AssetsController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            asset.CompanyId,
+            "FixedAsset",
+            asset.Id,
+            "Created",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Asset {asset.Code} - {asset.Name} created");
 
         return CreatedAtAction(nameof(GetById), new { id = asset.Id }, asset);
     }
@@ -428,6 +460,15 @@ public class AssetsController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        await _historyService.RecordEventAsync(
+            asset.CompanyId,
+            "FixedAsset",
+            asset.Id,
+            request.IsSale ? "Sold" : "Disposed",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Asset disposed. Proceeds {request.Amount:N2}, gain/loss {gain:N2}. Reason: {request.Reason}");
+
         return Ok(new { message = "Asset disposed", journalEntryId = entry.Id, bookValue, gainOrLoss = gain });
     }
 
@@ -546,6 +587,15 @@ public class AssetsController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            asset.CompanyId,
+            "FixedAsset",
+            asset.Id,
+            "AcquisitionPosted",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Acquisition journal {entry.ReferenceNumber ?? entry.Id.ToString()} posted at cost {asset.AcquisitionCost:N2}");
 
         return Ok(new { message = "Acquisition journal posted", journalEntryId = entry.Id });
     }
