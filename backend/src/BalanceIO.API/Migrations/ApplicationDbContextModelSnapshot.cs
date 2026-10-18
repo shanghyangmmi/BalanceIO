@@ -4224,6 +4224,55 @@ namespace BalanceIO.API.Migrations
                     b.ToTable("SubscriptionAddOns");
                 });
 
+            modelBuilder.Entity("BalanceIO.API.Models.SupportAccessGrant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GrantedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GrantedToUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevokedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TicketId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ValidFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ValidUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GrantedByUserId");
+
+                    b.HasIndex("GrantedToUserId");
+
+                    b.HasIndex("CompanyId", "ValidUntil");
+
+                    b.ToTable("SupportAccessGrants");
+                });
+
             modelBuilder.Entity("BalanceIO.API.Models.SystemSetting", b =>
                 {
                     b.Property<string>("Key")
@@ -4373,6 +4422,52 @@ namespace BalanceIO.API.Migrations
                     b.HasIndex("CompanyId");
 
                     b.ToTable("UserCompanies");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.UserSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RefreshTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RefreshTokenHash");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserSessions");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.Warehouse", b =>
@@ -5449,6 +5544,31 @@ namespace BalanceIO.API.Migrations
                     b.Navigation("Subscription");
                 });
 
+            modelBuilder.Entity("BalanceIO.API.Models.SupportAccessGrant", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.User", "GrantedByUser")
+                        .WithMany()
+                        .HasForeignKey("GrantedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.User", "GrantedToUser")
+                        .WithMany()
+                        .HasForeignKey("GrantedToUserId");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("GrantedByUser");
+
+                    b.Navigation("GrantedToUser");
+                });
+
             modelBuilder.Entity("BalanceIO.API.Models.TaxRate", b =>
                 {
                     b.HasOne("BalanceIO.API.Models.Company", "Company")
@@ -5473,6 +5593,17 @@ namespace BalanceIO.API.Migrations
                         .IsRequired();
 
                     b.Navigation("Company");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.UserSession", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });

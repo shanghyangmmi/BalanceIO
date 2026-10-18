@@ -56,10 +56,16 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
   `POST /{id}/void` or `POST /{id}/reverse` (swapped Dr/Cr, `REV-` prefix,
   created as Draft). Only Drafts are deletable.
 - Tenant isolation: `CompanyScopeMiddleware` reads `X-Company-Id`, verifies
-  membership in `UserCompanies` (platform admins excepted), and sets
-  `ApplicationDbContext.CurrentCompanyId`. Global query filters compare
+  membership in `UserCompanies`, and sets `ApplicationDbContext.CurrentCompanyId`.
+  Platform administrators are barred from silent bypass: access requires an active
+  customer-consented `SupportAccessGrant` or explicit break-glass emergency header
+  (`X-Break-Glass-Reason`), both logged to the audit log. Global query filters compare
   `CompanyId == CurrentCompanyId`, so a missing scope returns no rows. Entities
   without a filter must be queried with an explicit `CompanyId` predicate.
+- Sessions and Tokens: JWT tokens (15-minute access token) and rotating refresh
+  tokens (30-day session) are transmitted via `HttpOnly`, `SameSite=Lax` cookies.
+  Refresh tokens are stored as SHA-256 hashes in `UserSessions`. Presentation of an
+  already-revoked token triggers reuse breach detection and revokes all active sessions.
 - Segregation of duties: `Company.EnforceSegregationOfDuties` (default true)
   blocks the creator of an entry from posting it.
 

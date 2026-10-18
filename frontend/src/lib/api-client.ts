@@ -78,7 +78,7 @@ async function request<T>(endpoint: string, apiOptions: ApiOptions = {}, tokenKe
     }
 
     try {
-        const response = await fetch(url, { ...options, headers })
+        const response = await fetch(url, { ...options, headers, credentials: "include" })
 
         // Handle 503 Service Unavailable (Maintenance Mode)
         if (response.status === 503) {

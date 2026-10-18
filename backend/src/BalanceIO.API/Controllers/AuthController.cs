@@ -1,9 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BalanceIO.API.Data;
 using BalanceIO.API.DTOs;
 using BalanceIO.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BalanceIO.API.Controllers;
 
@@ -14,12 +16,21 @@ public class AuthController : ControllerBase
     private readonly AuthService _authService;
     private readonly AuditService _auditService;
     private readonly IEmailService _emailService;
+    private readonly SessionService _sessionService;
+    private readonly ApplicationDbContext _context;
 
-    public AuthController(AuthService authService, AuditService auditService, IEmailService emailService)
+    public AuthController(
+        AuthService authService,
+        AuditService auditService,
+        IEmailService emailService,
+        SessionService sessionService,
+        ApplicationDbContext context)
     {
         _authService = authService;
         _auditService = auditService;
         _emailService = emailService;
+        _sessionService = sessionService;
+        _context = context;
     }
 
     [HttpPost("register")]
@@ -139,10 +150,67 @@ public class AuthController : ControllerBase
         // Parse token to get UserId for logging
         var p = new JwtSecurityTokenHandler().ReadJwtToken(result.Token);
         var sub = p.Claims.First(c => c.Type == JwtRegisteredClaimNames.Sub).Value;
+        var userGuid = Guid.Parse(sub);
         
-        await _auditService.LogAsync(Guid.Parse(sub), "LOGIN_SUCCESS", null, "Logged in via Password");
+        await _auditService.LogAsync(userGuid, "LOGIN_SUCCESS", null, "Logged in via Password");
 
-        return Ok(new { token = result.Token });
+        var user = await _authService.GetUserByIdAsync(userGuid);
+        string? refreshToken = null;
+        if (user != null)
+        {
+            var (_, rawRefresh, _) = await _sessionService.CreateSessionAsync(user, HttpContext);
+            refreshToken = rawRefresh;
+        }
+
+        return Ok(new { token = result.Token, refreshToken });
+    }
+
+    [HttpPost("refresh")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest? request)
+    {
+        var rawToken = request?.RefreshToken;
+        if (string.IsNullOrEmpty(rawToken))
+        {
+            Request.Cookies.TryGetValue(SessionService.TenantRefreshTokenCookie, out rawToken);
+        }
+
+        if (string.IsNullOrEmpty(rawToken))
+        {
+            return Unauthorized(new { code = "REFRESH_TOKEN_REQUIRED", message = "Refresh token is missing." });
+        }
+
+        var result = await _sessionService.RefreshSessionAsync(rawToken, HttpContext);
+        if (result == null)
+        {
+            return Unauthorized(new { code = "INVALID_REFRESH_TOKEN", message = "Invalid or expired refresh token." });
+        }
+
+        return Ok(new { token = result.Value.AccessToken, refreshToken = result.Value.NewRefreshToken });
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest? request)
+    {
+        var rawToken = request?.RefreshToken;
+        if (string.IsNullOrEmpty(rawToken))
+        {
+            Request.Cookies.TryGetValue(SessionService.TenantRefreshTokenCookie, out rawToken);
+        }
+
+        if (!string.IsNullOrEmpty(rawToken))
+        {
+            var hash = SessionService.HashToken(rawToken);
+            var session = await _context.UserSessions.FirstOrDefaultAsync(s => s.RefreshTokenHash == hash);
+            if (session != null)
+            {
+                session.IsRevoked = true;
+                session.RevokedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        _sessionService.ClearAuthCookies(Response);
+        return Ok(new { message = "Logged out successfully" });
     }
 
     [Authorize]
@@ -182,11 +250,22 @@ public class AuthController : ControllerBase
         if (result.Status == AuthResultStatus.Success)
         {
             await _auditService.LogAsync(userId, "LOGIN_MFA_SUCCESS", null, "Logged in via 2FA");
-            return Ok(new { token = result.Token });
+
+            var user = await _authService.GetUserByIdAsync(userId);
+            string? refreshToken = null;
+            if (user != null)
+            {
+                var (_, rawRefresh, _) = await _sessionService.CreateSessionAsync(user, HttpContext);
+                refreshToken = rawRefresh;
+            }
+
+            return Ok(new { token = result.Token, refreshToken });
         }
         
         return Unauthorized(new { message = "Invalid MFA Code" });
     }
+
+    public record RefreshTokenRequest(string? RefreshToken);
 
     private Guid GetUserId()
     {

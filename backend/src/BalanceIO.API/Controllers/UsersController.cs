@@ -89,6 +89,62 @@ public class UsersController : ControllerBase
         }
     }
 
+    [HttpGet("me/sessions")]
+    public async Task<IActionResult> GetMySessions()
+    {
+        var userId = GetUserId();
+        var sessions = await _context.UserSessions
+            .Where(s => s.UserId == userId && !s.IsRevoked && s.ExpiresAt > DateTime.UtcNow)
+            .OrderByDescending(s => s.LastSeenAt)
+            .Select(s => new
+            {
+                s.Id,
+                s.CreatedAt,
+                s.LastSeenAt,
+                s.ExpiresAt,
+                s.IpAddress,
+                s.UserAgent
+            })
+            .ToListAsync();
+
+        return Ok(sessions);
+    }
+
+    [HttpDelete("me/sessions/{id}")]
+    public async Task<IActionResult> RevokeSession(Guid id)
+    {
+        var userId = GetUserId();
+        var session = await _context.UserSessions
+            .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
+
+        if (session == null)
+            return NotFound();
+
+        session.IsRevoked = true;
+        session.RevokedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Session revoked." });
+    }
+
+    [HttpPost("me/sessions/revoke-all")]
+    public async Task<IActionResult> RevokeAllSessions()
+    {
+        var userId = GetUserId();
+        var sessions = await _context.UserSessions
+            .Where(s => s.UserId == userId && !s.IsRevoked)
+            .ToListAsync();
+
+        foreach (var s in sessions)
+        {
+            s.IsRevoked = true;
+            s.RevokedAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "All sessions revoked." });
+    }
+
     [HttpGet("company-users/{companyId}")]
     [RequiresPermission(Permissions.UsersView)]
     public async Task<IActionResult> GetCompanyUsers(Guid companyId)

@@ -18,6 +18,7 @@ public class PermissionCoverageTests(ApiFactory factory) : IClassFixture<ApiFact
     private static readonly HashSet<string> OpenToAnyMember =
     [
         "UsersController.GetMe", "UsersController.GetMyCompanies",
+        "UsersController.GetMySessions", "UsersController.RevokeSession", "UsersController.RevokeAllSessions",
         "PermissionsController.GetMyPermissions",
         "NotificationsController.GetUnread", "NotificationsController.GetAll",
         "NotificationsController.MarkAsRead", "NotificationsController.MarkAllAsRead",

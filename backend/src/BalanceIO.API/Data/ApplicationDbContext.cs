@@ -129,6 +129,10 @@ public partial class ApplicationDbContext : DbContext
     public DbSet<PayrollRun> PayrollRuns { get; set; }
     public DbSet<PayrollLine> PayrollLines { get; set; }
 
+    // Sessions & Security Grants
+    public DbSet<UserSession> UserSessions { get; set; }
+    public DbSet<SupportAccessGrant> SupportAccessGrants { get; set; }
+
     public Guid? CurrentCompanyId { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -271,7 +275,13 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<PayrollLine>()
             .HasQueryFilter(e => e.PayrollRun!.CompanyId == CurrentCompanyId);
 
+        modelBuilder.Entity<UserSession>().HasQueryFilter(e => !e.IsRevoked);
+        modelBuilder.Entity<SupportAccessGrant>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+
         // --- Indexes for Performance ---
+        modelBuilder.Entity<UserSession>().HasIndex(e => e.UserId);
+        modelBuilder.Entity<UserSession>().HasIndex(e => e.RefreshTokenHash);
+        modelBuilder.Entity<SupportAccessGrant>().HasIndex(e => new { e.CompanyId, e.ValidUntil });
         modelBuilder.Entity<JournalEntry>().HasIndex(e => new { e.CompanyId, e.Date });
         modelBuilder.Entity<JournalEntry>().HasIndex(e => e.ProjectId);
 

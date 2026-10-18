@@ -95,6 +95,8 @@ builder.Services.AddScoped<E2EAccountingValidationService>();
 // Security: Argon2id Password Hasher
 builder.Services.AddSingleton<Argon2PasswordHasher>();
 
+builder.Services.AddScoped<SessionService>();
+
 // JWT Authentication
 builder.Services.AddAuthentication(options =>
 {
@@ -113,6 +115,24 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
             System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+    };
+    options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            if (string.IsNullOrEmpty(context.Token))
+            {
+                if (context.Request.Cookies.TryGetValue(SessionService.TenantAccessTokenCookie, out var token) && !string.IsNullOrEmpty(token))
+                {
+                    context.Token = token;
+                }
+                else if (context.Request.Cookies.TryGetValue(SessionService.AdminAccessTokenCookie, out var adminToken) && !string.IsNullOrEmpty(adminToken))
+                {
+                    context.Token = adminToken;
+                }
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
