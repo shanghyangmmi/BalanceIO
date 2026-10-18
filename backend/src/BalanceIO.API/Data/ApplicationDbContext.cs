@@ -20,6 +20,7 @@ public partial class ApplicationDbContext : DbContext
     public DbSet<JournalEntry> JournalEntries { get; set; }
     public DbSet<JournalLine> JournalLines { get; set; }
     public DbSet<Account> Accounts { get; set; }
+    public DbSet<CostCenter> CostCenters { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
     public DbSet<Notification> Notifications { get; set; }
 
@@ -234,8 +235,9 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<FixedAssetCategory>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<FixedAssetLocation>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         
-        // Projects
+        // Projects & Cost Centers
         modelBuilder.Entity<Project>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<CostCenter>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
 
         // Recurring
         modelBuilder.Entity<RecurringJournalEntry>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
@@ -353,6 +355,21 @@ public partial class ApplicationDbContext : DbContext
         
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.AccountId);
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.JournalEntryId);
+        modelBuilder.Entity<JournalLine>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<JournalLine>().HasIndex(e => e.ProjectId);
+
+        modelBuilder.Entity<CostCenter>().HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
+        modelBuilder.Entity<CostCenter>().HasIndex(e => e.ParentId);
+        modelBuilder.Entity<CostCenter>().HasIndex(e => e.ManagerContactId);
+
+        modelBuilder.Entity<SalesInvoiceLine>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<SalesInvoiceLine>().HasIndex(e => e.ProjectId);
+
+        modelBuilder.Entity<PurchaseBillLine>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<PurchaseBillLine>().HasIndex(e => e.ProjectId);
+
+        modelBuilder.Entity<FixedAsset>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<EmployeeCompensation>().HasIndex(e => e.CostCenterId);
 
         modelBuilder.Entity<SalesInvoice>().HasIndex(e => new { e.CompanyId, e.InvoiceDate });
         modelBuilder.Entity<SalesInvoice>().HasIndex(e => new { e.CompanyId, e.Status });
@@ -523,7 +540,7 @@ public partial class ApplicationDbContext : DbContext
 
             // Only audit important operational tables to avoid log bloat
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
-            var allowedTables = new[] { "Accounts", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets", "EmployeeCompensations", "PayrollRuns" };
+            var allowedTables = new[] { "Accounts", "CostCenters", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets", "EmployeeCompensations", "PayrollRuns" };
             if (!allowedTables.Contains(tableName))
                 continue;
 

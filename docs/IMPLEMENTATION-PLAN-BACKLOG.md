@@ -294,9 +294,9 @@ graph TD
 
 ---
 
-### Phase 3: Cost Centres and Project Centres
+### Phase 3: Cost Centres and Project Centres [COMPLETED]
 
-#### 3.1 Cost Centre Master Data & Line Dimensions
+#### 3.1 Cost Centre Master Data & Line Dimensions [COMPLETED]
 * **Goal:** Enable multi-department budgeting, expense allocation, and reporting.
 * **Data Model:**
   * Table `CostCenters`:

@@ -47,6 +47,12 @@ public class EmployeeCompensation
 
     public bool IsActive { get; set; } = true;
 
+    // Dimension
+    public Guid? CostCenterId { get; set; }
+    [ForeignKey("CostCenterId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public CostCenter? CostCenter { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 }

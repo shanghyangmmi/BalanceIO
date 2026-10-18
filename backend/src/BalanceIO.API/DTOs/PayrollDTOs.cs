@@ -9,6 +9,7 @@ public class PayrollCompensationDto
     public bool BpjsPension { get; set; }
     public bool BpjsKesehatan { get; set; }
     public bool IsActive { get; set; }
+    public Guid? CostCenterId { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
 
@@ -21,6 +22,7 @@ public class UpsertCompensationRequest
     public bool BpjsPension { get; set; } = true;
     public bool BpjsKesehatan { get; set; } = true;
     public bool IsActive { get; set; } = true;
+    public Guid? CostCenterId { get; set; }
 }
 
 public class PayrollEmployeeDto

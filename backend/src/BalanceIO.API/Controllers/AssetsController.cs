@@ -99,6 +99,7 @@ public class AssetsController : ControllerBase
             .Include(a => a.AssetAccount)
             .Include(a => a.Category)
             .Include(a => a.Location)
+            .Include(a => a.CostCenter)
             .AsQueryable();
 
         if (status.HasValue)
@@ -125,6 +126,7 @@ public class AssetsController : ControllerBase
             .Include(a => a.AccumulatedDepreciationAccount)
             .Include(a => a.Category)
             .Include(a => a.Location)
+            .Include(a => a.CostCenter)
             .FirstOrDefaultAsync(a => a.Id == id);
 
         if (asset == null)
@@ -277,8 +279,8 @@ public class AssetsController : ControllerBase
         existing.DepreciationMethod = asset.DepreciationMethod;
         existing.AssetAccountId = asset.AssetAccountId;
         existing.DepreciationAccountId = asset.DepreciationAccountId;
-        existing.DepreciationAccountId = asset.DepreciationAccountId;
         existing.AccumulatedDepreciationAccountId = asset.AccumulatedDepreciationAccountId;
+        existing.CostCenterId = asset.CostCenterId;
         existing.FiscalGroup = asset.FiscalGroup;
         existing.FiscalMethod = asset.FiscalMethod;
         existing.FiscalUsefulLifeMonths = asset.FiscalUsefulLifeMonths;

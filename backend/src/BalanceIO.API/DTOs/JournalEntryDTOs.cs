@@ -29,4 +29,6 @@ public class JournalLineRequest
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
     public string? Tax { get; set; }
+    public Guid? CostCenterId { get; set; }
+    public Guid? ProjectId { get; set; }
 }

@@ -51,6 +51,9 @@ namespace BalanceIO.API.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int>("DimensionRule")
+                        .HasColumnType("integer");
+
                     b.Property<string>("FiscalCorrection")
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
@@ -755,6 +758,62 @@ namespace BalanceIO.API.Migrations
                     b.ToTable("Contacts");
                 });
 
+            modelBuilder.Entity("BalanceIO.API.Models.CostCenter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateOnly?>("DiscontinuedDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDiscontinued")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ManagerContactId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ManagerContactId");
+
+                    b.HasIndex("ParentId");
+
+                    b.HasIndex("CompanyId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("CostCenters");
+                });
+
             modelBuilder.Entity("BalanceIO.API.Models.CreditNote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1432,6 +1491,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1450,6 +1512,8 @@ namespace BalanceIO.API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
+
+                    b.HasIndex("CostCenterId");
 
                     b.HasIndex("CompanyId", "ContactId")
                         .IsUnique();
@@ -1658,6 +1722,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1727,6 +1794,8 @@ namespace BalanceIO.API.Migrations
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("CompanyId");
+
+                    b.HasIndex("CostCenterId");
 
                     b.HasIndex("DepreciationAccountId");
 
@@ -2232,6 +2301,9 @@ namespace BalanceIO.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("Credit")
                         .HasColumnType("decimal(19,4)");
 
@@ -2245,6 +2317,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid>("JournalEntryId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Tax")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -2253,7 +2328,11 @@ namespace BalanceIO.API.Migrations
 
                     b.HasIndex("AccountId");
 
+                    b.HasIndex("CostCenterId");
+
                     b.HasIndex("JournalEntryId");
+
+                    b.HasIndex("ProjectId");
 
                     b.ToTable("JournalLines");
                 });
@@ -3251,6 +3330,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid?>("AccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -3283,6 +3365,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PurchaseBillId")
                         .HasColumnType("uuid");
 
@@ -3307,7 +3392,11 @@ namespace BalanceIO.API.Migrations
 
                     b.HasIndex("AccountId");
 
+                    b.HasIndex("CostCenterId");
+
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("ProjectId");
 
                     b.HasIndex("PurchaseBillId");
 
@@ -3816,6 +3905,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid?>("AccountId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CostCenterId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -3848,6 +3940,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("Quantity")
                         .HasColumnType("decimal(19,4)");
 
@@ -3872,7 +3967,11 @@ namespace BalanceIO.API.Migrations
 
                     b.HasIndex("AccountId");
 
+                    b.HasIndex("CostCenterId");
+
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("ProjectId");
 
                     b.HasIndex("SalesInvoiceId");
 
@@ -4885,6 +4984,29 @@ namespace BalanceIO.API.Migrations
                     b.Navigation("DefaultReceivableAccount");
                 });
 
+            modelBuilder.Entity("BalanceIO.API.Models.CostCenter", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BalanceIO.API.Models.Contact", "ManagerContact")
+                        .WithMany()
+                        .HasForeignKey("ManagerContactId");
+
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "Parent")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentId");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("ManagerContact");
+
+                    b.Navigation("Parent");
+                });
+
             modelBuilder.Entity("BalanceIO.API.Models.CreditNote", b =>
                 {
                     b.HasOne("BalanceIO.API.Models.Contact", "Contact")
@@ -5036,7 +5158,13 @@ namespace BalanceIO.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
+
                     b.Navigation("Contact");
+
+                    b.Navigation("CostCenter");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.EvidenceAttachment", b =>
@@ -5070,6 +5198,10 @@ namespace BalanceIO.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
+
                     b.HasOne("BalanceIO.API.Models.Account", "DepreciationAccount")
                         .WithMany()
                         .HasForeignKey("DepreciationAccountId");
@@ -5085,6 +5217,8 @@ namespace BalanceIO.API.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("Company");
+
+                    b.Navigation("CostCenter");
 
                     b.Navigation("DepreciationAccount");
 
@@ -5239,13 +5373,25 @@ namespace BalanceIO.API.Migrations
 
             modelBuilder.Entity("BalanceIO.API.Models.JournalLine", b =>
                 {
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
+
                     b.HasOne("BalanceIO.API.Models.JournalEntry", "JournalEntry")
                         .WithMany("Lines")
                         .HasForeignKey("JournalEntryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("BalanceIO.API.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId");
+
+                    b.Navigation("CostCenter");
+
                     b.Navigation("JournalEntry");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.JournalVoucher", b =>
@@ -5468,9 +5614,17 @@ namespace BalanceIO.API.Migrations
                         .WithMany()
                         .HasForeignKey("AccountId");
 
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
+
                     b.HasOne("BalanceIO.API.Models.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId");
+
+                    b.HasOne("BalanceIO.API.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId");
 
                     b.HasOne("BalanceIO.API.Models.PurchaseBill", "PurchaseBill")
                         .WithMany("Lines")
@@ -5480,7 +5634,11 @@ namespace BalanceIO.API.Migrations
 
                     b.Navigation("Account");
 
+                    b.Navigation("CostCenter");
+
                     b.Navigation("Product");
+
+                    b.Navigation("Project");
 
                     b.Navigation("PurchaseBill");
                 });
@@ -5648,9 +5806,17 @@ namespace BalanceIO.API.Migrations
                         .WithMany()
                         .HasForeignKey("AccountId");
 
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
+
                     b.HasOne("BalanceIO.API.Models.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId");
+
+                    b.HasOne("BalanceIO.API.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId");
 
                     b.HasOne("BalanceIO.API.Models.SalesInvoice", "SalesInvoice")
                         .WithMany("Lines")
@@ -5660,7 +5826,11 @@ namespace BalanceIO.API.Migrations
 
                     b.Navigation("Account");
 
+                    b.Navigation("CostCenter");
+
                     b.Navigation("Product");
+
+                    b.Navigation("Project");
 
                     b.Navigation("SalesInvoice");
                 });
@@ -5929,6 +6099,11 @@ namespace BalanceIO.API.Migrations
             modelBuilder.Entity("BalanceIO.API.Models.Budget", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.CostCenter", b =>
+                {
+                    b.Navigation("Children");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.CreditNote", b =>

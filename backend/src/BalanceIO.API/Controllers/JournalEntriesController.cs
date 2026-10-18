@@ -282,6 +282,24 @@ public class JournalEntriesController : ControllerBase
         if (request.ProjectId.HasValue && !await _context.Projects.AnyAsync(p => p.Id == request.ProjectId))
             return Rejected("PROJECT_NOT_FOUND", "Project does not exist in this company.");
 
+        var lineCostCenterIds = request.Lines.Where(l => l.CostCenterId.HasValue).Select(l => l.CostCenterId!.Value).Distinct().ToList();
+        if (lineCostCenterIds.Count > 0)
+        {
+            var validCostCenters = await _context.CostCenters.Where(c => lineCostCenterIds.Contains(c.Id)).Select(c => c.Id).ToListAsync();
+            var missing = lineCostCenterIds.Except(validCostCenters).ToList();
+            if (missing.Count > 0)
+                return Rejected("COST_CENTER_NOT_FOUND", $"Cost center(s) not found in this company: {string.Join(", ", missing)}");
+        }
+
+        var lineProjectIds = request.Lines.Where(l => l.ProjectId.HasValue).Select(l => l.ProjectId!.Value).Distinct().ToList();
+        if (lineProjectIds.Count > 0)
+        {
+            var validProjects = await _context.Projects.Where(p => lineProjectIds.Contains(p.Id)).Select(p => p.Id).ToListAsync();
+            var missing = lineProjectIds.Except(validProjects).ToList();
+            if (missing.Count > 0)
+                return Rejected("PROJECT_NOT_FOUND", $"Project(s) not found in this company: {string.Join(", ", missing)}");
+        }
+
         return null;
     }
 
@@ -309,6 +327,8 @@ public class JournalEntriesController : ControllerBase
                 Debit = line.Debit,
                 Credit = line.Credit,
                 Tax = line.Tax,
+                CostCenterId = line.CostCenterId,
+                ProjectId = line.ProjectId ?? entry.ProjectId,
             };
             entry.Lines.Add(journalLine);
             _context.JournalLines.Add(journalLine);

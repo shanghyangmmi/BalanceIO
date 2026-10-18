@@ -73,4 +73,13 @@ public class SalesInvoiceLine
 
     [ForeignKey("AccountId")]
     public Account? Account { get; set; }
+
+    // Dimensions
+    public Guid? CostCenterId { get; set; }
+    [ForeignKey("CostCenterId")]
+    public CostCenter? CostCenter { get; set; }
+
+    public Guid? ProjectId { get; set; }
+    [ForeignKey("ProjectId")]
+    public Project? Project { get; set; }
 }

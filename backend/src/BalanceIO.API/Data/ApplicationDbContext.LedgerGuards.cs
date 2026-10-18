@@ -70,6 +70,7 @@ public partial class ApplicationDbContext
         await EnforceFrozenLinesAsync(headers, lines, ct);
         await ResolveLineAccountsAsync(headers, lines, ct);
         await EnforceBalanceAsync(headers, ct);
+        await EnforceDimensionRulesAsync(headers, lines, ct);
     }
 
     private static void EnforceStatusRules(List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<JournalEntry>> headers)
@@ -188,6 +189,112 @@ public partial class ApplicationDbContext
             if (totalDebit != totalCredit)
                 throw new LedgerIntegrityException("UNBALANCED",
                     $"Journal Entry '{journal.ReferenceNumber}' is unbalanced: total debit {totalDebit} != total credit {totalCredit}.");
+        }
+    }
+
+    private async Task EnforceDimensionRulesAsync(
+        List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<JournalEntry>> headers,
+        List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<JournalLine>> lines,
+        CancellationToken ct)
+    {
+        var postedHeaders = headers.Where(h => h.State is EntityState.Added or EntityState.Modified
+                                               && h.Entity.Status == JournalEntryStatus.Posted).ToList();
+        if (postedHeaders.Count == 0) return;
+
+        foreach (var header in postedHeaders)
+        {
+            var journal = header.Entity;
+            var effectiveLines = ChangeTracker.Entries<JournalLine>()
+                .Where(l => l.State != EntityState.Deleted && l.State != EntityState.Detached && l.Entity.JournalEntryId == journal.Id)
+                .Select(l => l.Entity).ToList();
+
+            if (header.State == EntityState.Modified)
+            {
+                var tracked = effectiveLines.Select(l => l.Id).ToHashSet();
+                var removed = ChangeTracker.Entries<JournalLine>().Where(l => l.State == EntityState.Deleted).Select(l => l.Entity.Id).ToHashSet();
+                effectiveLines.AddRange(await JournalLines.IgnoreQueryFilters().AsNoTracking()
+                    .Where(l => l.JournalEntryId == journal.Id && !tracked.Contains(l.Id) && !removed.Contains(l.Id))
+                    .ToListAsync(ct));
+            }
+
+            if (effectiveLines.Count == 0) continue;
+
+            // Load accounts to inspect DimensionRule
+            var accountKeys = effectiveLines.Select(l => l.AccountId).Distinct().ToList();
+            var guidKeys = accountKeys.Where(k => Guid.TryParse(k, out _)).Select(Guid.Parse).ToList();
+
+            var accountsList = await Accounts.IgnoreQueryFilters().AsNoTracking()
+                .Where(a => a.CompanyId == journal.CompanyId && (accountKeys.Contains(a.Code) || guidKeys.Contains(a.Id)))
+                .ToListAsync(ct);
+
+            var accountByCode = accountsList.GroupBy(a => a.Code).ToDictionary(g => g.Key, g => g.First());
+            var accountById = accountsList.ToDictionary(a => a.Id.ToString(), a => a);
+
+            // Check DimensionRules on each line
+            foreach (var line in effectiveLines)
+            {
+                Account? acc = null;
+                if (!accountByCode.TryGetValue(line.AccountId, out acc))
+                {
+                    accountById.TryGetValue(line.AccountId, out acc);
+                }
+
+                if (acc != null)
+                {
+                    if (acc.DimensionRule == DimensionRule.Required && !line.CostCenterId.HasValue)
+                    {
+                        throw new LedgerIntegrityException("COST_CENTER_REQUIRED",
+                            $"Account '{acc.Code}' requires a cost center.");
+                    }
+
+                    if (acc.DimensionRule == DimensionRule.Forbidden && line.CostCenterId.HasValue)
+                    {
+                        throw new LedgerIntegrityException("COST_CENTER_FORBIDDEN",
+                            $"Account '{acc.Code}' cannot carry a cost center.");
+                    }
+                }
+            }
+
+            // Tenant boundary validation for line-level CostCenterId and ProjectId
+            var costCenterIds = effectiveLines.Where(l => l.CostCenterId.HasValue).Select(l => l.CostCenterId!.Value).Distinct().ToList();
+            if (costCenterIds.Count > 0)
+            {
+                var trackedCc = ChangeTracker.Entries<CostCenter>()
+                    .Where(c => c.State != EntityState.Deleted && c.Entity.CompanyId == journal.CompanyId && costCenterIds.Contains(c.Entity.Id))
+                    .Select(c => c.Entity.Id).ToHashSet();
+
+                var remainingCcIds = costCenterIds.Where(id => !trackedCc.Contains(id)).ToList();
+                if (remainingCcIds.Count > 0)
+                {
+                    var validCount = await CostCenters.IgnoreQueryFilters().AsNoTracking()
+                        .CountAsync(c => c.CompanyId == journal.CompanyId && remainingCcIds.Contains(c.Id), ct);
+                    if (validCount != remainingCcIds.Count)
+                    {
+                        throw new LedgerIntegrityException("INVALID_COST_CENTER",
+                            "One or more cost centers do not belong to this company.");
+                    }
+                }
+            }
+
+            var projectIds = effectiveLines.Where(l => l.ProjectId.HasValue).Select(l => l.ProjectId!.Value).Distinct().ToList();
+            if (projectIds.Count > 0)
+            {
+                var trackedProjects = ChangeTracker.Entries<Project>()
+                    .Where(p => p.State != EntityState.Deleted && p.Entity.CompanyId == journal.CompanyId && projectIds.Contains(p.Entity.Id))
+                    .Select(p => p.Entity.Id).ToHashSet();
+
+                var remainingProjectIds = projectIds.Where(id => !trackedProjects.Contains(id)).ToList();
+                if (remainingProjectIds.Count > 0)
+                {
+                    var validCount = await Projects.IgnoreQueryFilters().AsNoTracking()
+                        .CountAsync(p => p.CompanyId == journal.CompanyId && remainingProjectIds.Contains(p.Id), ct);
+                    if (validCount != remainingProjectIds.Count)
+                    {
+                        throw new LedgerIntegrityException("INVALID_PROJECT",
+                            "One or more projects do not belong to this company.");
+                    }
+                }
+            }
         }
     }
 }

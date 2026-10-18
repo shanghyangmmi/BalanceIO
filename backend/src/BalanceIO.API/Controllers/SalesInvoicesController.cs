@@ -543,7 +543,9 @@ public class SalesInvoicesController : ControllerBase
                 AccountId = (revenueAccountId ?? Guid.Empty).ToString(),
                 Description = line.Description,
                 Debit = 0,
-                Credit = lineRevenue
+                Credit = lineRevenue,
+                CostCenterId = line.CostCenterId,
+                ProjectId = line.ProjectId ?? invoice.ProjectId
             };
             revenueLines.Add(revLine);
             journalEntry.Lines.Add(revLine);
@@ -617,7 +619,9 @@ public class SalesInvoicesController : ControllerBase
                             AccountId = cogsAccountId,
                             Description = $"COGS - {product.Name} ({line.Quantity} {product.Unit} @ {unitCost:N0})",
                             Debit = cogsAmount,
-                            Credit = 0
+                            Credit = 0,
+                            CostCenterId = line.CostCenterId,
+                            ProjectId = line.ProjectId ?? invoice.ProjectId
                         });
 
                         journalEntry.Lines.Add(new JournalLine
@@ -627,7 +631,9 @@ public class SalesInvoicesController : ControllerBase
                             AccountId = inventoryAccountId,
                             Description = $"Inventory Relief - {product.Name} ({line.Quantity} {product.Unit})",
                             Debit = 0,
-                            Credit = cogsAmount
+                            Credit = cogsAmount,
+                            CostCenterId = line.CostCenterId,
+                            ProjectId = line.ProjectId ?? invoice.ProjectId
                         });
                     }
                 }

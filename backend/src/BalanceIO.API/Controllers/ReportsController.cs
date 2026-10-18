@@ -982,6 +982,301 @@ public class ReportsController : ControllerBase
         return report;
     }
 
+    /// <summary>
+    /// Columnar Profit & Loss matrix breaking down revenue and expenses by dimension (CostCenter or Project).
+    /// </summary>
+    [HttpGet("profit-loss-by-dimension")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<DimensionalProfitLossResponse>> GetProfitLossByDimension(
+        [FromQuery] string dimensionType = "CostCenter",
+        [FromQuery] DateOnly? start = null,
+        [FromQuery] DateOnly? end = null,
+        [FromQuery] bool? excludeAdjusting = null,
+        [FromQuery] bool? onlyAdjusting = null)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var companyId = _context.CurrentCompanyId.Value;
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, 1, 1);
+
+        var isCostCenter = string.Equals(dimensionType, "CostCenter", StringComparison.OrdinalIgnoreCase);
+
+        // Fetch accounts
+        var accounts = await _context.Accounts
+            .Where(a => a.CompanyId == companyId && (a.Code.StartsWith("4") || a.Code.StartsWith("5") ||
+                        a.Code.StartsWith("6") || a.Code.StartsWith("7") ||
+                        a.Code.StartsWith("8") || a.Code.StartsWith("9")))
+            .OrderBy(a => a.Code)
+            .ToListAsync();
+
+        // Fetch dimension headers
+        var dimensionHeaders = new List<DimensionColumnHeader>();
+        if (isCostCenter)
+        {
+            var costCenters = await _context.CostCenters
+                .Where(c => c.CompanyId == companyId && c.IsActive)
+                .OrderBy(c => c.Code)
+                .ToListAsync();
+
+            dimensionHeaders.AddRange(costCenters.Select(c => new DimensionColumnHeader
+            {
+                Id = c.Id.ToString(),
+                Code = c.Code,
+                Name = c.Name
+            }));
+        }
+        else // Project
+        {
+            var projects = await _context.Projects
+                .Where(p => p.CompanyId == companyId)
+                .OrderBy(p => p.Code)
+                .ToListAsync();
+
+            dimensionHeaders.AddRange(projects.Select(p => new DimensionColumnHeader
+            {
+                Id = p.Id.ToString(),
+                Code = p.Code ?? p.Name,
+                Name = p.Name
+            }));
+        }
+
+        // Always include an unassigned column header
+        var unassignedHeader = new DimensionColumnHeader
+        {
+            Id = "unassigned",
+            Code = "UNASSIGNED",
+            Name = "Unassigned / General"
+        };
+        dimensionHeaders.Add(unassignedHeader);
+
+        // Fetch posted lines in date range
+        var query = _context.JournalLines
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry!.CompanyId == companyId &&
+                        l.JournalEntry.Date >= from && l.JournalEntry.Date <= to &&
+                        l.JournalEntry.Status == JournalEntryStatus.Posted);
+
+        query = FilterAJE(query, excludeAdjusting, onlyAdjusting);
+        var lines = await query.ToListAsync();
+
+        // Group lines by AccountCode and DimensionKey
+        var matrix = new Dictionary<string, Dictionary<string, decimal>>(); // accountCode -> (dimensionKey -> net)
+
+        foreach (var line in lines)
+        {
+            string dimKey;
+            if (isCostCenter)
+            {
+                dimKey = line.CostCenterId.HasValue ? line.CostCenterId.Value.ToString() : "unassigned";
+            }
+            else
+            {
+                var pId = line.ProjectId ?? line.JournalEntry?.ProjectId;
+                dimKey = pId.HasValue ? pId.Value.ToString() : "unassigned";
+            }
+
+            if (!matrix.TryGetValue(line.AccountId, out var dimDict))
+            {
+                dimDict = new Dictionary<string, decimal>();
+                matrix[line.AccountId] = dimDict;
+            }
+
+            dimDict.TryGetValue(dimKey, out var curr);
+            // Revenue (4xxx, 7xxx) -> Credit normal (Credit - Debit)
+            // Expense / COGS (5xxx, 6xxx, 8xxx, 9xxx) -> Debit normal (Debit - Credit)
+            var isRevenue = line.AccountId.StartsWith("4") || line.AccountId.StartsWith("7");
+            var change = isRevenue ? (line.Credit - line.Debit) : (line.Debit - line.Credit);
+            dimDict[dimKey] = curr + change;
+        }
+
+        var response = new DimensionalProfitLossResponse
+        {
+            StartDate = from,
+            EndDate = to,
+            DimensionType = isCostCenter ? "CostCenter" : "Project",
+            Dimensions = dimensionHeaders
+        };
+
+        // Initialize dimension total dictionaries
+        foreach (var dim in dimensionHeaders)
+        {
+            response.TotalRevenueByDimension[dim.Id] = 0m;
+            response.TotalCogsByDimension[dim.Id] = 0m;
+            response.TotalExpensesByDimension[dim.Id] = 0m;
+        }
+
+        foreach (var acc in accounts)
+        {
+            if (!matrix.TryGetValue(acc.Code, out var dimDict)) continue;
+            var rowTotal = dimDict.Values.Sum();
+            if (rowTotal == 0m && dimDict.Values.All(v => v == 0m)) continue;
+
+            var row = new DimensionalReportRow
+            {
+                AccountCode = acc.Code,
+                AccountName = acc.Name,
+                Total = rowTotal,
+                BalancesByDimension = new Dictionary<string, decimal>()
+            };
+
+            foreach (var dim in dimensionHeaders)
+            {
+                dimDict.TryGetValue(dim.Id, out var val);
+                row.BalancesByDimension[dim.Id] = val;
+            }
+
+            if (acc.Code.StartsWith("4") || acc.Code.StartsWith("7")) // Revenue
+            {
+                row.Category = "Revenue";
+                response.RevenueRows.Add(row);
+                foreach (var dim in dimensionHeaders)
+                {
+                    row.BalancesByDimension.TryGetValue(dim.Id, out var val);
+                    response.TotalRevenueByDimension[dim.Id] += val;
+                }
+            }
+            else if (acc.Code.StartsWith("5")) // COGS
+            {
+                row.Category = "COGS";
+                response.CogsRows.Add(row);
+                foreach (var dim in dimensionHeaders)
+                {
+                    row.BalancesByDimension.TryGetValue(dim.Id, out var val);
+                    response.TotalCogsByDimension[dim.Id] += val;
+                }
+            }
+            else // Operating & other expenses
+            {
+                row.Category = "Expense";
+                response.ExpenseRows.Add(row);
+                foreach (var dim in dimensionHeaders)
+                {
+                    row.BalancesByDimension.TryGetValue(dim.Id, out var val);
+                    response.TotalExpensesByDimension[dim.Id] += val;
+                }
+            }
+        }
+
+        // Totals
+        response.TotalRevenue = response.RevenueRows.Sum(r => r.Total);
+        response.TotalCogs = response.CogsRows.Sum(r => r.Total);
+        response.TotalGrossProfit = response.TotalRevenue - response.TotalCogs;
+        response.TotalExpenses = response.ExpenseRows.Sum(r => r.Total);
+        response.TotalNetIncome = response.TotalGrossProfit - response.TotalExpenses;
+
+        foreach (var dim in dimensionHeaders)
+        {
+            var rev = response.TotalRevenueByDimension[dim.Id];
+            var cogs = response.TotalCogsByDimension[dim.Id];
+            var exp = response.TotalExpensesByDimension[dim.Id];
+            response.GrossProfitByDimension[dim.Id] = rev - cogs;
+            response.NetIncomeByDimension[dim.Id] = rev - cogs - exp;
+        }
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Direct revenue vs direct expenses and gross margin for a given project.
+    /// </summary>
+    [HttpGet("project-profitability")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<ProjectProfitabilityResponse>> GetProjectProfitability(
+        [FromQuery] Guid projectId,
+        [FromQuery] DateOnly? start = null,
+        [FromQuery] DateOnly? end = null)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var companyId = _context.CurrentCompanyId.Value;
+
+        var project = await _context.Projects
+            .FirstOrDefaultAsync(p => p.CompanyId == companyId && p.Id == projectId);
+
+        if (project == null)
+            return NotFound(new { code = "PROJECT_NOT_FOUND", message = "Project not found." });
+
+        var query = _context.JournalLines
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry!.CompanyId == companyId &&
+                        l.JournalEntry.Status == JournalEntryStatus.Posted &&
+                        (l.ProjectId == projectId || l.JournalEntry.ProjectId == projectId));
+
+        if (start.HasValue)
+            query = query.Where(l => l.JournalEntry!.Date >= start.Value);
+        if (end.HasValue)
+            query = query.Where(l => l.JournalEntry!.Date <= end.Value);
+
+        var lines = await query.ToListAsync();
+
+        var accountCodes = lines.Select(l => l.AccountId).Distinct().ToList();
+        var accounts = await _context.Accounts
+            .Where(a => a.CompanyId == companyId && accountCodes.Contains(a.Code))
+            .ToDictionaryAsync(a => a.Code, a => a.Name);
+
+        var revenueBreakdown = new List<ProjectCostBreakdownItem>();
+        var costBreakdown = new List<ProjectCostBreakdownItem>();
+
+        var grouped = lines.GroupBy(l => l.AccountId).ToList();
+        foreach (var g in grouped)
+        {
+            var accCode = g.Key;
+            var accName = accounts.TryGetValue(accCode, out var name) ? name : accCode;
+
+            if (accCode.StartsWith("4") || accCode.StartsWith("7")) // Revenue / Other Income
+            {
+                var netRevenue = g.Sum(l => l.Credit - l.Debit);
+                if (netRevenue != 0m)
+                {
+                    revenueBreakdown.Add(new ProjectCostBreakdownItem
+                    {
+                        AccountCode = accCode,
+                        AccountName = accName,
+                        Amount = netRevenue
+                    });
+                }
+            }
+            else if (accCode.StartsWith("5") || accCode.StartsWith("6") || accCode.StartsWith("8") || accCode.StartsWith("9")) // Cost of Sales / Expense
+            {
+                var netCost = g.Sum(l => l.Debit - l.Credit);
+                if (netCost != 0m)
+                {
+                    costBreakdown.Add(new ProjectCostBreakdownItem
+                    {
+                        AccountCode = accCode,
+                        AccountName = accName,
+                        Amount = netCost
+                    });
+                }
+            }
+        }
+
+        var totalRev = revenueBreakdown.Sum(r => r.Amount);
+        var totalCost = costBreakdown.Sum(c => c.Amount);
+        var grossProfit = totalRev - totalCost;
+        var marginPct = totalRev != 0m ? Math.Round((grossProfit / totalRev) * 100m, 2) : 0m;
+
+        var response = new ProjectProfitabilityResponse
+        {
+            ProjectId = project.Id,
+            ProjectCode = project.Code ?? "",
+            ProjectName = project.Name,
+            StartDate = start,
+            EndDate = end,
+            TotalRevenue = totalRev,
+            TotalDirectCost = totalCost,
+            GrossProfit = grossProfit,
+            GrossMarginPercentage = marginPct,
+            RevenueBreakdown = revenueBreakdown.OrderBy(r => r.AccountCode).ToList(),
+            CostBreakdown = costBreakdown.OrderBy(c => c.AccountCode).ToList()
+        };
+
+        return Ok(response);
+    }
+
     private IQueryable<JournalLine> FilterAJE(IQueryable<JournalLine> query, bool? excludeAdjusting, bool? onlyAdjusting)
     {
         if (excludeAdjusting == true)
@@ -1155,3 +1450,65 @@ public class InventoryReportItem
     public decimal AverageCost { get; set; }
     public decimal TotalValue { get; set; }
 }
+
+public class DimensionalProfitLossResponse
+{
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public string DimensionType { get; set; } = "CostCenter";
+    public List<DimensionColumnHeader> Dimensions { get; set; } = new();
+    public List<DimensionalReportRow> RevenueRows { get; set; } = new();
+    public List<DimensionalReportRow> CogsRows { get; set; } = new();
+    public List<DimensionalReportRow> ExpenseRows { get; set; } = new();
+    public Dictionary<string, decimal> TotalRevenueByDimension { get; set; } = new();
+    public Dictionary<string, decimal> TotalCogsByDimension { get; set; } = new();
+    public Dictionary<string, decimal> GrossProfitByDimension { get; set; } = new();
+    public Dictionary<string, decimal> TotalExpensesByDimension { get; set; } = new();
+    public Dictionary<string, decimal> NetIncomeByDimension { get; set; } = new();
+    public decimal TotalRevenue { get; set; }
+    public decimal TotalCogs { get; set; }
+    public decimal TotalGrossProfit { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal TotalNetIncome { get; set; }
+}
+
+public class DimensionColumnHeader
+{
+    public string Id { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
+public class DimensionalReportRow
+{
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public Dictionary<string, decimal> BalancesByDimension { get; set; } = new();
+    public decimal Total { get; set; }
+}
+
+public class ProjectProfitabilityResponse
+{
+    public Guid ProjectId { get; set; }
+    public string ProjectCode { get; set; } = string.Empty;
+    public string ProjectName { get; set; } = string.Empty;
+    public string? CustomerName { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public decimal ContractAmount { get; set; }
+    public decimal TotalRevenue { get; set; }
+    public decimal TotalDirectCost { get; set; }
+    public decimal GrossProfit { get; set; }
+    public decimal GrossMarginPercentage { get; set; }
+    public List<ProjectCostBreakdownItem> RevenueBreakdown { get; set; } = new();
+    public List<ProjectCostBreakdownItem> CostBreakdown { get; set; } = new();
+}
+
+public class ProjectCostBreakdownItem
+{
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+}
+

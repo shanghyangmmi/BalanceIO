@@ -162,6 +162,15 @@ public class PurchaseBillLine
 
     public Guid? AccountId { get; set; }
     public Account? Account { get; set; }
+
+    // Dimensions
+    public Guid? CostCenterId { get; set; }
+    [ForeignKey("CostCenterId")]
+    public CostCenter? CostCenter { get; set; }
+
+    public Guid? ProjectId { get; set; }
+    [ForeignKey("ProjectId")]
+    public Project? Project { get; set; }
 }
 
 public enum BillStatus

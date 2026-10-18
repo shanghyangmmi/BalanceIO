@@ -685,7 +685,9 @@ public class PurchaseBillsController : ControllerBase
                     AccountId = grniCode!,
                     Description = $"Received not invoiced - {line.Description}",
                     Debit = convertedReceived,
-                    Credit = 0
+                    Credit = 0,
+                    CostCenterId = line.CostCenterId,
+                    ProjectId = line.ProjectId
                 };
                 debitLines.Add(grniLine);
                 journalEntry.Lines.Add(grniLine);
@@ -700,7 +702,9 @@ public class PurchaseBillsController : ControllerBase
                         AccountId = lineDebitAccount,
                         Description = $"Price difference - {line.Description}",
                         Debit = difference > 0m ? difference : 0m,
-                        Credit = difference < 0m ? -difference : 0m
+                        Credit = difference < 0m ? -difference : 0m,
+                        CostCenterId = line.CostCenterId,
+                        ProjectId = line.ProjectId
                     };
                     if (difference > 0m) debitLines.Add(diffLine);
                     journalEntry.Lines.Add(diffLine);
@@ -716,7 +720,9 @@ public class PurchaseBillsController : ControllerBase
                     AccountId = lineDebitAccount,
                     Description = line.Description,
                     Debit = convertedNet,
-                    Credit = 0
+                    Credit = 0,
+                    CostCenterId = line.CostCenterId,
+                    ProjectId = line.ProjectId
                 };
                 debitLines.Add(netLine);
                 journalEntry.Lines.Add(netLine);

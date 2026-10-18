@@ -39,6 +39,10 @@ public class FixedAsset
     public Guid? LocationId { get; set; }
     public FixedAssetLocation? Location { get; set; }
 
+    // Dimension
+    public Guid? CostCenterId { get; set; }
+    public CostCenter? CostCenter { get; set; }
+
     [MaxLength(100)]
     public string? SerialNumber { get; set; }
 

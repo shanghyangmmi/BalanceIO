@@ -103,7 +103,21 @@ public class Account
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// Cost centre dimension rule: 0 Optional, 1 Required, 2 Forbidden.
+    /// If Required, lines posting to this account must carry a CostCenterId.
+    /// If Forbidden, lines posting to this account cannot carry a CostCenterId.
+    /// </summary>
+    public DimensionRule DimensionRule { get; set; } = DimensionRule.Optional;
+
     // Audit
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+}
+
+public enum DimensionRule
+{
+    Optional = 0,
+    Required = 1,
+    Forbidden = 2
 }

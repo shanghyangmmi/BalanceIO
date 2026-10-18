@@ -120,6 +120,13 @@ public class PayrollService
             comp.UpdatedAt = DateTime.UtcNow;
         }
 
+        if (request.CostCenterId.HasValue)
+        {
+            var valid = await _context.CostCenters.AnyAsync(c => c.CompanyId == companyId && c.Id == request.CostCenterId.Value);
+            if (!valid)
+                throw new PayrollRuleException("INVALID_COST_CENTER", "Cost center not found.", StatusCodes.Status400BadRequest);
+        }
+
         comp.BaseSalary = request.BaseSalary;
         comp.FixedAllowance = request.FixedAllowance;
         comp.JkkRate = request.JkkRate;
@@ -127,6 +134,7 @@ public class PayrollService
         comp.BpjsPension = request.BpjsPension;
         comp.BpjsKesehatan = request.BpjsKesehatan;
         comp.IsActive = request.IsActive;
+        comp.CostCenterId = request.CostCenterId;
 
         await _context.SaveChangesAsync();
         return ToDto(comp);
@@ -374,14 +382,49 @@ public class PayrollService
             throw new PayrollRuleException("MISSING_ACCOUNT",
                 $"Account {string.Join(", ", missing)} is missing from the chart of accounts.");
 
-        var lines = JournalFor(run).Select(l => new JournalLine
+        var contactIds = run.Lines.Select(l => l.ContactId).Distinct().ToList();
+        var compCostCenters = await _context.EmployeeCompensations
+            .AsNoTracking()
+            .Where(e => e.CompanyId == companyId && contactIds.Contains(e.ContactId))
+            .ToDictionaryAsync(e => e.ContactId, e => e.CostCenterId);
+
+        var period = PeriodLabel(run.Year, run.Month);
+        var lines = new List<JournalLine>();
+
+        // Split 6-1100 Salary Expense by employee CostCenterId
+        var salaryGroups = run.Lines
+            .GroupBy(l => compCostCenters.TryGetValue(l.ContactId, out var ccId) ? ccId : null)
+            .ToList();
+
+        foreach (var group in salaryGroups)
         {
-            Id = Guid.NewGuid(),
-            AccountId = codes[l.Code],
-            Description = l.Description,
-            Debit = l.Debit,
-            Credit = l.Credit,
-        }).ToList();
+            var groupGross = group.Sum(l => l.BaseSalary + l.FixedAllowance + l.OtherEarnings);
+            if (groupGross > 0m)
+            {
+                lines.Add(new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = codes[SalaryAccount],
+                    Description = $"Salaries and wages, {period}",
+                    Debit = groupGross,
+                    Credit = 0m,
+                    CostCenterId = group.Key,
+                });
+            }
+        }
+
+        // Remaining lines from JournalFor (Benefits, PPh 21, BPJS, Net Pay)
+        foreach (var posting in JournalFor(run).Where(p => p.Code != SalaryAccount))
+        {
+            lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                AccountId = codes[posting.Code],
+                Description = posting.Description,
+                Debit = posting.Debit,
+                Credit = posting.Credit,
+            });
+        }
 
         if (lines.Sum(l => l.Debit) != lines.Sum(l => l.Credit))
             throw new InvalidOperationException("Payroll produced an unbalanced entry; nothing was posted.");
@@ -717,6 +760,7 @@ public class PayrollService
         BpjsPension = c.BpjsPension,
         BpjsKesehatan = c.BpjsKesehatan,
         IsActive = c.IsActive,
+        CostCenterId = c.CostCenterId,
         UpdatedAt = c.UpdatedAt ?? c.CreatedAt,
     };
 
