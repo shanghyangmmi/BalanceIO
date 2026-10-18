@@ -1611,8 +1611,20 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateOnly?>("DisposalDate")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("DisposalJournalEntryId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("DisposalReason")
                         .HasColumnType("text");
+
+                    b.Property<int>("FiscalGroup")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("FiscalMethod")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("FiscalUsefulLifeMonths")
+                        .HasColumnType("integer");
 
                     b.Property<DateOnly?>("LastDepreciationDate")
                         .HasColumnType("date");
@@ -1676,6 +1688,12 @@ namespace BalanceIO.API.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("DefaultDepreciationMethod")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DefaultFiscalGroup")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DefaultFiscalMethod")
                         .HasColumnType("integer");
 
                     b.Property<int>("DefaultUsefulLifeMonths")

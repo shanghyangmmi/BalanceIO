@@ -74,6 +74,7 @@ builder.Services.AddSingleton<ScheduledJobRunner>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ScheduledJobRunner>());
 builder.Services.AddScoped<TaxEqualisationService>();
 builder.Services.AddScoped<AssetChargeService>();
+builder.Services.AddScoped<FiscalDepreciationService>();
 builder.Services.AddScoped<TaxAnalysisService>();
 builder.Services.AddScoped<TaxReportsService>();
 builder.Services.AddScoped<PayrollService>();

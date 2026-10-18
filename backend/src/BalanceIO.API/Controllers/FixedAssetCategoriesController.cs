@@ -1,5 +1,6 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
+using BalanceIO.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
@@ -74,6 +75,8 @@ public class FixedAssetCategoriesController : ControllerBase
         existing.CodePrefix = category.CodePrefix;
         existing.DefaultUsefulLifeMonths = category.DefaultUsefulLifeMonths;
         existing.DefaultDepreciationMethod = category.DefaultDepreciationMethod;
+        existing.DefaultFiscalGroup = category.DefaultFiscalGroup;
+        existing.DefaultFiscalMethod = FiscalDepreciation.IsBuilding(category.DefaultFiscalGroup) ? FiscalMethod.StraightLine : category.DefaultFiscalMethod;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();

@@ -63,6 +63,18 @@ public class FixedAsset
 
     public DateOnly? LastDepreciationDate { get; set; }
 
+    // Tax depreciation (UU PPh Pasal 11 and 11A as amended by UU HPP).
+    // Kept beside the commercial figures, never in place of them.
+    public FiscalGroup FiscalGroup { get; set; } = FiscalGroup.NotSet;
+
+    public FiscalMethod FiscalMethod { get; set; } = FiscalMethod.StraightLine;
+
+    /// <summary>
+    /// A permanent building's actual useful life when it is longer than the
+    /// 20 years the group sets (PMK 72/2023). Ignored for other groups.
+    /// </summary>
+    public int? FiscalUsefulLifeMonths { get; set; }
+
     // Status
     public AssetStatus Status { get; set; } = AssetStatus.Active;
 
@@ -72,6 +84,9 @@ public class FixedAsset
     public decimal? DisposalAmount { get; set; }
 
     public string? DisposalReason { get; set; }
+
+    /// <summary>The entry that took the asset off the books.</summary>
+    public Guid? DisposalJournalEntryId { get; set; }
 
     // Linked Accounts
     public Guid? AssetAccountId { get; set; }
@@ -86,6 +101,29 @@ public class FixedAsset
     // Audit
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+}
+
+/// <summary>
+/// Kelompok harta for tax depreciation. NotSet keeps the asset out of the
+/// fiscal schedule and the reconciliation; NotDepreciable is land.
+/// </summary>
+public enum FiscalGroup
+{
+    NotSet,
+    Group1,
+    Group2,
+    Group3,
+    Group4,
+    PermanentBuilding,
+    NonPermanentBuilding,
+    NotDepreciable,
+}
+
+/// <summary>Buildings are straight line only; the other groups may use declining balance.</summary>
+public enum FiscalMethod
+{
+    StraightLine,
+    DecliningBalance,
 }
 
 public enum DepreciationMethod

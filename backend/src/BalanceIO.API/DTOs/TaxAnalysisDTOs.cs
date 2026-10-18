@@ -46,6 +46,9 @@ public class FiscalReconciliationResponse
 
     /// <summary>Accounts in the profit and loss that could carry one.</summary>
     public int ClassifiableAccounts { get; set; }
+
+    /// <summary>Fixed assets in use in the year with no fiscal group, so no depreciation correction.</summary>
+    public int UnclassifiedAssets { get; set; }
 }
 
 public class FiscalCorrectionLine
