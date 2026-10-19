@@ -65,11 +65,11 @@ function PaymentHistoryPageContent() {
             case "success":
                 return <Badge className="bg-green-500">Success</Badge>;
             case "pending":
-                return <Badge className="bg-yellow-500">Pending</Badge>;
+                return <Badge className="bg-amber-500">Pending</Badge>;
             case "failed":
                 return <Badge className="bg-red-500">Failed</Badge>;
             case "refunded":
-                return <Badge className="bg-purple-500">Refunded</Badge>;
+                return <Badge className="bg-zinc-500">Refunded</Badge>;
             default:
                 return <Badge variant="secondary">{status}</Badge>;
         }
@@ -84,7 +84,7 @@ function PaymentHistoryPageContent() {
                     </Button>
                 </Link>
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-gradient">Payment History</h2>
+                    <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Payment History</h2>
                     <p className="text-muted-foreground">View all your past transactions</p>
                 </div>
             </div>

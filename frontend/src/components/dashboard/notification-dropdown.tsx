@@ -85,7 +85,7 @@ export function NotificationDropdown() {
             case 'success': return "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
             case 'warning': return "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
             case 'error': return "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-            default: return "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+            default: return "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400"
         }
     }
 
@@ -127,7 +127,7 @@ export function NotificationDropdown() {
                                         key={notification.id}
                                         className={cn(
                                             "flex items-start gap-3 p-3 cursor-pointer",
-                                            !notification.isRead && "bg-blue-50/50 dark:bg-blue-900/10"
+                                            !notification.isRead && "bg-cyan-50/50 dark:bg-cyan-900/10"
                                         )}
                                         onClick={() => markAsRead(notification.id)}
                                     >
@@ -148,7 +148,7 @@ export function NotificationDropdown() {
                                             </div>
                                         </div>
                                         {!notification.isRead && (
-                                            <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                                            <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-cyan-500" />
                                         )}
                                     </DropdownMenuItem>
                                 )

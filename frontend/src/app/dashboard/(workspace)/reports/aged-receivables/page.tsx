@@ -66,11 +66,11 @@ export default function AgedReceivablesPage() {
             {formatAmount(data.grandTotal)}
           </p>
         </div>
-        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-          <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">
+        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
             Overdue (31+ Days)
           </p>
-          <p className="text-xl font-bold text-yellow-700 dark:text-yellow-300">
+          <p className="text-xl font-bold text-amber-700 dark:text-amber-300">
             {formatAmount(data.total60 + data.total90 + data.total90Plus)}
           </p>
         </div>
@@ -129,10 +129,10 @@ export default function AgedReceivablesPage() {
                 <td className="py-2 text-right font-mono tabular-nums text-zinc-700 dark:text-zinc-300">
                   {formatAmount(row.over30)}
                 </td>
-                <td className="py-2 text-right font-mono tabular-nums text-yellow-600 dark:text-yellow-400">
+                <td className="py-2 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400">
                   {formatAmount(row.over60)}
                 </td>
-                <td className="py-2 text-right font-mono tabular-nums text-orange-600 dark:text-orange-400">
+                <td className="py-2 text-right font-mono tabular-nums text-amber-600 dark:text-amber-400">
                   {formatAmount(row.over90)}
                 </td>
                 <td className="py-2 text-right font-mono tabular-nums text-red-600 dark:text-red-400 font-semibold">
@@ -154,10 +154,10 @@ export default function AgedReceivablesPage() {
             <td className="py-3 text-right font-mono tabular-nums">
               {formatAmount(data.total30)}
             </td>
-            <td className="py-3 text-right font-mono tabular-nums text-yellow-700">
+            <td className="py-3 text-right font-mono tabular-nums text-amber-700">
               {formatAmount(data.total60)}
             </td>
-            <td className="py-3 text-right font-mono tabular-nums text-orange-700">
+            <td className="py-3 text-right font-mono tabular-nums text-amber-700">
               {formatAmount(data.total90)}
             </td>
             <td className="py-3 text-right font-mono tabular-nums text-red-700">

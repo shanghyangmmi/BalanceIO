@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, ArrowRight, CheckCircle2, Sparkles, X } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SequenceGapBadgeProps {
@@ -45,9 +45,9 @@ export function SequenceGapBadge({
   const formattedGapNo = `${prefix}-${gapNumber.toString().padStart(padLength, "0")}`;
 
   return (
-    <div className="flex items-center justify-between gap-3 p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-2xl text-xs text-amber-900 dark:text-amber-200 shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+    <div className="flex items-center justify-between gap-3 p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 rounded-xl text-xs text-amber-900 dark:text-amber-200 animate-in fade-in slide-in-from-top-1 duration-200">
       <div className="flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
         <div>
           <span className="font-semibold">Sequence Gap Detected:</span> Number{" "}
           <span className="font-mono font-bold text-amber-700 dark:text-amber-300 underline">

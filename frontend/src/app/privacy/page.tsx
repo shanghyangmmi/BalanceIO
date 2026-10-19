@@ -87,7 +87,7 @@ export default function PrivacyPage() {
             {/* Background Effects */}
             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-0 right-1/4 h-[500px] w-[500px] bg-emerald-500/5 dark:bg-emerald-600/10 blur-[150px] rounded-full" />
-                <div className="absolute bottom-1/4 left-1/4 h-[400px] w-[400px] bg-blue-500/5 dark:bg-blue-600/10 blur-[120px] rounded-full" />
+                <div className="absolute bottom-1/4 left-1/4 h-[400px] w-[400px] bg-cyan-500/5 dark:bg-cyan-600/10 blur-[120px] rounded-full" />
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000005_1px,transparent_1px),linear-gradient(to_bottom,#00000005_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:50px_50px]" />
             </div>
 
@@ -160,7 +160,7 @@ export default function PrivacyPage() {
                         transition={{ delay: 0.8 }}
                         className="mt-16 text-center"
                     >
-                        <div className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 backdrop-blur-sm">
+                        <div className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border border-emerald-500/20 backdrop-blur-sm">
                             <Lock className="h-8 w-8 text-emerald-500" />
                             <div className="text-left">
                                 <div className="font-bold text-zinc-900 dark:text-white">Secured Data</div>

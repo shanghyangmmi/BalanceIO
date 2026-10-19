@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import { MfaSetup } from "@/components/auth/mfa-setup";
 import { apiClient } from "@/lib/api-client";
+import { PageHeading } from "@/components/dashboard/page-heading";
 
 export default function SecurityPage() {
     const [isEnabled, setIsEnabled] = useState(false);
@@ -28,11 +29,11 @@ export default function SecurityPage() {
 
     return (
         <div className="space-y-6 max-w-2xl">
-            <div>
-                <h3 className="text-lg font-medium">Security Settings</h3>
-                <p className="text-sm text-muted-foreground">Manage your account security preferences.</p>
-            </div>
-            <div className="h-[1px] bg-zinc-200 dark:bg-zinc-800" />
+            <PageHeading
+                eyebrow="Settings"
+                title="Security"
+                lede="Two-step verification for your own sign-in. Administrators can turn it on for others under Users."
+            />
 
             <Card className={isEnabled ? "border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/10" : ""}>
                 <CardHeader>

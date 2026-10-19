@@ -144,7 +144,7 @@ export function ReportLayout({
             {/* Professional Report Document */}
             <div
                 id="report-content"
-                className="bg-white dark:bg-zinc-950 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm print:shadow-none print:border-none overflow-hidden print:overflow-visible"
+                className="bg-card rounded-xl border border-foreground/10 print:border-none overflow-hidden print:overflow-visible"
             >
                 <table className="w-full">
                     <thead className="print:table-header-group bg-white dark:bg-zinc-950">

@@ -86,7 +86,7 @@ export default function AssetRegisterPage() {
     >
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Assets Cost Basis</p>
@@ -100,7 +100,7 @@ export default function AssetRegisterPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Current Net Book Value</p>
@@ -114,15 +114,15 @@ export default function AssetRegisterPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Active Assets</p>
-              <h3 className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400 mt-1">
+              <h3 className="text-xl font-bold font-mono text-zinc-600 dark:text-zinc-400 mt-1">
                 {activeAssetsCount} Assets Active
               </h3>
             </div>
-            <div className="p-2.5 bg-purple-50 dark:bg-purple-950/30 rounded-xl text-purple-600">
+            <div className="p-2.5 bg-zinc-50 dark:bg-zinc-950/30 rounded-xl text-zinc-600">
               <Hash className="w-5 h-5" />
             </div>
           </CardContent>
@@ -154,7 +154,7 @@ export default function AssetRegisterPage() {
               className={cn(
                 "px-3 py-1.5 rounded-full transition-all",
                 statusFilter === tab.id
-                  ? "bg-white dark:bg-zinc-900 text-foreground shadow-sm font-semibold"
+                  ? "bg-card text-foreground ring-1 ring-foreground/10 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -167,7 +167,7 @@ export default function AssetRegisterPage() {
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center items-center h-48 border rounded-2xl bg-white dark:bg-zinc-900">
-          <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+          <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
           <span className="ml-2 text-sm text-muted-foreground">Loading asset register...</span>
         </div>
       ) : (
@@ -198,7 +198,7 @@ export default function AssetRegisterPage() {
 
               return (
                 <tr key={code} className="border-b hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 text-sm transition-colors">
-                  <td className="py-3 px-4 font-mono font-semibold text-purple-600">{code}</td>
+                  <td className="py-3 px-4 font-mono font-semibold text-zinc-600">{code}</td>
                   <td className="py-3 px-4 font-medium">
                     <div className="flex flex-col">
                       <span className="text-foreground font-semibold">{name}</span>
@@ -209,7 +209,7 @@ export default function AssetRegisterPage() {
                     <div className="flex flex-col">
                       <span className="font-mono text-muted-foreground">{serial}</span>
                       <span className="text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3 h-3 text-purple-500 inline" /> {location}
+                        <MapPin className="w-3 h-3 text-zinc-500 inline" /> {location}
                       </span>
                     </div>
                   </td>

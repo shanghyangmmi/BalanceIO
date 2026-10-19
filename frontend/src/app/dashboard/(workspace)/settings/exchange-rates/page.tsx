@@ -192,7 +192,7 @@ export default function ExchangeRatesPage() {
     setIsSyncingBI(true);
     try {
       const res = await apiClient.syncExchangeBI(selectedDate);
-      toast.success(res.source || "Bank Indonesia rates synced successfully!", {
+      toast.success(res.source || "Bank Indonesia rates updated", {
         description: `Synced ${res.ratesSynced} currencies for ${selectedDate}.`,
       });
       loadRates();
@@ -207,7 +207,7 @@ export default function ExchangeRatesPage() {
     setIsSyncingKMK(true);
     try {
       const res = await apiClient.syncExchangeKMK(selectedDate);
-      toast.success(res.source || "Kurs Pajak (KMK) synced successfully!", {
+      toast.success(res.source || "Kurs pajak (KMK) updated", {
         description: `${res.kmkNumber || "KMK Decree"} (${res.ratesSynced} currencies).`,
       });
       loadRates();
@@ -272,7 +272,7 @@ export default function ExchangeRatesPage() {
         notes: `PSAK 221 Monetary Retranslation (${retransCurrency} @ Rp ${formatIDR(retransPreview.closingRate, 0)})`,
       });
 
-      toast.success(res.message || "Retranslation journal posted successfully!");
+      toast.success(res.message || "Retranslation journal posted");
       setRetransPreview(null);
       loadRates();
     } catch (err: any) {
@@ -311,7 +311,7 @@ export default function ExchangeRatesPage() {
             size="sm"
             className="gap-1.5 text-xs border-border/80"
           >
-            <Building2 className={cn("h-3.5 w-3.5 text-blue-600 dark:text-blue-400", isSyncingBI && "animate-spin")} />
+            <Building2 className={cn("h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400", isSyncingBI && "animate-spin")} />
             {isSyncingBI ? "Syncing BI..." : "Sync Kurs BI"}
           </Button>}
 
@@ -340,7 +340,7 @@ export default function ExchangeRatesPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid grid-cols-1 md:grid-cols-3 w-full bg-muted/60 p-1 border border-border/60">
           <TabsTrigger value="bi-rates" className="text-xs md:text-sm font-medium gap-1.5">
-            <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <Building2 className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
             Kurs BI &amp; Commercial (JISDOR)
           </TabsTrigger>
           <TabsTrigger value="kmk-rates" className="text-xs md:text-sm font-medium gap-1.5">
@@ -348,7 +348,7 @@ export default function ExchangeRatesPage() {
             Kurs Pajak (KMK Kemenkeu)
           </TabsTrigger>
           <TabsTrigger value="retranslation" className="text-xs md:text-sm font-medium gap-1.5">
-            <Scale className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <Scale className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
             Dual Rate &amp; PSAK 221 Retranslation
           </TabsTrigger>
         </TabsList>
@@ -398,7 +398,7 @@ export default function ExchangeRatesPage() {
           <Card className="border-border/60 overflow-hidden">
             <CardHeader className="pb-3 border-b border-border/40">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <Building2 className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                 Commercial Spot Rates &amp; Provenance
               </CardTitle>
               <CardDescription className="text-xs">
@@ -443,9 +443,9 @@ export default function ExchangeRatesPage() {
                                 variant="outline"
                                 className={cn(
                                   "text-[10px] font-mono",
-                                  r.rateType === 0 ? "border-blue-400 bg-blue-50/50 text-blue-700 dark:text-blue-300" :
+                                  r.rateType === 0 ? "border-cyan-400 bg-cyan-50/50 text-cyan-700 dark:text-cyan-300" :
                                   r.rateType === 1 ? "border-teal-400 bg-teal-50/50 text-teal-700 dark:text-teal-300" :
-                                  r.rateType === 4 ? "border-purple-400 bg-purple-50/50 text-purple-700" :
+                                  r.rateType === 4 ? "border-zinc-400 bg-zinc-50/50 text-zinc-700" :
                                   "border-border text-muted-foreground"
                                 )}
                               >
@@ -631,7 +631,7 @@ export default function ExchangeRatesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Scale className="h-4 w-4 text-indigo-600" />
+                    <Scale className="h-4 w-4 text-cyan-600" />
                     Dual Rate Reconciler: Kurs BI vs. Kurs Pajak
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -672,12 +672,12 @@ export default function ExchangeRatesPage() {
                   {/* Visual Comparison Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Kurs BI */}
-                    <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
+                    <div className="p-4 rounded-xl border border-cyan-200 dark:border-cyan-900 bg-cyan-50/40 dark:bg-cyan-950/20 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-bold uppercase text-blue-700 dark:text-blue-300">
+                        <span className="text-xs font-mono font-bold uppercase text-cyan-700 dark:text-cyan-300">
                           Kurs BI (Commercial Spot)
                         </span>
-                        <Badge variant="outline" className="text-[10px] bg-blue-100/50 text-blue-800 border-blue-300">
+                        <Badge variant="outline" className="text-[10px] bg-cyan-100/50 text-cyan-800 border-cyan-300">
                           PSAK 221
                         </Badge>
                       </div>
@@ -687,7 +687,7 @@ export default function ExchangeRatesPage() {
                       <p className="text-[11px] text-muted-foreground">
                         Source: {dualRateData.biProvenance}
                       </p>
-                      <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/60 text-xs">
+                      <div className="pt-2 border-t border-cyan-200/60 dark:border-cyan-900/60 text-xs">
                         <span className="text-muted-foreground">GL Revenue ({comparatorAmount.toLocaleString()} {comparatorCurrency}):</span>
                         <p className="font-money font-semibold text-foreground">
                           {formatMoney(comparatorAmount * dualRateData.biMiddleRate)}
@@ -744,8 +744,8 @@ export default function ExchangeRatesPage() {
                     </div>
                   </div>
 
-                  <Alert className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 text-blue-900 dark:text-blue-200 text-xs">
-                    <Info className="h-4 w-4 text-blue-600" />
+                  <Alert className="border-cyan-200 bg-cyan-50/50 dark:bg-cyan-950/20 text-cyan-900 dark:text-cyan-200 text-xs">
+                    <Info className="h-4 w-4 text-cyan-600" />
                     <AlertTitle className="font-semibold text-sm">Regulatory Notice (PSAK 221 &amp; PMK)</AlertTitle>
                     <AlertDescription className="mt-1">
                       A USD invoice recognised at JISDOR and reported on a Faktur Pajak at KMK produces two different rupiah figures for one sale. That difference is a valid reconciling item on your <em>Rekonsiliasi PPN Keluaran vs Peredaran Usaha</em>.
@@ -788,7 +788,7 @@ export default function ExchangeRatesPage() {
                     onClick={handlePreviewRetrans}
                     disabled={isLoadingRetrans}
                     size="sm"
-                    className="text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="text-xs gap-1.5 bg-cyan-600 hover:bg-cyan-700 text-white"
                   >
                     {isLoadingRetrans ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Scale className="h-3.5 w-3.5" />}
                     Scan &amp; Preview

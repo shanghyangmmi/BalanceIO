@@ -45,7 +45,7 @@ const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
         icon: <Clock className="h-3.5 w-3.5" />,
     },
     posted: {
-        color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+        color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800",
         icon: <CheckCircle className="h-3.5 w-3.5" />,
     },
     paid: {
@@ -53,7 +53,7 @@ const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {
         icon: <CheckCircle className="h-3.5 w-3.5" />,
     },
     sent: {
-        color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
+        color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800",
         icon: <FileText className="h-3.5 w-3.5" />,
     },
     approved: {
@@ -146,7 +146,7 @@ export function DocumentDetailView({ id }: { id: string }) {
                 return {
                     title: "Sales Invoice",
                     icon: <Receipt className="h-5 w-5" />,
-                    color: "#0B3C3D",
+                    color: "var(--color-emerald-800)",
                     number: document.invoiceNumber || `INV-${id.substring(0, 8)}`,
                     date: document.invoiceDate,
                     dueDate: document.dueDate,
@@ -163,7 +163,7 @@ export function DocumentDetailView({ id }: { id: string }) {
                 return {
                     title: "Purchase Order",
                     icon: <ShoppingCart className="h-5 w-5" />,
-                    color: "#3b82f6",
+                    color: "var(--color-cyan-800)",
                     number: document.orderNumber || `PO-${id.substring(0, 8)}`,
                     date: document.orderDate,
                     dueDate: document.expectedDeliveryDate,
@@ -180,7 +180,7 @@ export function DocumentDetailView({ id }: { id: string }) {
                 return {
                     title: "Purchase Bill",
                     icon: <FileText className="h-5 w-5" />,
-                    color: "#ef4444",
+                    color: "var(--color-cyan-800)",
                     number: document.billNumber || `BILL-${id.substring(0, 8)}`,
                     date: document.billDate,
                     dueDate: document.dueDate,
@@ -195,7 +195,7 @@ export function DocumentDetailView({ id }: { id: string }) {
                 }
             default:
                 return {
-                    title: "Document", icon: <FileText className="h-5 w-5" />, color: "#6366f1",
+                    title: "Document", icon: <FileText className="h-5 w-5" />, color: "var(--color-zinc-700)",
                     number: id.substring(0, 8), date: null, dueDate: null,
                     counterpartyLabel: "Party", counterparty: "—",
                     lines: [], subtotal: 0, taxTotal: 0, total: 0, status: "draft", notes: null,

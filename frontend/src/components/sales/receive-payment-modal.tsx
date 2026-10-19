@@ -177,7 +177,7 @@ export function ReceivePaymentModal({
                     <DialogTitle className="font-display flex items-center gap-2">
                         Receive Payment
                         {isForeign && (
-                            <Badge variant="outline" className="border-indigo-400 text-indigo-700 dark:text-indigo-300 font-mono text-[11px]">
+                            <Badge variant="outline" className="border-cyan-400 text-cyan-700 dark:text-cyan-300 font-mono text-[11px]">
                                 {currency} Multi-Currency
                             </Badge>
                         )}
@@ -210,7 +210,7 @@ export function ReceivePaymentModal({
                         <div className="p-3.5 bg-card/60 border border-border/80 rounded-xl space-y-2.5">
                             <div className="flex items-center justify-between text-xs">
                                 <span className="font-semibold flex items-center gap-1.5 text-foreground">
-                                    <Scale className="h-3.5 w-3.5 text-indigo-600" />
+                                    <Scale className="h-3.5 w-3.5 text-cyan-600" />
                                     Settlement Spot Rate ({currency}/IDR)
                                 </span>
                                 {isLoadingRate && (
@@ -270,7 +270,7 @@ export function ReceivePaymentModal({
                                             {acc.name.toLowerCase().includes("cash") || acc.code === "1-1101" ? (
                                                 <Wallet className="w-3.5 h-3.5 mr-2 text-amber-500" />
                                             ) : (
-                                                <CreditCard className="w-3.5 h-3.5 mr-2 text-blue-500" />
+                                                <CreditCard className="w-3.5 h-3.5 mr-2 text-cyan-500" />
                                             )}
                                             <span>{acc.code} - {acc.name}</span>
                                         </div>

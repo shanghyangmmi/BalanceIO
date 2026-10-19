@@ -55,7 +55,7 @@ export default function WorkspaceLayout({
         )}
       >
         <div className="print:hidden">
-          <Suspense fallback={<div className="h-16 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl" />}>
+          <Suspense fallback={<div className="h-14 border-b border-foreground/10 bg-background" />}>
             <DashboardHeader
               sidebarOpen={sidebarOpen}
               setSidebarOpen={setSidebarOpen}
@@ -65,7 +65,7 @@ export default function WorkspaceLayout({
 
         <main className="flex-1 p-3.5 sm:p-5 md:p-8 overflow-y-auto print:overflow-visible print:p-0 print:h-auto z-10">
           <div className="w-full space-y-6 print:max-w-none">
-            <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
+            <Suspense fallback={null}>{children}</Suspense>
           </div>
         </main>
       </div>

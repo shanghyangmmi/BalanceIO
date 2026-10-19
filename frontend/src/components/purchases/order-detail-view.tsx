@@ -40,7 +40,7 @@ export function OrderDetailView({ id }: OrderDetailViewProps) {
     return (
         <div className="flex-1 space-y-4">
             <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold tracking-tight text-gradient">
+                <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
                     {order.status === 0 ? "Edit Purchase Order" : "View Purchase Order"}
                 </h2>
                 <div className="text-sm text-muted-foreground font-mono">

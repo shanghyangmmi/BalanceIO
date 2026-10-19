@@ -22,15 +22,13 @@ export function EmptyState({
     return (
         <div
             className={cn(
-                "flex h-[400px] flex-col items-center justify-center rounded-md border border-dashed bg-muted/40 p-8 text-center animate-in fade-in-50",
+                "flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-foreground/15 px-8 py-16 text-center animate-in fade-in-50",
                 className
             )}
         >
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-                <Icon className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <h3 className="mt-4 text-lg font-semibold">{title}</h3>
-            <p className="mb-4 mt-2 max-w-sm text-sm text-muted-foreground">
+            <Icon className="h-5 w-5 text-muted-foreground/70" strokeWidth={1.5} />
+            <h3 className="mt-5 text-base font-semibold text-foreground">{title}</h3>
+            <p className="mb-6 mt-2 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
                 {description}
             </p>
             {actionLabel && onAction && (

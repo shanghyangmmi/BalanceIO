@@ -114,7 +114,7 @@ export function StockOpnameDetailView({ id }: StockOpnameDetailViewProps) {
         setProcessing(true);
         try {
             await apiClient.processStockOpname(id);
-            toast.success("Stock Opname Processed Successfully!");
+            toast.success("Stock opname posted");
             fetchOpname(id);
         } catch (error) {
             toast.error("Failed to process opname");
@@ -136,7 +136,7 @@ export function StockOpnameDetailView({ id }: StockOpnameDetailViewProps) {
                         <Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
                     </Link>
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight text-gradient">{opname.opnameNumber}</h2>
+                        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">{opname.opnameNumber}</h2>
                         <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                             <span>{formatDate(opname.opnameDate)}</span>
                             <Badge variant={isDraft ? "outline" : "secondary"}>

@@ -28,7 +28,7 @@ BALANCEIO_TEST_POSTGRES="Host=localhost;Username=postgres;Password=..." dotnet t
 cd frontend && npm ci && npm run dev
 npm test           # node:test, money arithmetic
 npm run build      # static export to frontend/out
-npm run lint       # currently failing, see Known issues
+npm run lint       # 0 errors; ~780 warnings, mostly no-explicit-any
 ```
 
 There is no launcher script in the repo (`*.bat` is gitignored). In
@@ -315,6 +315,7 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
 | About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
 | Midtrans is implemented but untested against the live sandbox; no recurring billing or auto-renew | `MidtransPaymentGateway` |
-| `npm run lint` fails: 444 errors, mostly `no-explicit-any` | frontend |
-| `.text-gradient` in 40 files, shadows on in-flow cards (57 uses in 20 files under `app/dashboard`, plus `card.tsx`, `tabs.tsx`), raw hex (31 uses in `components/dashboard`) | frontend |
+| `/pricing` disagrees with the plans the API sells (`PlansController`): names, Pro price, free quota, and fixed assets on Professional | `app/pricing/page.tsx` |
+| Journal form attachments: `UploadButton onUpload` is a no-op, so files dropped there are not saved | `components/accounting/journal-form.tsx` |
+| Password reset does not revoke existing sessions | `AuthService.ResetPasswordAsync` |
 | i18n covers navigation labels only | frontend |

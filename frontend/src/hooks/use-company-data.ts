@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import { queryKeys } from "@/lib/query-keys"
@@ -44,7 +45,9 @@ export function useCompanyData(): { company: CompanyData; isLoading: boolean; re
         staleTime: 60_000,
     })
 
-    const company = data ? { ...defaultCompanyData, ...data } : defaultCompanyData
+    // Memoised: callers put `company` in effect dependencies (the settings form
+    // resets from it), and a fresh object per render loops them forever.
+    const company = useMemo(() => (data ? { ...defaultCompanyData, ...data } : defaultCompanyData), [data])
 
     return { company, isLoading, refetch }
 }

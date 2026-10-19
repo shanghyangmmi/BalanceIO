@@ -214,7 +214,7 @@ export default function VendorsPage() {
         <div className="flex-1 space-y-4">
             <div className="flex items-center justify-between space-y-2">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-gradient">Vendors</h2>
+                    <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Vendors</h2>
                 </div>
                 <div className="flex items-center space-x-2">
                     <Sheet open={isSheetOpen} onOpenChange={(val) => {
@@ -282,10 +282,10 @@ export default function VendorsPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Foreign Vendors</CardTitle>
-                        <Globe className="h-4 w-4 text-indigo-500" />
+                        <Globe className="h-4 w-4 text-cyan-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-indigo-600">{foreignVendors}</div>
+                        <div className="text-2xl font-bold text-cyan-600">{foreignVendors}</div>
                     </CardContent>
                 </Card>
             </div>

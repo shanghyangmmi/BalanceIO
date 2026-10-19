@@ -41,7 +41,7 @@ export default function InvoiceListPage() {
       return <Badge className="bg-emerald-600 text-white font-mono text-xs">Paid</Badge>;
     }
     if (s === "partiallypaid" || s === "partial" || s === "2") {
-      return <Badge className="bg-blue-600 text-white font-mono text-xs">Partial</Badge>;
+      return <Badge className="bg-cyan-600 text-white font-mono text-xs">Partial</Badge>;
     }
     if (s === "overdue" || s === "3") {
       return <Badge className="bg-red-600 text-white font-mono text-xs">Overdue</Badge>;
@@ -81,7 +81,7 @@ export default function InvoiceListPage() {
     >
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Invoices Value</p>
@@ -95,7 +95,7 @@ export default function InvoiceListPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Payments Received</p>
@@ -109,7 +109,7 @@ export default function InvoiceListPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Balance Due</p>
@@ -150,7 +150,7 @@ export default function InvoiceListPage() {
               className={cn(
                 "px-3 py-1.5 rounded-full transition-all",
                 statusFilter === tab.id
-                  ? "bg-white dark:bg-zinc-900 text-foreground shadow-sm font-semibold"
+                  ? "bg-card text-foreground ring-1 ring-foreground/10 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >

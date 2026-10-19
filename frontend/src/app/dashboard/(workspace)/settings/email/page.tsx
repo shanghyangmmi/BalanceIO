@@ -11,6 +11,7 @@ import { Loader2, Save, Send } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCan, RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
+import { PageHeading } from "@/components/dashboard/page-heading";
 
 function EmailSettingsPageContent() {
     const can = useCan();
@@ -84,12 +85,11 @@ function EmailSettingsPageContent() {
 
   return (
     <div className="flex-1 space-y-6 max-w-2xl">
-      <div>
-        <h3 className="text-lg font-medium">Email Configuration (SMTP)</h3>
-        <p className="text-sm text-muted-foreground">
-          Configure the email server used for sending invoices and notifications.
-        </p>
-      </div>
+      <PageHeading
+        eyebrow="Settings"
+        title="Outgoing email"
+        lede="The SMTP server that sends invoices, reminders and notifications from your own domain."
+      />
 
       <Card>
         <CardHeader>

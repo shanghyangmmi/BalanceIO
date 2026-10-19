@@ -31,7 +31,7 @@ export const vendorColumns: ColumnDef<Vendor>[] = [
         },
         cell: ({ row }) => (
             <div>
-                <Link href={`/dashboard/purchases/vendors/details?id=${row.original.id}`} className="font-medium hover:underline text-blue-600 dark:text-blue-400">
+                <Link href={`/dashboard/purchases/vendors/details?id=${row.original.id}`} className="font-medium hover:underline text-cyan-600 dark:text-cyan-400">
                     {row.getValue("name")}
                 </Link>
                 <div className="text-xs text-muted-foreground">{row.original.email}</div>

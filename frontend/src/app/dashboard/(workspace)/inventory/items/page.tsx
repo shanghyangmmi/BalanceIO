@@ -70,7 +70,7 @@ export default function InventoryPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between space-y-2">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">Inventory</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Inventory</h2>
         </div>
         <div className="flex items-center space-x-2">
           {can(PERMISSIONS.InventoryManage) && <Link href="/dashboard/inventory/new">
@@ -101,10 +101,10 @@ export default function InventoryPage() {
             <CardTitle className="text-sm font-medium">
               Low Stock Alerts
             </CardTitle>
-            <AlertTriangle className={`h-4 w-4 ${metrics.lowStockCount > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />
+            <AlertTriangle className={`h-4 w-4 ${metrics.lowStockCount > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${metrics.lowStockCount > 0 ? 'text-orange-500' : ''}`}>
+            <div className={`text-2xl font-bold ${metrics.lowStockCount > 0 ? 'text-amber-500' : ''}`}>
               {isLoading ? "..." : metrics.lowStockCount} Items
             </div>
             <p className="text-xs text-muted-foreground mt-1">

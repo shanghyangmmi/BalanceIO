@@ -128,7 +128,7 @@ function CurrencyVisual() {
                     className="flex justify-between items-center rounded-lg border border-foreground/[0.06] bg-card/70 px-3 py-2.5 text-xs"
                 >
                     <span className="font-mono text-muted-foreground">{x.p}</span>
-                    <span className={cn("font-money font-bold", x.up ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                    <span className={cn("font-money font-bold", x.up ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
                         {x.v} {x.up ? "▲" : "▼"}
                     </span>
                 </motion.div>

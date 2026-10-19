@@ -128,7 +128,7 @@ export default function PeriodClosingPage() {
         lockPeriod: autoLock,
       });
 
-      toast.success(res.message || `FY ${fiscalYear} closed successfully! Journal: ${res.referenceNumber}`);
+      toast.success(res.message || `FY ${fiscalYear} closed. Closing journal: ${res.referenceNumber}`);
       setShowConfirmModal(false);
       setPreview(null);
       await loadLockStatus();
@@ -216,7 +216,7 @@ export default function PeriodClosingPage() {
             <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Period Lock
           </TabsTrigger>
           <TabsTrigger value="history" className="text-xs md:text-sm font-medium gap-1.5">
-            <History className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Audit History
+            <History className="h-4 w-4 text-zinc-600 dark:text-zinc-400" /> Audit History
           </TabsTrigger>
         </TabsList>
 
@@ -312,7 +312,7 @@ export default function PeriodClosingPage() {
                 <Card className="border-border/60 bg-card/60">
                   <CardHeader className="pb-2">
                     <CardDescription className="text-xs">Total Nominal Expenses & COGS</CardDescription>
-                    <CardTitle className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                    <CardTitle className="text-xl font-bold font-mono text-red-600 dark:text-red-400 flex items-center gap-1.5">
                       <TrendingDown className="h-4 w-4" />
                       {formatCurrency(preview.totalExpense)}
                     </CardTitle>
@@ -323,7 +323,7 @@ export default function PeriodClosingPage() {
                   <CardHeader className="pb-2">
                     <CardDescription className="text-xs">Net Income / (Loss) to Equity</CardDescription>
                     <CardTitle className={`text-xl font-bold font-mono flex items-center gap-1.5 ${
-                      preview.netIncome >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                      preview.netIncome >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                     }`}>
                       {formatCurrency(preview.netIncome)}
                     </CardTitle>
@@ -341,8 +341,8 @@ export default function PeriodClosingPage() {
                         </>
                       ) : (
                         <>
-                          <AlertTriangle className="h-4 w-4 text-rose-500" />
-                          <span className="text-sm font-semibold text-rose-600">Out of Balance</span>
+                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                          <span className="text-sm font-semibold text-red-600">Out of Balance</span>
                         </>
                       )}
                     </CardTitle>
@@ -378,7 +378,7 @@ export default function PeriodClosingPage() {
                           <TableHead className="text-xs">Classification</TableHead>
                           <TableHead className="text-right text-xs font-mono">Current Balance</TableHead>
                           <TableHead className="text-right text-xs font-mono text-emerald-600 dark:text-emerald-400">Closing Debit</TableHead>
-                          <TableHead className="text-right text-xs font-mono text-rose-600 dark:text-rose-400">Closing Credit</TableHead>
+                          <TableHead className="text-right text-xs font-mono text-red-600 dark:text-red-400">Closing Credit</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -391,7 +391,7 @@ export default function PeriodClosingPage() {
                             <TableCell className="text-right font-mono text-emerald-600 dark:text-emerald-400">
                               {acc.closingDebit > 0 ? formatCurrency(acc.closingDebit) : "—"}
                             </TableCell>
-                            <TableCell className="text-right font-mono text-rose-600 dark:text-rose-400">
+                            <TableCell className="text-right font-mono text-red-600 dark:text-red-400">
                               {acc.closingCredit > 0 ? formatCurrency(acc.closingCredit) : "—"}
                             </TableCell>
                           </TableRow>
@@ -404,7 +404,7 @@ export default function PeriodClosingPage() {
                           <TableCell className="text-right font-mono text-emerald-600 dark:text-emerald-400">
                             {preview.retainedEarningsAdjustmentDebit > 0 ? formatCurrency(preview.retainedEarningsAdjustmentDebit) : "—"}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-rose-600 dark:text-rose-400">
+                          <TableCell className="text-right font-mono text-red-600 dark:text-red-400">
                             {preview.retainedEarningsAdjustmentCredit > 0 ? formatCurrency(preview.retainedEarningsAdjustmentCredit) : "—"}
                           </TableCell>
                         </TableRow>
@@ -457,7 +457,7 @@ export default function PeriodClosingPage() {
                     variant="outline"
                     onClick={handleUnlockPeriod}
                     disabled={isUnlocking}
-                    className="border-rose-500/30 text-rose-600 hover:bg-rose-500/10 text-xs gap-1.5"
+                    className="border-red-500/30 text-red-600 hover:bg-red-500/10 text-xs gap-1.5"
                   >
                     <Unlock className="h-3.5 w-3.5" />
                     Unlock All Periods
@@ -570,7 +570,7 @@ export default function PeriodClosingPage() {
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <AlertTriangle className="h-5 w-5" />
               Confirm Year-End Closing for FY {fiscalYear}
             </DialogTitle>

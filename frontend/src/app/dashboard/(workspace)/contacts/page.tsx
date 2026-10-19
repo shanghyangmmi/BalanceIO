@@ -138,10 +138,10 @@ export default function ContactsPage() {
               <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Customer</Badge>
             }
             {(c.isVendor || c.type === 1 || c.type === 2) &&
-              <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Vendor</Badge>
+              <Badge variant="secondary" className="bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">Vendor</Badge>
             }
             {c.isEmployee &&
-              <Badge variant="secondary" className="bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Employee</Badge>
+              <Badge variant="secondary" className="bg-zinc-50 text-zinc-700 dark:bg-zinc-900/30 dark:text-zinc-300">Employee</Badge>
             }
             {c.isPkp &&
               <Badge variant="secondary" className="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">PKP</Badge>
@@ -176,8 +176,8 @@ export default function ContactsPage() {
         const label = contactScopeLabels[scope] || "Unknown";
         return (
           <div className="flex items-center gap-2">
-            {scope === 1 && <Globe className="h-3 w-3 text-indigo-500" />}
-            <span className={scope === 1 ? "text-indigo-600 font-medium" : ""}>
+            {scope === 1 && <Globe className="h-3 w-3 text-cyan-500" />}
+            <span className={scope === 1 ? "text-cyan-600 font-medium" : ""}>
               {label}
             </span>
           </div>
@@ -236,7 +236,7 @@ export default function ContactsPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between space-y-2">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">Contacts</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Contacts</h2>
         </div>
         <div className="flex items-center space-x-2">
           <Sheet open={isSheetOpen} onOpenChange={(val) => {
@@ -293,20 +293,20 @@ export default function ContactsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Vendors</CardTitle>
-            <Building2 className="h-4 w-4 text-blue-500" />
+            <Building2 className="h-4 w-4 text-cyan-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{vendors}</div>
+            <div className="text-2xl font-bold text-cyan-600">{vendors}</div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Employees</CardTitle>
-            <User className="h-4 w-4 text-purple-500" />
+            <User className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{employees}</div>
+            <div className="text-2xl font-bold text-zinc-600">{employees}</div>
           </CardContent>
         </Card>
       </div>

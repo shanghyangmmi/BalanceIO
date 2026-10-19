@@ -180,7 +180,7 @@ export function PayBillModal({
                     <DialogTitle className="font-display flex items-center gap-2">
                         Pay Purchase Bill
                         {isForeign && (
-                            <Badge variant="outline" className="border-indigo-400 text-indigo-700 dark:text-indigo-300 font-mono text-[11px]">
+                            <Badge variant="outline" className="border-cyan-400 text-cyan-700 dark:text-cyan-300 font-mono text-[11px]">
                                 {currency} Multi-Currency
                             </Badge>
                         )}
@@ -192,9 +192,9 @@ export function PayBillModal({
 
                 <div className="grid gap-4 py-2">
                     {/* Amount Card */}
-                    <div className="p-3.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/60 rounded-xl flex justify-between items-center">
+                    <div className="p-3.5 bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800/60 rounded-xl flex justify-between items-center">
                         <div>
-                            <span className="text-xs text-blue-800 dark:text-blue-300 font-medium block">
+                            <span className="text-xs text-cyan-800 dark:text-cyan-300 font-medium block">
                                 Amount Payable ({currency})
                             </span>
                             {isForeign && (
@@ -203,7 +203,7 @@ export function PayBillModal({
                                 </span>
                             )}
                         </div>
-                        <span className="text-xl font-bold font-money text-blue-700 dark:text-blue-400">
+                        <span className="text-xl font-bold font-money text-cyan-700 dark:text-cyan-400">
                             {isForeign ? `${currency} ${amountDue.toLocaleString()}` : formatCurrency(amountDue)}
                         </span>
                     </div>
@@ -213,7 +213,7 @@ export function PayBillModal({
                         <div className="p-3.5 bg-card/60 border border-border/80 rounded-xl space-y-2.5">
                             <div className="flex items-center justify-between text-xs">
                                 <span className="font-semibold flex items-center gap-1.5 text-foreground">
-                                    <Scale className="h-3.5 w-3.5 text-indigo-600" />
+                                    <Scale className="h-3.5 w-3.5 text-cyan-600" />
                                     Settlement Spot Rate ({currency}/IDR)
                                 </span>
                                 {isLoadingRate && (
@@ -273,7 +273,7 @@ export function PayBillModal({
                                             {acc.name.toLowerCase().includes("cash") || acc.code === "1-1101" ? (
                                                 <Wallet className="w-3.5 h-3.5 mr-2 text-amber-500" />
                                             ) : (
-                                                <CreditCard className="w-3.5 h-3.5 mr-2 text-blue-500" />
+                                                <CreditCard className="w-3.5 h-3.5 mr-2 text-cyan-500" />
                                             )}
                                             <span>{acc.code} - {acc.name}</span>
                                         </div>
@@ -345,7 +345,7 @@ export function PayBillModal({
                         onClick={handlePay}
                         disabled={isSubmitting}
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5"
+                        className="bg-cyan-600 hover:bg-cyan-700 text-white text-xs gap-1.5"
                     >
                         {isSubmitting ? (
                             <>

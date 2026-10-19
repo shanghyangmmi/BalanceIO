@@ -173,7 +173,7 @@ export default function PurchaseOrdersPage() {
 
               {status === 1 && can(PERMISSIONS.InventoryManage) && (
                 <DropdownMenuItem onClick={() => handleReceive(row.original.id)}>
-                  <Package className="mr-2 h-4 w-4 text-blue-600" /> Receive Items
+                  <Package className="mr-2 h-4 w-4 text-cyan-600" /> Receive Items
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -195,7 +195,7 @@ export default function PurchaseOrdersPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">Purchase Orders</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Purchase Orders</h2>
           <p className="text-muted-foreground">Manage orders to vendors.</p>
         </div>
         {can(PERMISSIONS.PurchasesCreate) && <Link href="/dashboard/purchases/orders/new">

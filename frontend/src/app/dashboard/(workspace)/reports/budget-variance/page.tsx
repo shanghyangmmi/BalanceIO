@@ -3,11 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { 
-    ChevronLeft, Download, RefreshCw, TrendingUp, AlertTriangle, 
-    CheckCircle2, AlertCircle, Sparkles, Filter, Calendar, 
-    Layers, PieChart, ArrowUpRight, ArrowDownRight, Loader2
-} from "lucide-react";
+import { ChevronLeft, Download, RefreshCw, TrendingUp, AlertTriangle, CheckCircle2, AlertCircle, Filter, Calendar, Layers, PieChart, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency, formatPercentage } from "@/lib/utils/formatter";
 import { Button } from "@/components/ui/button";

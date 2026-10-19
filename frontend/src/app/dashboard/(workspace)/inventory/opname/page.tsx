@@ -66,7 +66,7 @@ export default function StockOpnamePage() {
   return (
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight text-gradient">Stock Opname</h2>
+        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Stock Opname</h2>
         {can(PERMISSIONS.InventoryOpname) && (
           <div className="flex items-end gap-3">
             <div className="w-64">

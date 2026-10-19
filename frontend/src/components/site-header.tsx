@@ -240,8 +240,8 @@ export function SiteHeader() {
                                     className="flex items-center gap-3 px-4 py-3.5 text-sm text-zinc-700 dark:text-zinc-100 hover:bg-zinc-900/[0.04] dark:hover:bg-white/10 transition-colors border-t border-zinc-900/5 dark:border-white/5"
                                     onClick={() => setContactOpen(false)}
                                 >
-                                    <div className="h-9 w-9 rounded-full bg-blue-500/15 flex items-center justify-center">
-                                        <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    <div className="h-9 w-9 rounded-full bg-cyan-500/15 flex items-center justify-center">
+                                        <Mail className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                                     </div>
                                     <div>
                                         <div className="font-semibold">Email</div>
