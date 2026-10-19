@@ -58,8 +58,8 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
     // Only this module's menu. Walking into Accounting should read as a
     // different application, not as one app with the other three parked in
     // the rail; the way back out is the hub button in the navbar.
-    const module = resolveModule(pathname)
-    const current = module ? activeHref(module, pathname) : null
+    const currentModule = resolveModule(pathname)
+    const current = currentModule ? activeHref(currentModule, pathname) : null
 
     // Fix hydration mismatch for Radix UI (random IDs)
     const [mounted, setMounted] = React.useState(false)
@@ -97,7 +97,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
             >
                 {/* Navigation */}
                 <nav className="flex-1 px-2.5 py-4 space-y-3.5 overflow-y-auto scrollbar-none relative z-10">
-                    {(module?.groups ?? []).map((group, groupIndex) => {
+                    {(currentModule?.groups ?? []).map((group, groupIndex) => {
                         // Filter items based on permissions
                         const visibleItems = group.items.filter(item =>
                             !item.permission || can(item.permission)
@@ -178,7 +178,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                     })}
                                 </div>
                                 {/* Separator between groups */}
-                                {groupIndex < (module?.groups.length ?? 0) - 1 && isOpen && (
+                                {groupIndex < (currentModule?.groups.length ?? 0) - 1 && isOpen && (
                                     <div className="mx-5 my-3 h-px bg-white/5 border-t border-dashed border-zinc-200/50 dark:border-white/5" />
                                 )}
                             </div>

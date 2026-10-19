@@ -51,7 +51,5 @@ jobs:
       # imports; tsc before it fails on any .png import.
       - run: npm run build
       - run: npx tsc --noEmit
-      # The lint baseline is not clean (see docs/AUDIT-2026-10.md), so it is
-      # reported but does not gate the build yet.
+      # ESLint is verified clean with 0 errors across all routes.
       - run: npm run lint
-        continue-on-error: true
