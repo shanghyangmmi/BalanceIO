@@ -162,13 +162,19 @@ export default function InventoryModulePage() {
                           : "None at reorder level"
                       }
                     />
-                    {/* Named for what it is. Quantity times buy price is not
-                        a costing method, and calling it "valuation" would
-                        imply one the product does not run. */}
                     <Figure
-                      label="Stock at buy price"
-                      value={formatModuleMoney(data!.position.stockAtBuyPrice, data!.currency)}
-                      note="Quantity × buy price"
+                      label="Stock value"
+                      value={formatModuleMoney(data!.position.stockValue, data!.currency)}
+                      note={
+                        data!.position.stockValue === data!.position.inventoryAccountBalance
+                          ? "Moving average · agrees with the inventory account"
+                          : `Moving average · inventory account ${formatModuleMoney(data!.position.inventoryAccountBalance, data!.currency)}`
+                      }
+                      tone={
+                        data!.position.stockValue === data!.position.inventoryAccountBalance
+                          ? undefined
+                          : "text-amber-700 dark:text-amber-400"
+                      }
                     />
                     <Figure
                       label="At negative stock"

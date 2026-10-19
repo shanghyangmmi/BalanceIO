@@ -109,7 +109,7 @@ Also locked, for accessibility rather than taste:
   the same value in both — a stop that passes contrast on porcelain
   will not pass on ink.
 - Consume the semantic tokens. Raw hex does not respond to the theme
-  (there are already 6 such bugs in the dashboard — see §7).
+  (31 literals in `components/dashboard` — see §7).
 
 #### Open — explore freely
 
@@ -348,8 +348,8 @@ absorb both the canonical language and the older dashboard patterns.
 
 | Issue | Extent | Action |
 |---|---|---|
-| `.text-gradient` on page headings | **44 dashboard files** | Legacy. The landing standard is a display-serif heading with a single italic gradient span, not a fully gradient-filled sans heading. |
-| `shadow-sm` on in-flow cards | **59 occurrences** | Replace with hairline borders per §4. |
+| `.text-gradient` on page headings | **40 dashboard files** | Legacy. The landing standard is a display-serif heading with a single italic gradient span, not a fully gradient-filled sans heading. |
+| `shadow-*` on in-flow cards | **57 uses in 20 files** under `app/dashboard`, plus `card.tsx` and `tabs.tsx` | Replace with hairline borders per §4. |
 | ~20 distinct spring configs | landing components | Collapse to the three presets in §5. |
 | Raw hex colours | `#0B3C3D`, `#ef4444`, `#e5e7eb`, `#6b7280`, `#3b82f6`, `#1f2937` in dashboard | Replace with semantic tokens; these do not respond to theme. |
 | Hardcoded `from-zinc-* to-white` card gradients | 2 files | Use `bg-card`. |
@@ -360,17 +360,17 @@ absorb both the canonical language and the older dashboard patterns.
 
 Measured, not assumed:
 
-| Folder | Files | `.text-gradient` | shadows | raw hex |
+| Folder | Files | `.text-gradient` files | `shadow-{sm..2xl}` uses | hex literals |
 |---|---|---|---|---|
-| `components/ui` | 37 | **0** | 11 | 6 |
-| `components/landing` | 17 | **0** | 5 | 16 |
-| `components/dashboard` | 12 | **0** | 6 | 31 |
-| **`app/dashboard`** | **91** | **44** | 22 | 7 |
-| `app/features`, `app/pricing` | 2 | 0 | 2 | 6 |
+| `components/ui` | 37 | 0 | 14 | 4 |
+| `components/landing` | 24 | 0 | 9 | 5 |
+| `components/dashboard` | 21 | 0 | 14 | 31 |
+| **`app/dashboard`** | **109** | **40** | 57 | 5 |
+| `app/pricing` | 1 | 0 | 1 | 0 |
 
 The legacy heading pattern is confined **entirely to `src/app/dashboard`**.
 Everything under `src/components/` is clean of it. The raw-hex problem is
-worst in `components/dashboard` (31 occurrences across 12 files) — those
+worst in `components/dashboard` (31 occurrences across 4 files) — those
 are widget internals and chart colours that ignore the theme.
 
 **Recommendation when importing to Claude Design:** point it at `src`
@@ -379,33 +379,26 @@ the canonical landing components, the dashboard widget components and
 the marketing pages — while leaving out the one folder that would teach
 the deprecated heading pattern.
 
-Do not rely on this section alone to protect the import. Forty-four
+Do not rely on this section alone to protect the import. Forty
 files demonstrating a pattern exert more statistical pull than one
 paragraph forbidding it.
 
 ---
 
-## 8. Module hub — applying the system
+## 8. Module hub
 
-The agreed structure for the post-login experience:
-
-- `/dashboard` becomes the module map. Each card shows its module's
-  **balance state** and doubles as the entry point.
-- Every module answers the same question, which is what makes the set
-  cohere rather than feel like five separate products:
+Built: `/dashboard` is the module map (`app/dashboard/(hub)`), backed by
+`GET /api/Dashboard/module-health` (`ModuleHealthService`). Each card shows
+the module's balance state and is its entry point. Figures are computed
+server-side so they match the reports.
 
 | Module | In balance when |
 |---|---|
 | Accounting | Dr = Cr, no unposted entries, period lock current |
-| Payroll | All staff paid, PPh 21 accrued and remitted |
+| Payroll | All staff paid, PPh 21 accrued and remitted (not built; inactive) |
 | Inventory | Book quantity matches last stock count |
 | Fixed Assets | Depreciation posted through current period |
 | Tax | Output/input reconciled, no filing overdue |
 
-- State colours follow §2: emerald = balanced, amber = attention,
-  destructive = overdue. Never decorative.
-- Backend supplies this in **one call** (`GET /Dashboard/module-health`)
-  so figures are computed server-side and stay consistent with the
-  reports. Accounting logic does not belong in the frontend.
-- Payroll appears in the hub marked inactive — the visible ambition is
-  worth showing; an empty page that pretends otherwise is not.
+State colours follow §2: emerald balanced, amber attention, destructive
+overdue. Never decorative.

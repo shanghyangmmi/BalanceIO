@@ -34,8 +34,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export function UsersList() {
+    const can = useCan();
     const { company, isLoading: companyLoading } = useCompanyData();
     const [users, setUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -95,11 +98,11 @@ export function UsersList() {
                     <p className="text-sm text-muted-foreground">Manage who has access to this workspace.</p>
                 </div>
                 <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-                    <DialogTrigger asChild>
+                    {can(PERMISSIONS.UsersManage) && <DialogTrigger asChild>
                         <Button>
                             <PlusCircle className="mr-2 h-4 w-4" /> Invite User
                         </Button>
-                    </DialogTrigger>
+                    </DialogTrigger>}
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>Invite Team Member</DialogTitle>

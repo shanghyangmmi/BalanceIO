@@ -11,6 +11,13 @@ public class SalesOrder
     public Guid Id { get; set; }
 
     [Required]
+    public Guid CompanyId { get; set; }
+
+    [ForeignKey("CompanyId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Company? Company { get; set; }
+
+    [Required]
     [MaxLength(50)]
     public string OrderNumber { get; set; } = string.Empty;
 
@@ -64,11 +71,19 @@ public class SalesOrder
     // Navigation
     public List<SalesOrderLine> Lines { get; set; } = new();
 
-    // Audit
+    // Audit & Segregation of Duties
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? ApprovedAt { get; set; }
     public DateTime? CancelledAt { get; set; }
+
+    public Guid? CreatedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? CreatedBy { get; set; }
+
+    public Guid? ApprovedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? ApprovedBy { get; set; }
 }
 
 public class SalesOrderLine
@@ -77,6 +92,7 @@ public class SalesOrderLine
 
     [Required]
     public Guid SalesOrderId { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
     public SalesOrder? SalesOrder { get; set; }
 
     public int LineNumber { get; set; }
@@ -116,6 +132,10 @@ public class SalesOrderLine
 
     public Guid? AccountId { get; set; }
     public Account? Account { get; set; }
+
+    public Guid? CostCenterId { get; set; }
+    [ForeignKey("CostCenterId")]
+    public CostCenter? CostCenter { get; set; }
 }
 
 public enum SalesOrderStatus

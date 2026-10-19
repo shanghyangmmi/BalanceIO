@@ -70,6 +70,39 @@ public class ContactsController : ControllerBase
         return Ok(contact);
     }
 
+    /// <summary>
+    /// What the company and this contact owe each other, and this year's
+    /// invoiced and billed totals. Draft and void documents are excluded.
+    /// </summary>
+    [HttpGet("{id:guid}/summary")]
+    [RequiresPermission(Permissions.ContactsView)]
+    public async Task<ActionResult<object>> GetSummary(Guid id)
+    {
+        if (!await _context.Contacts.AnyAsync(c => c.Id == id)) return NotFound();
+
+        var yearStart = new DateOnly(DateTime.UtcNow.AddHours(7).Year, 1, 1);
+
+        // Summed in memory: SQLite stores decimals as REAL and would add floats.
+        var invoices = await _context.SalesInvoices.AsNoTracking()
+            .Where(i => i.ContactId == id && i.Status != InvoiceStatus.Draft && i.Status != InvoiceStatus.Void)
+            .Select(i => new { i.InvoiceDate, i.Total, i.AmountPaid })
+            .ToListAsync();
+        var bills = await _context.PurchaseBills.AsNoTracking()
+            .Where(b => b.ContactId == id && b.Status != BillStatus.Draft && b.Status != BillStatus.Void)
+            .Select(b => new { b.BillDate, b.Total, b.AmountPaid })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            receivableOutstanding = invoices.Sum(i => i.Total - i.AmountPaid),
+            invoicedThisYear = invoices.Where(i => i.InvoiceDate >= yearStart).Sum(i => i.Total),
+            invoiceCount = invoices.Count,
+            payableOutstanding = bills.Sum(b => b.Total - b.AmountPaid),
+            billedThisYear = bills.Where(b => b.BillDate >= yearStart).Sum(b => b.Total),
+            billCount = bills.Count,
+        });
+    }
+
     // POST: api/contacts
     [HttpPost]
     [RequiresPermission(Permissions.ContactsManage)]

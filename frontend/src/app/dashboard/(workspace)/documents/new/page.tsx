@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { ArrowLeft, Receipt, ShoppingCart, FileText } from "lucide-react"
 import Link from "next/link"
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard"
+import { PERMISSIONS, type Permission } from "@/lib/auth/permissions"
 
 const documentOptions: {
     type: DocFormType
@@ -37,6 +39,12 @@ const documentOptions: {
             color: "#ef4444",
         },
     ]
+
+const createPermission: Record<DocFormType, Permission> = {
+    "sales-invoice": PERMISSIONS.SalesCreate,
+    "purchase-order": PERMISSIONS.PurchasesCreate,
+    "purchase-bill": PERMISSIONS.PurchasesCreate,
+}
 
 export default function NewDocumentPage() {
     const searchParams = useSearchParams()
@@ -137,7 +145,9 @@ export default function NewDocumentPage() {
             </div>
 
             <div className="max-w-5xl">
-                <DocumentForm type={selectedType} />
+                <RBACGuard permission={createPermission[selectedType]} fallback={<NoPermission permission={createPermission[selectedType]} />}>
+                    <DocumentForm type={selectedType} />
+                </RBACGuard>
             </div>
         </div>
     )

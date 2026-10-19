@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -24,6 +25,7 @@ public class DiagnosticsController : ControllerBase
     }
 
     [HttpGet("run")]
+    [RequiresPermission(Permissions.AuditView)]
     public async Task<IActionResult> RunDiagnostics()
     {
         if (!_context.CurrentCompanyId.HasValue)

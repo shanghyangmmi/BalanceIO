@@ -9,7 +9,6 @@ import { formatCurrency } from "@/lib/utils/formatter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { defaultAssets } from "@/lib/data/assets-data";
 import { Search, Building2, MapPin, Hash, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,15 +23,13 @@ export default function AssetRegisterPage() {
     async function loadAssets() {
       setIsLoading(true);
       try {
-        const data = await apiClient.get<any[]>("/Assets").catch(() => null);
-        if (data && Array.isArray(data) && data.length > 0) {
-          setAssets(data);
-        } else {
-          setAssets(defaultAssets);
-        }
+        // The register as stored. An empty register is shown as empty;
+        // sample assets in a report would read as the company's own.
+        const data = await apiClient.get<any[]>("/Assets");
+        setAssets(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Failed to load asset register", err);
-        setAssets(defaultAssets);
+        setAssets([]);
       } finally {
         setIsLoading(false);
       }

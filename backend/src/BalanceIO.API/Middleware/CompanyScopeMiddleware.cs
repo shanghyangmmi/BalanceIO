@@ -64,7 +64,18 @@ public class CompanyScopeMiddleware
             return;
         }
 
-        if (!await HasAccessAsync(dbContext, userId.Value, companyId))
+        var accessResult = await CheckAccessAsync(context, dbContext, userId.Value, companyId);
+        if (accessResult == AccessResult.DeniedAdminNeedsConsent)
+        {
+            _logger.LogWarning(
+                "Support access denied: platform admin {UserId} attempted to scope to company {CompanyId} without an active support grant.",
+                userId, companyId);
+            await DenyAsync(context, companyId, "SUPPORT_ACCESS_CONSENT_REQUIRED",
+                "Platform administrator access to this company requires an active customer support grant or an authorized break-glass declaration.");
+            return;
+        }
+
+        if (accessResult == AccessResult.DeniedNotMember)
         {
             // Worth a warning rather than information: a mismatch is either
             // a stale company selection in the client, or someone probing
@@ -72,12 +83,19 @@ public class CompanyScopeMiddleware
             _logger.LogWarning(
                 "Company scope denied: user {UserId} is not a member of company {CompanyId}.",
                 userId, companyId);
-            await DenyAsync(context, companyId);
+            await DenyAsync(context, companyId, "COMPANY_FORBIDDEN", "You do not have access to this company.");
             return;
         }
 
         dbContext.CurrentCompanyId = companyId;
         await _next(context);
+    }
+
+    private enum AccessResult
+    {
+        Allowed,
+        DeniedNotMember,
+        DeniedAdminNeedsConsent
     }
 
     /// <summary>
@@ -93,26 +111,60 @@ public class CompanyScopeMiddleware
         return Guid.TryParse(value, out var id) ? id : null;
     }
 
-    private static async Task<bool> HasAccessAsync(
-        ApplicationDbContext db, Guid userId, Guid companyId)
+    private async Task<AccessResult> CheckAccessAsync(
+        HttpContext context, ApplicationDbContext db, Guid userId, Guid companyId)
     {
-        // The ordinary path: an explicit membership row.
+        // 1. The ordinary path: an explicit membership row.
         var isMember = await db.UserCompanies
             .AsNoTracking()
             .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == companyId);
 
-        if (isMember) return true;
+        if (isMember) return AccessResult.Allowed;
 
-        // Platform administrators may scope to any company. This is how
-        // support works, and PermissionService already grants IsAdmin every
-        // permission - refusing them here would only be inconsistent, not
-        // safer. The lookup is second so the common path costs one query.
-        return await db.Users
+        // 2. Check if the user is a platform administrator.
+        var isAdmin = await db.Users
             .AsNoTracking()
             .AnyAsync(u => u.Id == userId && u.IsAdmin);
+
+        if (!isAdmin) return AccessResult.DeniedNotMember;
+
+        // 3. For platform admins, verify an active customer-consented support grant.
+        var now = DateTime.UtcNow;
+        var hasGrant = await db.SupportAccessGrants
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .AnyAsync(g => g.CompanyId == companyId
+                        && !g.IsRevoked
+                        && g.ValidFrom <= now
+                        && g.ValidUntil >= now
+                        && (g.GrantedToUserId == null || g.GrantedToUserId == userId));
+
+        if (hasGrant)
+        {
+            _logger.LogInformation(
+                "Support access granted: platform admin {UserId} scoped to company {CompanyId} via active customer grant.",
+                userId, companyId);
+            return AccessResult.Allowed;
+        }
+
+        // 4. Emergency Break-Glass: allowed only when an explicit reason is declared.
+        if (context.Request.Headers.TryGetValue("X-Break-Glass-Reason", out var breakGlassReason)
+            && !string.IsNullOrWhiteSpace(breakGlassReason))
+        {
+            _logger.LogWarning(
+                "SECURITY ALERT - BREAK GLASS: Platform admin {UserId} forced scope to company {CompanyId}. Reason: {Reason}",
+                userId, companyId, breakGlassReason.ToString());
+            return AccessResult.Allowed;
+        }
+
+        return AccessResult.DeniedAdminNeedsConsent;
     }
 
-    private static async Task DenyAsync(HttpContext context, Guid companyId)
+    private static async Task DenyAsync(
+        HttpContext context,
+        Guid companyId,
+        string error = "COMPANY_FORBIDDEN",
+        string message = "You do not have access to this company.")
     {
         // 403 rather than falling through with the scope unset. Unset
         // scope disables the global query filters entirely, so silently
@@ -123,8 +175,8 @@ public class CompanyScopeMiddleware
 
         await context.Response.WriteAsJsonAsync(new
         {
-            error = "COMPANY_FORBIDDEN",
-            message = "You do not have access to this company.",
+            error,
+            message,
             companyId,
         });
     }

@@ -1,6 +1,8 @@
 "use client";
 
 import { ExpenseForm } from "@/components/purchases/expense-form";
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function NewExpensePage() {
     return (
@@ -11,7 +13,9 @@ export default function NewExpensePage() {
             </div>
 
             <div className="mx-auto max-w-2xl">
-                <ExpenseForm />
+                <RBACGuard permission={PERMISSIONS.FinanceCreate} fallback={<NoPermission permission={PERMISSIONS.FinanceCreate} />}>
+<ExpenseForm />
+</RBACGuard>
             </div>
         </div>
     );

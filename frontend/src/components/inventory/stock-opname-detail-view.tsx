@@ -12,6 +12,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils/formatter";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface OpnameLine {
     id: string;
@@ -37,6 +39,7 @@ interface StockOpnameDetailViewProps {
 }
 
 export function StockOpnameDetailView({ id }: StockOpnameDetailViewProps) {
+    const can = useCan();
     const router = useRouter();
     const [opname, setOpname] = useState<StockOpname | null>(null);
     const [loading, setLoading] = useState(true);
@@ -143,12 +146,12 @@ export function StockOpnameDetailView({ id }: StockOpnameDetailViewProps) {
                     </div>
                 </div>
                 <div className="space-x-2">
-                    {isDraft && opname.lines.length === 0 && (
+                    {isDraft && opname.lines.length === 0 && can(PERMISSIONS.InventoryOpname) && (
                         <Button variant="outline" onClick={handleInitialize}>
                             <RefreshCw className="mr-2 h-4 w-4" /> Initialize Items
                         </Button>
                     )}
-                    {isDraft && (
+                    {isDraft && can(PERMISSIONS.InventoryOpname) && (
                         <>
                             <Button variant="outline" onClick={handleSave} disabled={!dirty || processing}>
                                 <Save className="mr-2 h-4 w-4" /> Save Draft

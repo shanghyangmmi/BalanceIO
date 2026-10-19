@@ -10,10 +10,12 @@ import {
   Folder,
   Layers,
   LayoutDashboard,
+  Lock,
   PieChart,
   Receipt,
   Repeat2,
   Ruler,
+  Wallet,
   Scale,
   ScanLine,
   Settings,
@@ -49,7 +51,7 @@ import { PERMISSIONS } from "@/lib/auth/permissions"
  * menus under two group headings.
  */
 
-export type ModuleId = "accounting" | "tax" | "inventory" | "assets" | "settings"
+export type ModuleId = "accounting" | "tax" | "inventory" | "assets" | "payroll" | "settings"
 
 export interface ModuleNavItem {
   label: string
@@ -108,6 +110,7 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "Chart of Accounts", href: "/dashboard/accounting/coa", icon: Folder, permission: PERMISSIONS.FinanceView },
           { label: "Batch Posting", href: "/dashboard/accounting/posting", icon: CalendarClock, permission: PERMISSIONS.FinanceView },
           { label: "Recurring", href: "/dashboard/accounting/recurring", icon: Repeat2, permission: PERMISSIONS.FinanceView },
+          { label: "Period Close", href: "/dashboard/accounting/period-close", icon: Lock, permission: PERMISSIONS.FinanceCreate },
         ],
       },
       {
@@ -124,6 +127,7 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "Documents", href: "/dashboard/documents", icon: FileText },
           { label: "Projects", href: "/dashboard/projects", icon: Folder },
           { label: "Reports", href: "/dashboard/reports", icon: PieChart, permission: PERMISSIONS.FinanceReport },
+          { label: "Financial Statements", href: "/dashboard/reports/financial-statements", icon: FileText, permission: PERMISSIONS.FinanceReport },
         ],
       },
     ],
@@ -149,6 +153,7 @@ export const MODULE_NAVS: ModuleNav[] = [
         items: [
           { label: "Ekualisasi", href: "/dashboard/tax/equalisation", icon: Scale, permission: PERMISSIONS.FinanceReport },
           { label: "Rekonsiliasi Fiskal", href: "/dashboard/tax/reconciliation", icon: FileSpreadsheet, permission: PERMISSIONS.FinanceReport },
+          { label: "Penyusutan Fiskal", href: "/dashboard/tax/fiscal-depreciation", icon: CalendarClock, permission: PERMISSIONS.AssetsView },
           { label: "Debt to Equity", href: "/dashboard/tax/debt-to-equity", icon: PieChart, permission: PERMISSIONS.FinanceReport },
         ],
       },
@@ -185,7 +190,7 @@ export const MODULE_NAVS: ModuleNav[] = [
         items: [
           { label: "Categories", href: "/dashboard/inventory/categories", icon: Folder, permission: PERMISSIONS.InventoryManage },
           { label: "Units", href: "/dashboard/inventory/units", icon: Ruler, permission: PERMISSIONS.InventoryManage },
-          { label: "Warehouses", href: "/dashboard/inventory/warehouses", icon: Warehouse, permission: PERMISSIONS.InventoryManage },
+          { label: "Warehouses", href: "/dashboard/inventory/warehouses", icon: Warehouse, permission: PERMISSIONS.InventoryView },
           { label: "Settings", href: "/dashboard/inventory/settings", icon: Settings, permission: PERMISSIONS.InventoryManage },
         ],
       },
@@ -207,6 +212,7 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "Amortization", href: "/dashboard/assets/amortization", icon: Repeat2, permission: PERMISSIONS.AssetsDepreciate },
           { label: "Disposal", href: "/dashboard/assets/disposal", icon: Trash2, permission: PERMISSIONS.AssetsManage },
           { label: "Revaluation", href: "/dashboard/assets/revaluation", icon: Scale, permission: PERMISSIONS.AssetsManage },
+          { label: "Fiscal Depreciation", href: "/dashboard/tax/fiscal-depreciation", icon: FileSpreadsheet, permission: PERMISSIONS.AssetsView },
         ],
       },
       {
@@ -214,6 +220,23 @@ export const MODULE_NAVS: ModuleNav[] = [
         items: [
           { label: "Categories", href: "/dashboard/assets/categories", icon: Folder, permission: PERMISSIONS.AssetsManage },
           { label: "Labels", href: "/dashboard/assets/labels", icon: ScanLine, permission: PERMISSIONS.AssetsView },
+        ],
+      },
+    ],
+  },
+  {
+    id: "payroll",
+    name: "Payroll",
+    icon: Wallet,
+    home: "/dashboard/payroll",
+    owns: ["/dashboard/payroll"],
+    groups: [
+      {
+        label: "Payroll",
+        items: [
+          { label: "Overview", href: "/dashboard/payroll", icon: LayoutDashboard },
+          { label: "Payroll Runs", href: "/dashboard/payroll/runs", icon: CalendarClock, permission: PERMISSIONS.PayrollView },
+          { label: "Employees", href: "/dashboard/payroll/employees", icon: Users, permission: PERMISSIONS.PayrollView },
         ],
       },
     ],

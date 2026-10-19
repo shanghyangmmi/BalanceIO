@@ -1,7 +1,8 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from "react"
-import { apiClient } from "@/lib/api-client"
+import React, { createContext, useContext, useEffect, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { ApiError, apiClient } from "@/lib/api-client"
 
 interface Company {
     id: string
@@ -64,9 +65,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
             } else {
                 setCompanyState(null)
             }
-        } catch (error: any) {
+        } catch (error) {
             // Only log if it's not an expected unauthorized state (not logged in)
-            if (error.message === "Unauthorized") {
+            if (error instanceof ApiError && error.status === 401) {
                 // Token invalid - clear it
                 localStorage.removeItem("token")
             } else {
@@ -91,6 +92,19 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         refreshCompanies()
     }, [])
+
+    // Cached queries belong to the company they were fetched for. Most query
+    // keys do not carry the company id, so a switch drops them all rather
+    // than letting another company's figures render from cache.
+    const queryClient = useQueryClient()
+    const previousId = useRef<string | null>(null)
+    useEffect(() => {
+        const id = company?.id ?? null
+        if (previousId.current && id && previousId.current !== id) {
+            queryClient.resetQueries()
+        }
+        previousId.current = id
+    }, [company?.id, queryClient])
 
     return (
         <CompanyContext.Provider value={{

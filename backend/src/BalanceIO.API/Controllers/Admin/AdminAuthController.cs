@@ -28,13 +28,22 @@ public class AdminAuthController : ControllerBase
     /// </summary>
     private const string InvalidCredentials = "Invalid credentials.";
 
-    public AdminAuthController(ApplicationDbContext context, Argon2PasswordHasher passwordHasher, JwtService jwtService, AuditService auditService, ILogger<AdminAuthController> logger)
+    private readonly SessionService _sessionService;
+
+    public AdminAuthController(
+        ApplicationDbContext context,
+        Argon2PasswordHasher passwordHasher,
+        JwtService jwtService,
+        AuditService auditService,
+        SessionService sessionService,
+        ILogger<AdminAuthController> logger)
     {
         _logger = logger;
         _context = context;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
         _auditService = auditService;
+        _sessionService = sessionService;
     }
 
     public record AdminLoginRequest(string Email, string Password);
@@ -78,13 +87,13 @@ public class AdminAuthController : ControllerBase
 
             // 3. Security Check (Optional: Enforce MFA for Admin here if needed later)
 
-            // 4. Generate Token
-            var token = _jwtService.GenerateToken(user);
+            // 4. Generate Session & Tokens
+            var (_, rawRefresh, token) = await _sessionService.CreateSessionAsync(user, HttpContext);
 
             // 5. Log Success
             await _auditService.LogAsync(user.Id, "ADMIN_LOGIN_SUCCESS", "AdminPanel", "Super Admin Logged In", ip, userAgent);
 
-            return Ok(new { token, user = new { user.Id, user.Name, user.Email, user.IsAdmin } });
+            return Ok(new { token, refreshToken = rawRefresh, user = new { user.Id, user.Name, user.Email, user.IsAdmin } });
         }
         catch (Exception ex)
         {

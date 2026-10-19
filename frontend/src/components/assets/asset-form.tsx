@@ -39,7 +39,27 @@ const assetSchema = z.object({
     salvageValue: z.number().min(0, "Salvage value must be positive"),
     usefulLifeMonths: z.number().min(1, "Useful life must be at least 1 month"),
     serialNumber: z.string().optional(),
+    fiscalGroup: z.number(),
+    fiscalMethod: z.number(),
+    buildingLifeYears: z.number().optional(),
+    assetAccountId: z.string().optional(),
+    accumulatedDepreciationAccountId: z.string().optional(),
+    depreciationAccountId: z.string().optional(),
 })
+
+/** Mirrors Models/FixedAsset.cs FiscalGroup and FiscalMethod. */
+export const FISCAL_GROUPS = [
+    { value: 0, label: "Belum diklasifikasikan", years: null },
+    { value: 1, label: "Kelompok 1", years: 4 },
+    { value: 2, label: "Kelompok 2", years: 8 },
+    { value: 3, label: "Kelompok 3", years: 16 },
+    { value: 4, label: "Kelompok 4", years: 20 },
+    { value: 5, label: "Bangunan permanen", years: 20 },
+    { value: 6, label: "Bangunan tidak permanen", years: 10 },
+    { value: 7, label: "Tidak disusutkan (tanah)", years: null },
+] as const
+
+export const isBuilding = (group: number) => group === 5 || group === 6
 
 type AssetFormValues = z.infer<typeof assetSchema>
 
@@ -52,6 +72,7 @@ export function AssetForm({ initialData, isEditing }: AssetFormProps) {
     const router = useRouter();
     const [categories, setCategories] = useState<any[]>([]);
     const [locations, setLocations] = useState<any[]>([]);
+    const [accounts, setAccounts] = useState<{ id: string; code: string; name: string; type: string; isHeader?: boolean }[]>([]);
     const [loading, setLoading] = useState(false);
 
     const form = useForm<AssetFormValues>({
@@ -65,6 +86,12 @@ export function AssetForm({ initialData, isEditing }: AssetFormProps) {
             salvageValue: initialData?.residualValue || 0,
             usefulLifeMonths: initialData?.usefulLifeMonths || 60,
             serialNumber: initialData?.serialNumber || "",
+            fiscalGroup: initialData?.fiscalGroup ?? 0,
+            fiscalMethod: initialData?.fiscalMethod ?? 0,
+            buildingLifeYears: initialData?.fiscalUsefulLifeMonths ? initialData.fiscalUsefulLifeMonths / 12 : undefined,
+            assetAccountId: initialData?.assetAccountId || "",
+            accumulatedDepreciationAccountId: initialData?.accumulatedDepreciationAccountId || "",
+            depreciationAccountId: initialData?.depreciationAccountId || "",
         },
     })
 
@@ -73,12 +100,14 @@ export function AssetForm({ initialData, isEditing }: AssetFormProps) {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [cats, locs] = await Promise.all([
+                const [cats, locs, accs] = await Promise.all([
                     apiClient.getAssetCategories(),
-                    apiClient.getAssetLocations()
+                    apiClient.getAssetLocations(),
+                    apiClient.getAccounts(),
                 ]);
                 setCategories(cats);
                 setLocations(locs);
+                setAccounts((accs as unknown as typeof accounts).filter((a) => !a.isHeader));
             } catch (error) {
                 console.error(error);
                 toast.error("Failed to load form data");
@@ -93,6 +122,8 @@ export function AssetForm({ initialData, isEditing }: AssetFormProps) {
             const cat = categories.find(c => c.id === formValues.categoryId);
             if (cat) {
                 form.setValue("usefulLifeMonths", cat.defaultUsefulLifeMonths);
+                form.setValue("fiscalGroup", cat.defaultFiscalGroup ?? 0);
+                form.setValue("fiscalMethod", cat.defaultFiscalMethod ?? 0);
             }
         }
     }, [formValues.categoryId, categories, isEditing, form]);
@@ -130,8 +161,14 @@ export function AssetForm({ initialData, isEditing }: AssetFormProps) {
     async function onSubmit(data: AssetFormValues) {
         setLoading(true);
         try {
+            const { buildingLifeYears, ...rest } = data;
             const payload = {
-                ...data,
+                ...rest,
+                fiscalUsefulLifeMonths: data.fiscalGroup === 5 && buildingLifeYears ? Math.round(buildingLifeYears * 12) : null,
+                fiscalMethod: isBuilding(data.fiscalGroup) ? 0 : data.fiscalMethod,
+                assetAccountId: data.assetAccountId || null,
+                accumulatedDepreciationAccountId: data.accumulatedDepreciationAccountId || null,
+                depreciationAccountId: data.depreciationAccountId || null,
                 description: "", // Add field if needed
                 acquisitionDate: data.purchaseDate,
                 acquisitionCost: data.cost,
@@ -150,8 +187,7 @@ export function AssetForm({ initialData, isEditing }: AssetFormProps) {
             router.push("/dashboard/assets");
             router.refresh();
         } catch (error) {
-            console.error(error);
-            toast.error("Failed to save asset");
+            toast.error(error instanceof Error ? error.message : "Failed to save asset");
         } finally {
             setLoading(false);
         }
@@ -316,6 +352,113 @@ export function AssetForm({ initialData, isEditing }: AssetFormProps) {
                                         </FormItem>
                                     )}
                                 />
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Tax and accounts</CardTitle>
+                                <p className="text-sm text-muted-foreground">
+                                    Kelompok harta for tax depreciation (UU PPh Pasal 11). Commercial depreciation above is unaffected.
+                                </p>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="fiscalGroup"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Fiscal group</FormLabel>
+                                                <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
+                                                    <FormControl>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {FISCAL_GROUPS.map((g) => (
+                                                            <SelectItem key={g.value} value={String(g.value)}>
+                                                                {g.label}{g.years ? ` · ${g.years} years` : ""}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    {formValues.fiscalGroup !== undefined && formValues.fiscalGroup >= 1 && formValues.fiscalGroup <= 4 && (
+                                        <FormField
+                                            control={form.control}
+                                            name="fiscalMethod"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Fiscal method</FormLabel>
+                                                    <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
+                                                        <FormControl>
+                                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="0">Garis lurus (straight line)</SelectItem>
+                                                            <SelectItem value="1">Saldo menurun (declining balance)</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
+                                    {formValues.fiscalGroup === 5 && (
+                                        <FormField
+                                            control={form.control}
+                                            name="buildingLifeYears"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Actual useful life (years)</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="20"
+                                                            value={field.value ?? ""}
+                                                            onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                                                        />
+                                                    </FormControl>
+                                                    <FormDescription>Only when longer than 20 years (PMK 72/2023).</FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
+                                </div>
+                                {([
+                                    ["assetAccountId", "Asset account", "Asset"],
+                                    ["accumulatedDepreciationAccountId", "Accumulated depreciation account", "Asset"],
+                                    ["depreciationAccountId", "Depreciation expense account", "Expense"],
+                                ] as const).map(([name, label, type]) => (
+                                    <FormField
+                                        key={name}
+                                        control={form.control}
+                                        name={name}
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>{label}</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value || undefined}>
+                                                    <FormControl>
+                                                        <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {accounts.filter((a) => a.type === type).map((a) => (
+                                                            <SelectItem key={a.id} value={a.id}>{a.code} · {a.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                ))}
+                                <p className="text-xs text-muted-foreground">
+                                    Depreciation and disposal post to these accounts and are refused without them.
+                                </p>
                             </CardContent>
                         </Card>
                     </div>

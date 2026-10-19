@@ -50,7 +50,7 @@ export default function WorkspaceLayout({
 
       <div
         className={cn(
-          "flex-1 flex flex-col min-w-0 print:ml-0 transition-[margin] duration-300 ease-in-out",
+          "flex-1 flex flex-col min-w-0 print:ml-0 print:block transition-[margin] duration-300 ease-in-out",
           sidebarOpen ? "md:ml-[240px]" : "md:ml-[70px]"
         )}
       >

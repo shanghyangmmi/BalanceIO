@@ -20,6 +20,7 @@ import {
     Save
 } from "lucide-react";
 import { adminApiClient } from "@/lib/api-client";
+import { PendingPayments } from "@/components/admin/pending-payments";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -334,10 +335,15 @@ export default function AdminSubscriptionsPage() {
                 <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="subscriptions">All Subscriptions</TabsTrigger>
+                    <TabsTrigger value="payments">Payments</TabsTrigger>
                     <TabsTrigger value="plans">Plans & Limits</TabsTrigger>
                     <TabsTrigger value="settings">System Settings</TabsTrigger>
                     <TabsTrigger value="logs">Login History</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="payments" className="space-y-4">
+                    <PendingPayments />
+                </TabsContent>
 
                 <TabsContent value="overview" className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

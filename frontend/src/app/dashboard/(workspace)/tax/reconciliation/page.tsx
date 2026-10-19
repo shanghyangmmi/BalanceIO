@@ -178,6 +178,24 @@ export default function FiscalReconciliationPage() {
             take.
           </p>
 
+          {data && data.unclassifiedAssets > 0 && (
+            <>
+              <div className="mt-5 h-px bg-foreground/10" />
+              <p className="mt-4 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+                {data.unclassifiedAssets} fixed asset{data.unclassifiedAssets === 1 ? " has" : "s have"} no fiscal group, so
+                the difference between commercial and fiscal depreciation is not in the corrections above. Set the
+                kelompok harta on the asset or its category; the{" "}
+                <Link
+                  href="/dashboard/tax/fiscal-depreciation"
+                  className="text-emerald-700 underline-offset-4 hover:underline dark:text-emerald-400"
+                >
+                  fiscal depreciation schedule
+                </Link>{" "}
+                shows what is reconciled.
+              </p>
+            </>
+          )}
+
           {unclassified && (
             <>
               <div className="mt-5 h-px bg-foreground/10" />

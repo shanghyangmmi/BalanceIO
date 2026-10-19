@@ -15,11 +15,19 @@ public class PurchaseBillsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IPeriodLockService _periodLockService;
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+    private readonly IDocumentHistoryService _historyService;
 
-    public PurchaseBillsController(ApplicationDbContext context, IPeriodLockService periodLockService)
+    public PurchaseBillsController(
+        ApplicationDbContext context,
+        IPeriodLockService periodLockService,
+        BalanceIO.API.Services.InventoryLedger inventory,
+        IDocumentHistoryService historyService)
     {
+        _inventory = inventory;
         _context = context;
         _periodLockService = periodLockService;
+        _historyService = historyService;
     }
 
     private Guid? GetCurrentUserId()
@@ -108,6 +116,10 @@ public class PurchaseBillsController : ControllerBase
         // Calculate totals
         CalculateTotals(bill);
 
+        var validationError = await ValidateTrackedInventoryLinesAsync(bill.Lines);
+        if (validationError != null)
+            return BadRequest(new { code = "INVALID_ACCOUNT_FOR_TRACKED_ITEM", message = validationError });
+
         bill.CreatedAt = DateTime.UtcNow;
         bill.CreatedByUserId = GetCurrentUserId();
         bill.CreatedBy = GetCurrentUserEmail();
@@ -121,6 +133,15 @@ public class PurchaseBillsController : ControllerBase
 
         _context.PurchaseBills.Add(bill);
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            bill.CompanyId,
+            "PurchaseBill",
+            bill.Id,
+            "Created",
+            bill.CreatedByUserId ?? Guid.Empty,
+            bill.CreatedBy ?? "User",
+            $"Purchase Bill {bill.BillNumber} created as Draft");
 
         return CreatedAtAction(nameof(GetById), new { id = bill.Id }, bill);
     }
@@ -150,6 +171,10 @@ public class PurchaseBillsController : ControllerBase
         if (existing.Status == BillStatus.Posted || existing.Status == BillStatus.Void)
             return BadRequest("Cannot edit posted or voided bill");
 
+        var validationError = await ValidateTrackedInventoryLinesAsync(bill.Lines);
+        if (validationError != null)
+            return BadRequest(new { code = "INVALID_ACCOUNT_FOR_TRACKED_ITEM", message = validationError });
+
         // Update fields
         existing.VendorInvoiceNumber = bill.VendorInvoiceNumber;
         existing.BillDate = bill.BillDate;
@@ -160,6 +185,9 @@ public class PurchaseBillsController : ControllerBase
         existing.Notes = bill.Notes;
         existing.ReferenceNumber = bill.ReferenceNumber;
         existing.TemplateName = bill.TemplateName;
+        existing.WithholdingTaxType = bill.WithholdingTaxType;
+        existing.WithholdingTaxRate = bill.WithholdingTaxRate;
+        existing.WithholdingTaxAmount = bill.WithholdingTaxAmount;
         existing.UpdatedAt = DateTime.UtcNow;
 
         // Replace lines
@@ -174,6 +202,15 @@ public class PurchaseBillsController : ControllerBase
         CalculateTotals(existing);
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            existing.CompanyId,
+            "PurchaseBill",
+            existing.Id,
+            "Updated",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserEmail(),
+            $"Purchase Bill {existing.BillNumber} updated");
 
         return NoContent();
     }
@@ -225,8 +262,42 @@ public class PurchaseBillsController : ControllerBase
         if (bill.Status != BillStatus.Draft && bill.Status != BillStatus.Pending)
             return BadRequest("Only draft or pending bills can be posted");
 
+        // Goods on a bill raised from a purchase order that was already
+        // received entered stock at receipt; adding them again here counted
+        // them twice. What the receipt valued them at is what the bill clears
+        // from goods received not invoiced, where the receipt was journaled.
+        var receivedViaOrder = bill.PurchaseOrderId.HasValue && await _context.PurchaseOrders
+            .AnyAsync(o => o.Id == bill.PurchaseOrderId && o.Status == PurchaseOrderStatus.Received);
+        var order = bill.PurchaseOrderId.HasValue
+            ? await _context.PurchaseOrders.Where(o => o.Id == bill.PurchaseOrderId).Select(o => new { o.WarehouseId, o.OrderNumber }).FirstOrDefaultAsync()
+            : null;
+        var orderWarehouse = order?.WarehouseId;
+
+        var receiptValue = new Dictionary<Guid, decimal>();
+        var clearsGrni = new Dictionary<Guid, decimal>();
+        if (receivedViaOrder)
+        {
+            foreach (var line in bill.Lines.Where(l => l.ProductId.HasValue))
+            {
+                var product = line.Product ?? await _context.Products.FindAsync(line.ProductId!.Value);
+                if (product is not { TrackInventory: true }) continue;
+                var (unitCost, journaled) = await ReceiptAsync(order!.OrderNumber, product.Id);
+                var value = Math.Round(line.Quantity * unitCost, 2, MidpointRounding.ToEven);
+                receiptValue[line.Id] = value;
+                if (journaled) clearsGrni[line.Id] = value;
+            }
+        }
+
+        string? grniCode = null;
+        if (clearsGrni.Count > 0)
+        {
+            var codes = await _context.ResolveAccountCodesAsync(_context.CurrentCompanyId.Value, new[] { PurchaseOrdersController.GrniAccount });
+            if (!codes.TryGetValue(PurchaseOrdersController.GrniAccount, out grniCode))
+                return BadRequest(new { code = "MISSING_ACCOUNT", message = "Goods Received Not Invoiced (2-1150) is missing from the chart of accounts." });
+        }
+
         // 1. Create and post balanced Journal Entry
-        var journalEntry = await CreateJournalEntry(bill);
+        var journalEntry = await CreateJournalEntry(bill, clearsGrni, grniCode);
 
         bill.JournalEntryId = journalEntry.Id;
         bill.Status = BillStatus.Posted;
@@ -234,9 +305,10 @@ public class PurchaseBillsController : ControllerBase
         bill.ApprovedBy = currentEmail;
         bill.ApprovedAt = DateTime.UtcNow;
         bill.PostedAt = DateTime.UtcNow;
-        bill.AmountDue = bill.Total;
+        bill.AmountDue = Math.Max(0, bill.Total - bill.WithholdingTaxAmount);
 
-        // 2. Track Inventory additions and movements
+        // 2. Track Inventory additions and movements.
+
         foreach (var line in bill.Lines)
         {
             if (line.ProductId.HasValue)
@@ -244,30 +316,33 @@ public class PurchaseBillsController : ControllerBase
                 var product = line.Product ?? await _context.Products.FindAsync(line.ProductId.Value);
                 if (product != null && product.TrackInventory)
                 {
-                    product.StockOnHand += line.Quantity;
-
                     // Update unit buy price if provided
                     if (line.UnitPrice > 0)
                     {
                         product.BuyPrice = line.UnitPrice;
                     }
 
-                    var totalCost = line.Quantity * line.UnitPrice;
-
-                    _context.InventoryMovements.Add(new InventoryMovement
+                    // The goods enter at what the journal debits to inventory.
+                    var netCost = line.LineTotal - line.TaxAmount;
+                    if (!receivedViaOrder)
                     {
-                        Id = Guid.NewGuid(),
-                        CompanyId = _context.CurrentCompanyId.Value,
-                        ProductId = product.Id,
-                        MovementDate = bill.BillDate,
-                        Type = InventoryMovementType.Purchase,
-                        Quantity = line.Quantity,
-                        UnitCost = line.UnitPrice,
-                        TotalCost = totalCost,
-                        ReferenceNumber = bill.BillNumber,
-                        JournalEntryId = journalEntry.Id,
-                        Notes = $"Purchase Bill {bill.BillNumber}"
-                    });
+                        await _inventory.MoveAsync(product, bill.WarehouseId ?? orderWarehouse, line.Quantity, InventoryMovementType.Purchase,
+                            bill.BillDate, netCost, bill.BillNumber, journalEntry.Id, $"Purchase Bill {bill.BillNumber}");
+                    }
+                    else
+                    {
+                        // Received at the order price; the bill settles the
+                        // price. The difference is a value-only movement on
+                        // the stock, so the average and the inventory account
+                        // both end at the billed amount.
+                        var difference = netCost - receiptValue.GetValueOrDefault(line.Id);
+                        if (difference != 0m)
+                        {
+                            await _inventory.MoveAsync(product, orderWarehouse, 0m, InventoryMovementType.Purchase,
+                                bill.BillDate, difference, bill.BillNumber, journalEntry.Id,
+                                $"Price difference, Purchase Bill {bill.BillNumber} against order {order?.OrderNumber}");
+                        }
+                    }
                 }
             }
         }
@@ -284,6 +359,15 @@ public class PurchaseBillsController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            bill.CompanyId,
+            "PurchaseBill",
+            bill.Id,
+            "Posted",
+            currentUserId ?? Guid.Empty,
+            currentEmail,
+            $"Purchase Bill {bill.BillNumber} posted to General Ledger (Journal: {journalEntry.ReferenceNumber ?? journalEntry.Id.ToString()})");
 
         return Ok(new { message = "Bill posted successfully", bill, journalEntryId = journalEntry.Id });
     }
@@ -320,37 +404,10 @@ public class PurchaseBillsController : ControllerBase
             }
         }
 
-        // 2. Reverse inventory that was added when posted
-        if (bill.Status == BillStatus.Posted)
-        {
-            foreach (var line in bill.Lines)
-            {
-                if (line.ProductId.HasValue)
-                {
-                    var product = line.Product ?? await _context.Products.FindAsync(line.ProductId.Value);
-                    if (product != null && product.TrackInventory)
-                    {
-                        product.StockOnHand -= line.Quantity;
-
-                        var totalCost = line.Quantity * line.UnitPrice;
-
-                        _context.InventoryMovements.Add(new InventoryMovement
-                        {
-                            Id = Guid.NewGuid(),
-                            CompanyId = _context.CurrentCompanyId.Value,
-                            ProductId = product.Id,
-                            MovementDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                            Type = InventoryMovementType.ManualAdjustment,
-                            Quantity = -line.Quantity,
-                            UnitCost = line.UnitPrice,
-                            TotalCost = -totalCost,
-                            ReferenceNumber = $"VOID-{bill.BillNumber}",
-                            Notes = $"Void of Purchase Bill {bill.BillNumber}"
-                        });
-                    }
-                }
-            }
-        }
+        // 2. Reverse the stock this bill added, from the warehouses it entered.
+        // A bill whose goods came in on a received order added none.
+        await _inventory.ReverseAsync(_context.CurrentCompanyId!.Value, bill.BillNumber, InventoryMovementType.Purchase,
+            DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), $"VOID-{bill.BillNumber}", $"Void of Purchase Bill {bill.BillNumber}");
 
         bill.Status = BillStatus.Void;
         bill.VoidedAt = DateTime.UtcNow;
@@ -366,6 +423,15 @@ public class PurchaseBillsController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            bill.CompanyId,
+            "PurchaseBill",
+            bill.Id,
+            "Voided",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserEmail(),
+            $"Purchase Bill {bill.BillNumber} voided");
 
         return Ok(new { message = "Bill voided successfully" });
     }
@@ -467,7 +533,13 @@ public class PurchaseBillsController : ControllerBase
         bill.DiscountAmount = billDiscount;
         bill.TaxAmount = totalTax;
         bill.Total = subtotal - billDiscount + totalTax;
-        bill.AmountDue = bill.Total - bill.AmountPaid;
+
+        if (bill.WithholdingTaxRate > 0 && bill.WithholdingTaxAmount == 0)
+        {
+            bill.WithholdingTaxAmount = Math.Round((bill.Subtotal - bill.DiscountAmount) * (bill.WithholdingTaxRate / 100m), 2, MidpointRounding.ToEven);
+        }
+
+        bill.AmountDue = Math.Max(0, (bill.Total - bill.WithholdingTaxAmount) - bill.AmountPaid);
     }
 
     private async Task<string> GenerateBillNumber()
@@ -482,7 +554,24 @@ public class PurchaseBillsController : ControllerBase
         return $"{prefix}-{(count + 1).ToString().PadLeft(4, '0')}";
     }
 
-    private async Task<JournalEntry> CreateJournalEntry(PurchaseBill bill)
+    /// <summary>
+    /// Unit value the order's receipt gave the product, and whether the
+    /// receipt was journaled to goods received not invoiced. Receipts from
+    /// before that journal existed were not.
+    /// </summary>
+    private async Task<(decimal UnitCost, bool Journaled)> ReceiptAsync(string orderNumber, Guid productId)
+    {
+        // Summed in memory: SQLite stores decimal(19,4) as REAL.
+        var received = await _context.InventoryMovements.AsNoTracking()
+            .Where(m => m.ReferenceNumber == orderNumber && m.ProductId == productId && m.Type == InventoryMovementType.Purchase)
+            .Select(m => new { m.Quantity, m.TotalCost, m.JournalEntryId })
+            .ToListAsync();
+        var quantity = received.Sum(m => m.Quantity);
+        var unitCost = quantity == 0m ? 0m : received.Sum(m => m.TotalCost) / quantity;
+        return (unitCost, received.Count > 0 && received.All(m => m.JournalEntryId != null));
+    }
+
+    private async Task<JournalEntry> CreateJournalEntry(PurchaseBill bill, IReadOnlyDictionary<Guid, decimal> clearsGrni, string? grniCode)
     {
         // 1. Resolve Accounts Payable account (Contact's DefaultPayableAccountId or 2-1100 Trade Payables)
         var payableAccountId = bill.Contact?.DefaultPayableAccountId?.ToString();
@@ -508,20 +597,31 @@ public class PurchaseBillsController : ControllerBase
             .FirstOrDefaultAsync(a => a.Code == "6-1400" || a.Code.StartsWith("6") || (a.AccountGroup == "Expense" && !a.IsHeader));
         var fallbackExpenseCode = defaultExpenseAccount?.Code ?? "6-1400";
 
+        var rate = bill.ExchangeRate > 0 ? bill.ExchangeRate : 1m;
+
         var journalEntry = new JournalEntry
         {
             Id = Guid.NewGuid(),
             Date = bill.BillDate,
             ReferenceNumber = bill.BillNumber,
             ContactId = bill.ContactId.ToString(),
-            Currency = bill.Currency,
-            Notes = $"Purchase Bill {bill.BillNumber} - {bill.Contact?.Name ?? "Vendor"}",
+            Currency = "IDR",
+            Notes = $"Purchase Bill {bill.BillNumber} - {bill.Contact?.Name ?? "Vendor"}" + (rate != 1m ? $" (FX {bill.Currency} @ {rate:N2})" : ""),
             Status = JournalEntryStatus.Posted,
             CreatedAt = DateTime.UtcNow,
             Lines = new List<JournalLine>()
         };
 
-        // Credit: Trade Payables (full bill total)
+        var netPayable = bill.Total - bill.WithholdingTaxAmount;
+        var apAmount = Math.Round(netPayable * rate, 2, MidpointRounding.ToEven);
+        var discountAmount = bill.DiscountAmount > 0 
+            ? Math.Round(bill.DiscountAmount * rate, 2, MidpointRounding.ToEven) 
+            : 0m;
+        var whtAmount = bill.WithholdingTaxAmount > 0
+            ? Math.Round(bill.WithholdingTaxAmount * rate, 2, MidpointRounding.ToEven)
+            : 0m;
+
+        // Credit: Trade Payables (net payable to vendor in base currency)
         journalEntry.Lines.Add(new JournalLine
         {
             Id = Guid.NewGuid(),
@@ -529,10 +629,56 @@ public class PurchaseBillsController : ControllerBase
             AccountId = payableAccountId,
             Description = $"Bill {bill.BillNumber} - {bill.Contact?.Name ?? "Vendor"}",
             Debit = 0,
-            Credit = bill.Total
+            Credit = apAmount
         });
 
+        // Credit: Withholding Tax Payable (PPh 21/22/23/4(2))
+        if (whtAmount > 0)
+        {
+            var whtType = (bill.WithholdingTaxType ?? "").Trim().ToUpperInvariant();
+            string defaultWhtCode = whtType switch
+            {
+                var s when s.Contains("21") => "2-1410",
+                var s when s.Contains("22") => "2-1422",
+                var s when s.Contains("4(2)") || s.Contains("42") || s.Contains("FINAL") => "2-1424",
+                _ => "2-1423" // Default PPh 23
+            };
+
+            var whtAccount = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == defaultWhtCode);
+            var whtAccountCode = whtAccount?.Code ?? defaultWhtCode;
+
+            journalEntry.Lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                JournalEntryId = journalEntry.Id,
+                AccountId = whtAccountCode,
+                Description = $"{bill.WithholdingTaxType ?? "Withholding Tax"} - Bill {bill.BillNumber}",
+                Debit = 0,
+                Credit = whtAmount
+            });
+        }
+
+        // Credit: Purchase Discount if bill carries a discount
+        if (discountAmount > 0)
+        {
+            var defaultDiscount = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "5-5000" || a.Code.StartsWith("5500") || a.Code == "5-9100" || a.Name.Contains("Purchase Discount") || a.Name.Contains("Diskon Pembelian") || a.Code == "5-9000");
+            var discountCode = defaultDiscount?.Code ?? "5-5000";
+
+            journalEntry.Lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                JournalEntryId = journalEntry.Id,
+                AccountId = discountCode,
+                Description = $"Discount - Bill {bill.BillNumber}",
+                Debit = 0,
+                Credit = discountAmount
+            });
+        }
+
         // Debit: Line item expense / inventory + VAT In
+        var debitLines = new List<JournalLine>();
         foreach (var line in bill.Lines)
         {
             string lineDebitAccount;
@@ -567,32 +713,115 @@ public class PurchaseBillsController : ControllerBase
 
             var netAmount = line.LineTotal - line.TaxAmount;
 
-            journalEntry.Lines.Add(new JournalLine
+            if (clearsGrni.TryGetValue(line.Id, out var received))
             {
-                Id = Guid.NewGuid(),
-                JournalEntryId = journalEntry.Id,
-                AccountId = lineDebitAccount,
-                Description = line.Description,
-                Debit = netAmount,
-                Credit = 0
-            });
+                // Received goods: the receipt's value comes off goods received
+                // not invoiced; only the price difference touches inventory.
+                var convertedReceived = Math.Round(received * rate, 2, MidpointRounding.ToEven);
+                var grniLine = new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    JournalEntryId = journalEntry.Id,
+                    AccountId = grniCode!,
+                    Description = $"Received not invoiced - {line.Description}",
+                    Debit = convertedReceived,
+                    Credit = 0,
+                    CostCenterId = line.CostCenterId,
+                    ProjectId = line.ProjectId
+                };
+                debitLines.Add(grniLine);
+                journalEntry.Lines.Add(grniLine);
+
+                var difference = Math.Round((netAmount - received) * rate, 2, MidpointRounding.ToEven);
+                if (difference != 0m)
+                {
+                    var diffLine = new JournalLine
+                    {
+                        Id = Guid.NewGuid(),
+                        JournalEntryId = journalEntry.Id,
+                        AccountId = lineDebitAccount,
+                        Description = $"Price difference - {line.Description}",
+                        Debit = difference > 0m ? difference : 0m,
+                        Credit = difference < 0m ? -difference : 0m,
+                        CostCenterId = line.CostCenterId,
+                        ProjectId = line.ProjectId
+                    };
+                    if (difference > 0m) debitLines.Add(diffLine);
+                    journalEntry.Lines.Add(diffLine);
+                }
+            }
+            else
+            {
+                var convertedNet = Math.Round(netAmount * rate, 2, MidpointRounding.ToEven);
+                var netLine = new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    JournalEntryId = journalEntry.Id,
+                    AccountId = lineDebitAccount,
+                    Description = line.Description,
+                    Debit = convertedNet,
+                    Credit = 0,
+                    CostCenterId = line.CostCenterId,
+                    ProjectId = line.ProjectId
+                };
+                debitLines.Add(netLine);
+                journalEntry.Lines.Add(netLine);
+            }
 
             // Debit: PPN Masukan (VAT In) if taxable
             if (line.IsTaxable && line.TaxAmount > 0)
             {
-                journalEntry.Lines.Add(new JournalLine
+                var convertedTax = Math.Round(line.TaxAmount * rate, 2, MidpointRounding.ToEven);
+                var taxLine = new JournalLine
                 {
                     Id = Guid.NewGuid(),
                     JournalEntryId = journalEntry.Id,
                     AccountId = taxAccountCode,
                     Description = $"PPN Masukan - {line.Description}",
-                    Debit = line.TaxAmount,
+                    Debit = convertedTax,
                     Credit = 0
-                });
+                };
+                debitLines.Add(taxLine);
+                journalEntry.Lines.Add(taxLine);
             }
+        }
+
+        // Decimal balance check across FX and rounding:
+        var totalBillCredits = apAmount + discountAmount + whtAmount;
+        var totalBillDebits = journalEntry.Lines.Where(l => l.Debit > 0).Sum(l => l.Debit);
+        var balanceDiff = totalBillCredits - totalBillDebits;
+        if (balanceDiff != 0m && debitLines.Count > 0)
+        {
+            debitLines[0].Debit += balanceDiff;
         }
 
         _context.JournalEntries.Add(journalEntry);
         return journalEntry;
+    }
+
+    private async Task<string?> ValidateTrackedInventoryLinesAsync(IEnumerable<PurchaseBillLine> lines)
+    {
+        foreach (var line in lines)
+        {
+            if (line.ProductId.HasValue && line.AccountId.HasValue)
+            {
+                var product = await _context.Products.FindAsync(line.ProductId.Value);
+                if (product != null && product.TrackInventory)
+                {
+                    var customAcc = await _context.Accounts.FindAsync(line.AccountId.Value);
+                    var isInventory = customAcc != null && (
+                        customAcc.AccountGroup == "Inventory" ||
+                        customAcc.Code.StartsWith("1-14") ||
+                        customAcc.Code.StartsWith("114") ||
+                        (product.InventoryAccountId.HasValue && customAcc.Id == product.InventoryAccountId.Value));
+
+                    if (!isInventory)
+                    {
+                        return $"Line with tracked item '{product.Name}' must post to an inventory asset account.";
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

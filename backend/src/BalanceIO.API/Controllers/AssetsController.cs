@@ -16,11 +16,76 @@ public class AssetsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly AssetChargeService _assetCharge;
+    private readonly FiscalDepreciationService _fiscal;
+    private readonly IPeriodLockService _periodLock;
+    private readonly IDocumentHistoryService _historyService;
 
-    public AssetsController(ApplicationDbContext context, AssetChargeService assetCharge)
+    public const string GainOnDisposalAccount = "7-3000";
+    public const string LossOnDisposalAccount = "8-4000";
+
+    public AssetsController(
+        ApplicationDbContext context,
+        AssetChargeService assetCharge,
+        FiscalDepreciationService fiscal,
+        IPeriodLockService periodLock,
+        IDocumentHistoryService historyService)
     {
         _assetCharge = assetCharge;
         _context = context;
+        _fiscal = fiscal;
+        _periodLock = periodLock;
+        _historyService = historyService;
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("id")?.Value
+                 ?? User.FindFirst("sub")?.Value
+                 ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private string GetCurrentUserName()
+    {
+        return User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? User.FindFirst("name")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? "User";
+    }
+
+    /// <summary>Buildings are straight line only; a longer life applies to permanent buildings only.</summary>
+    private static void NormaliseFiscal(FixedAsset asset)
+    {
+        if (FiscalDepreciation.IsBuilding(asset.FiscalGroup)) asset.FiscalMethod = FiscalMethod.StraightLine;
+        if (asset.FiscalGroup != FiscalGroup.PermanentBuilding) asset.FiscalUsefulLifeMonths = null;
+    }
+
+    // GET: api/assets/fiscal-depreciation?year=
+    /// <summary>Tax depreciation for the year beside the commercial charge (Lampiran 1A).</summary>
+    [HttpGet("fiscal-depreciation")]
+    [RequiresPermission(Permissions.AssetsView)]
+    public async Task<ActionResult<FiscalDepreciationResponse>> GetFiscalDepreciation([FromQuery] int? year)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+        return await _fiscal.ForYearAsync(_context.CurrentCompanyId.Value, year ?? DateTime.UtcNow.AddHours(7).Year);
+    }
+
+    // GET: api/assets/{id}/fiscal-schedule
+    [HttpGet("{id}/fiscal-schedule")]
+    [RequiresPermission(Permissions.AssetsView)]
+    public async Task<IActionResult> GetFiscalSchedule(Guid id)
+    {
+        var asset = await _context.FixedAssets.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id);
+        if (asset == null) return NotFound();
+        return Ok(new
+        {
+            asset.FiscalGroup,
+            GroupLabel = FiscalDepreciation.Label(asset.FiscalGroup),
+            Method = FiscalDepreciation.EffectiveMethod(asset.FiscalGroup, asset.FiscalMethod),
+            LifeYears = FiscalDepreciation.LifeMonths(asset.FiscalGroup, asset.FiscalUsefulLifeMonths) / 12,
+            Years = FiscalDepreciation.Schedule(asset),
+        });
     }
 
     // GET: api/assets
@@ -34,6 +99,7 @@ public class AssetsController : ControllerBase
             .Include(a => a.AssetAccount)
             .Include(a => a.Category)
             .Include(a => a.Location)
+            .Include(a => a.CostCenter)
             .AsQueryable();
 
         if (status.HasValue)
@@ -60,6 +126,7 @@ public class AssetsController : ControllerBase
             .Include(a => a.AccumulatedDepreciationAccount)
             .Include(a => a.Category)
             .Include(a => a.Location)
+            .Include(a => a.CostCenter)
             .FirstOrDefaultAsync(a => a.Id == id);
 
         if (asset == null)
@@ -145,8 +212,17 @@ public class AssetsController : ControllerBase
             asset.Code = await GenerateAssetCode(category.CodePrefix);
         }
 
-        // Initialize book value
-        asset.BookValue = asset.AcquisitionCost - asset.ResidualValue;
+        if (asset.FiscalGroup == FiscalGroup.NotSet)
+        {
+            asset.FiscalGroup = category.DefaultFiscalGroup;
+            asset.FiscalMethod = category.DefaultFiscalMethod;
+        }
+        NormaliseFiscal(asset);
+        asset.DisposalJournalEntryId = null;
+        asset.AcquisitionJournalEntryId = null;
+
+        // Initialize book value to full acquisition cost
+        asset.BookValue = asset.AcquisitionCost;
         asset.AccumulatedDepreciation = 0;
         asset.CreatedAt = DateTime.UtcNow;
         asset.Status = AssetStatus.Active;
@@ -165,6 +241,15 @@ public class AssetsController : ControllerBase
         });
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            asset.CompanyId,
+            "FixedAsset",
+            asset.Id,
+            "Created",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Asset {asset.Code} - {asset.Name} created");
 
         return CreatedAtAction(nameof(GetById), new { id = asset.Id }, asset);
     }
@@ -194,8 +279,12 @@ public class AssetsController : ControllerBase
         existing.DepreciationMethod = asset.DepreciationMethod;
         existing.AssetAccountId = asset.AssetAccountId;
         existing.DepreciationAccountId = asset.DepreciationAccountId;
-        existing.DepreciationAccountId = asset.DepreciationAccountId;
         existing.AccumulatedDepreciationAccountId = asset.AccumulatedDepreciationAccountId;
+        existing.CostCenterId = asset.CostCenterId;
+        existing.FiscalGroup = asset.FiscalGroup;
+        existing.FiscalMethod = asset.FiscalMethod;
+        existing.FiscalUsefulLifeMonths = asset.FiscalUsefulLifeMonths;
+        NormaliseFiscal(existing);
         
         // Allow updating cost/valuation
         if (asset.AcquisitionCost != existing.AcquisitionCost)
@@ -272,37 +361,245 @@ public class AssetsController : ControllerBase
     }
 
     // POST: api/assets/{id}/dispose
+    /// <summary>
+    /// Takes the asset off the books: Dr accumulated depreciation, Dr the
+    /// proceeds account for what was received, Cr the asset at cost, and the
+    /// difference to Gain (7-3000) or Loss (8-4000) on Asset Disposal. It
+    /// used to change the asset's status and post nothing, so cost and
+    /// accumulated depreciation stayed in the ledger after the asset left.
+    /// Depreciation must be charged up to the disposal first.
+    /// </summary>
     [HttpPost("{id}/dispose")]
     [RequiresPermission(Permissions.AssetsManage)]
     public async Task<IActionResult> Dispose(Guid id, [FromBody] DisposeRequest request)
     {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+        var companyId = _context.CurrentCompanyId.Value;
+
         var asset = await _context.FixedAssets.FindAsync(id);
         if (asset == null)
             return NotFound();
 
-        if (asset.Status == AssetStatus.Disposed || asset.Status == AssetStatus.Sold)
-            return BadRequest("Asset already disposed");
+        if (asset.Status == AssetStatus.Disposed || asset.Status == AssetStatus.Sold || asset.Status == AssetStatus.WrittenOff)
+            return BadRequest(new { code = "ALREADY_DISPOSED", message = "The asset has already been disposed of." });
+        if (request.Amount < 0m)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "Proceeds cannot be negative." });
+        if (request.Date < asset.AcquisitionDate)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "The disposal date is before the acquisition date." });
+        if (asset.LastDepreciationDate is { } charged && charged > request.Date)
+            return BadRequest(new { code = "DEPRECIATED_PAST_DISPOSAL", message = $"Depreciation has been charged to {charged:yyyy-MM-dd}, after the disposal date. Reverse that charge first." });
+
+        await _periodLock.ValidateTransactionDate(companyId, request.Date);
+
+        var keys = new List<string> { GainOnDisposalAccount, LossOnDisposalAccount };
+        if (asset.AssetAccountId is { } assetAccount) keys.Add(assetAccount.ToString());
+        if (asset.AccumulatedDepreciationAccountId is { } accumulatedAccount) keys.Add(accumulatedAccount.ToString());
+        if (!string.IsNullOrWhiteSpace(request.ProceedsAccountId)) keys.Add(request.ProceedsAccountId);
+        var codes = await _context.ResolveAccountCodesAsync(companyId, keys);
+        string? Code(string? key) => key is not null && codes.TryGetValue(key, out var code) ? code : null;
+
+        var assetCode = Code(asset.AssetAccountId?.ToString());
+        if (assetCode is null)
+            return BadRequest(new { code = "MISSING_ACCOUNT", message = "The asset has no asset account; set it before disposing." });
+        var accumulatedCode = Code(asset.AccumulatedDepreciationAccountId?.ToString());
+        if (asset.AccumulatedDepreciation != 0m && accumulatedCode is null)
+            return BadRequest(new { code = "MISSING_ACCOUNT", message = "The asset has accumulated depreciation but no accumulated depreciation account." });
+        var proceedsCode = Code(request.ProceedsAccountId);
+        if (request.Amount > 0m && proceedsCode is null)
+            return BadRequest(new { code = "MISSING_ACCOUNT", message = "Choose the account that received the proceeds." });
+
+        var bookValue = asset.AcquisitionCost - asset.AccumulatedDepreciation;
+        var gain = request.Amount - bookValue;
+        var gainCode = Code(gain > 0m ? GainOnDisposalAccount : LossOnDisposalAccount);
+        if (gain != 0m && gainCode is null)
+            return BadRequest(new { code = "MISSING_ACCOUNT", message = $"{(gain > 0m ? "Gain (7-3000)" : "Loss (8-4000)")} on Asset Disposal is missing from the chart of accounts." });
+
+        var label = string.IsNullOrWhiteSpace(asset.Code) ? asset.Name : $"{asset.Code} {asset.Name}";
+        var entry = new JournalEntry
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Date = request.Date,
+            ReferenceNumber = $"DSP-{asset.Code}",
+            Currency = "IDR",
+            Notes = $"{(request.IsSale ? "Sale" : "Disposal")} of {label}{(string.IsNullOrWhiteSpace(request.Reason) ? "" : ": " + request.Reason.Trim())}",
+            Status = JournalEntryStatus.Posted,
+            CreatedAt = DateTime.UtcNow,
+            Lines = new List<JournalLine>(),
+        };
+        void Line(string account, string description, decimal debit, decimal credit) =>
+            entry.Lines.Add(new JournalLine { Id = Guid.NewGuid(), AccountId = account, Description = description, Debit = debit, Credit = credit });
+
+        if (asset.AccumulatedDepreciation != 0m)
+            Line(accumulatedCode!, $"Accumulated depreciation, {label}", asset.AccumulatedDepreciation, 0m);
+        if (request.Amount > 0m)
+            Line(proceedsCode!, $"Proceeds, {label}", request.Amount, 0m);
+        if (gain < 0m)
+            Line(gainCode!, $"Loss on disposal, {label}", -gain, 0m);
+        if (gain > 0m)
+            Line(gainCode!, $"Gain on disposal, {label}", 0m, gain);
+        Line(assetCode, $"Cost, {label}", 0m, asset.AcquisitionCost);
+        _context.JournalEntries.Add(entry);
 
         asset.Status = request.IsSale ? AssetStatus.Sold : AssetStatus.Disposed;
         asset.DisposalDate = request.Date;
         asset.DisposalAmount = request.Amount;
         asset.DisposalReason = request.Reason;
+        asset.DisposalJournalEntryId = entry.Id;
+        asset.BookValue = 0m;
         asset.UpdatedAt = DateTime.UtcNow;
 
-        // Audit log
         _context.AuditLogs.Add(new AuditLog
         {
             Id = Guid.NewGuid(),
             Action = request.IsSale ? "SELL" : "DISPOSE",
             TargetEntity = "FixedAsset:" + id,
             Timestamp = DateTime.UtcNow,
-            Details = $"Asset disposed. Amount: {request.Amount:N2}. Reason: {request.Reason}",
+            Details = $"Asset disposed. Proceeds {request.Amount:N2}, book value {bookValue:N2}, {(gain >= 0m ? "gain" : "loss")} {Math.Abs(gain):N2}. Reason: {request.Reason}",
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
         });
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { message = "Asset disposed successfully" });
+        await _historyService.RecordEventAsync(
+            asset.CompanyId,
+            "FixedAsset",
+            asset.Id,
+            request.IsSale ? "Sold" : "Disposed",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Asset disposed. Proceeds {request.Amount:N2}, gain/loss {gain:N2}. Reason: {request.Reason}");
+
+        return Ok(new { message = "Asset disposed", journalEntryId = entry.Id, bookValue, gainOrLoss = gain });
+    }
+
+    // POST: api/assets/{id}/post-acquisition
+    /// <summary>
+    /// Brings the asset onto the books at cost:
+    /// Dr Asset Account (asset.AcquisitionCost)
+    /// Cr Cash/Bank or Accounts Payable (asset.AcquisitionCost)
+    /// </summary>
+    [HttpPost("{id}/post-acquisition")]
+    [RequiresPermission(Permissions.AssetsManage)]
+    public async Task<IActionResult> PostAcquisition(Guid id, [FromBody] PostAcquisitionRequest? request = null)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+        var companyId = _context.CurrentCompanyId.Value;
+
+        var asset = await _context.FixedAssets
+            .Include(a => a.Category)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (asset == null)
+            return NotFound();
+
+        if (asset.AcquisitionJournalEntryId.HasValue)
+            return BadRequest(new { code = "ALREADY_ACQUIRED", message = "Acquisition journal has already been posted for this asset." });
+
+        if (asset.Status != AssetStatus.Active)
+            return BadRequest(new { code = "NOT_ACTIVE", message = "Only active assets can post an acquisition journal." });
+
+        if (asset.AcquisitionCost <= 0m)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "Acquisition cost must be positive to post an acquisition journal." });
+
+        var date = request?.Date ?? asset.AcquisitionDate;
+        await _periodLock.ValidateTransactionDate(companyId, date);
+
+        // Resolve Asset account code
+        string? assetCode = null;
+        if (asset.AssetAccountId.HasValue)
+        {
+            var acc = await _context.Accounts.FindAsync(asset.AssetAccountId.Value);
+            assetCode = acc?.Code;
+        }
+
+        if (string.IsNullOrEmpty(assetCode))
+        {
+            return BadRequest(new { code = "MISSING_ACCOUNT", message = "Asset account is required to post acquisition journal." });
+        }
+
+        // Resolve Payment / Payable account code
+        string? paymentCode = null;
+        if (!string.IsNullOrWhiteSpace(request?.PaymentAccountId))
+        {
+            if (Guid.TryParse(request.PaymentAccountId, out var accId))
+            {
+                var acc = await _context.Accounts.FindAsync(accId);
+                paymentCode = acc?.Code;
+            }
+            else
+            {
+                paymentCode = request.PaymentAccountId;
+            }
+        }
+
+        if (string.IsNullOrEmpty(paymentCode))
+        {
+            var defaultPayment = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "1-1102" || a.Code == "1-1101" || a.Code == "1-1100" || a.Code == "2-1100" || (a.AccountGroup == "Asset" && a.Name.Contains("Bank")));
+            paymentCode = defaultPayment?.Code ?? "1-1102";
+        }
+
+        var label = string.IsNullOrWhiteSpace(asset.Code) ? asset.Name : $"{asset.Code} {asset.Name}";
+        var entry = new JournalEntry
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            Date = date,
+            ReferenceNumber = $"ACQ-{asset.Code}",
+            Currency = "IDR",
+            Notes = $"Acquisition of {label}" + (string.IsNullOrWhiteSpace(request?.Notes) ? "" : $": {request.Notes.Trim()}"),
+            Status = JournalEntryStatus.Posted,
+            CreatedAt = DateTime.UtcNow,
+            Lines = new List<JournalLine>
+            {
+                new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = assetCode,
+                    Description = $"Asset Acquisition, {label}",
+                    Debit = asset.AcquisitionCost,
+                    Credit = 0m
+                },
+                new JournalLine
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = paymentCode,
+                    Description = $"Payment/Payable for {label}",
+                    Debit = 0m,
+                    Credit = asset.AcquisitionCost
+                }
+            }
+        };
+
+        _context.JournalEntries.Add(entry);
+        asset.AcquisitionJournalEntryId = entry.Id;
+        asset.UpdatedAt = DateTime.UtcNow;
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            Action = "POST_ACQUISITION",
+            TargetEntity = "FixedAsset:" + id,
+            Timestamp = DateTime.UtcNow,
+            Details = $"Asset acquisition posted. Cost {asset.AcquisitionCost:N2}, Asset account {assetCode}, Payment account {paymentCode}",
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+        });
+
+        await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            asset.CompanyId,
+            "FixedAsset",
+            asset.Id,
+            "AcquisitionPosted",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Acquisition journal {entry.ReferenceNumber ?? entry.Id.ToString()} posted at cost {asset.AcquisitionCost:N2}");
+
+        return Ok(new { message = "Acquisition journal posted", journalEntryId = entry.Id });
     }
 
     // DELETE: api/assets/{id}
@@ -360,4 +657,13 @@ public class DisposeRequest
     public decimal Amount { get; set; }
     public string? Reason { get; set; }
     public bool IsSale { get; set; }
+    /// <summary>Account (Id or code) that received the proceeds; required when Amount is above zero.</summary>
+    public string? ProceedsAccountId { get; set; }
+}
+
+public class PostAcquisitionRequest
+{
+    public DateOnly? Date { get; set; }
+    public string? PaymentAccountId { get; set; }
+    public string? Notes { get; set; }
 }

@@ -313,13 +313,26 @@ public class ScheduledJobRunner : BackgroundService
                     return "No retention configured; nothing removed.";
                 }
 
+                // Under UU KUP Pasal 28, books, records, and audit documentation must be preserved
+                // for at least 10 years (3,650 days). Pruning younger audit trails is legally prohibited.
+                if (days < 3650)
+                {
+                    throw new InvalidOperationException(
+                        $"Retention policy violation: UU KUP Pasal 28 mandates retention of at least 10 years (3,650 days). Configured retention of {days} days is prohibited.");
+                }
+
                 var cutoff = DateTime.UtcNow.AddDays(-days);
-                var removed = await db.AuditLogs
+                var removedAudit = await db.AuditLogs
                     .IgnoreQueryFilters()
                     .Where(a => a.Timestamp < cutoff)
                     .ExecuteDeleteAsync(ct);
 
-                return $"{removed} audit row(s) older than {days} days removed.";
+                var removedEvents = await db.DocumentHistoryEvents
+                    .IgnoreQueryFilters()
+                    .Where(e => e.Timestamp < cutoff)
+                    .ExecuteDeleteAsync(ct);
+
+                return $"{removedAudit} audit row(s) and {removedEvents} document event(s) older than {days} days removed.";
             }
 
             default:

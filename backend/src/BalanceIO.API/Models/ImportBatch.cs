@@ -59,7 +59,8 @@ public enum ImportType
     OpenInvoices,
     OpenBills,
     InventoryOpening,
-    AssetsOpening
+    AssetsOpening,
+    ChartOfAccounts
 }
 
 public enum ImportBatchStatus

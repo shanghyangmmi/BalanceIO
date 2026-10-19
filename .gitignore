@@ -20,7 +20,8 @@ frontend/yarn-debug.log*
 frontend/yarn-error.log*
 
 # Deploy Scripts & Executables
-scripts/
+scripts/*
+!scripts/deploy.ps1
 *.bat
 *.cmd
 *.exe
@@ -59,9 +60,11 @@ frontend/tsconfig.tsbuildinfo
 web.config
 **/web.config
 
-# Git hooks & local docs dumps
+# Git hooks & local docs dumps (audit reports are tracked)
 .githooks/
-docs/
+docs/*
+!docs/AUDIT-*.md
+!docs/IMPLEMENTATION-PLAN-*.md
 
 # Frontend Unused/Trash Assets & Duplicates
 frontend/public/images/original/

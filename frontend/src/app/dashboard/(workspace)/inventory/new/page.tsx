@@ -1,6 +1,8 @@
 "use client";
 
 import { ProductForm } from "@/components/inventory/product-form";
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function NewProductPage() {
   return (
@@ -11,7 +13,9 @@ export default function NewProductPage() {
       </div>
 
       <div className="mx-auto max-w-2xl">
-        <ProductForm />
+        <RBACGuard permission={PERMISSIONS.InventoryManage} fallback={<NoPermission permission={PERMISSIONS.InventoryManage} />}>
+<ProductForm />
+</RBACGuard>
       </div>
     </div>
   );

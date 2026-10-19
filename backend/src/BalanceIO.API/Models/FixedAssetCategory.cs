@@ -41,6 +41,11 @@ public class FixedAssetCategory
     /// </summary>
     public bool IsIntangible { get; set; } = false;
 
+    /// <summary>Fiscal group and method given to new assets in the category.</summary>
+    public FiscalGroup DefaultFiscalGroup { get; set; } = FiscalGroup.NotSet;
+
+    public FiscalMethod DefaultFiscalMethod { get; set; } = FiscalMethod.StraightLine;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 }

@@ -1,16 +1,31 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches: [ "main" ]
+  # Temporarily manual trigger only until self-hosted production VPS runner is provisioned
+  # push:
+  #   branches: [ "main" ]
   workflow_dispatch:
 
+# Two deploys must never overlap on the same host.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
+  verify:
+    # GitHub-hosted: build and tests run off the production box.
+    uses: ./.github/workflows/ci.yml
+
   build-and-deploy:
-    runs-on: self-hosted # Requires Runner on VPS
+    needs: verify
+    # The runner is on the production VPS. It must only ever run workflows
+    # triggered by pushes to main or by a maintainer (workflow_dispatch). Never
+    # add a pull_request trigger to a job that runs here: in a public
+    # repository that would execute a stranger's code on the server.
+    runs-on: self-hosted
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     # --- BACKEND BUILD ---
     # Note: Relying on pre-installed .NET 8 on the VPS
@@ -23,19 +38,24 @@ jobs:
     # --- FRONTEND BUILD ---
     # Note: Relying on pre-installed Node.js on the VPS
     - name: Install Frontend Dependencies
-      run: |
-        cd frontend
-        npm ci
+      working-directory: frontend
+      run: npm ci
 
     - name: Build Frontend
-      run: |
-        cd frontend
-        set NEXT_PUBLIC_API_URL=https://api.balanceio.id/api
-        npm run build
-        # Copy output to staging
-        xcopy /E /I out ..\publish\client
+      working-directory: frontend
+      # `env:` rather than `set X=...` in the script: on a Windows runner the
+      # default shell is PowerShell, where `set` is Set-Variable, so the old
+      # line never reached npm and the bundle fell back to http://localhost:5210/api.
+      env:
+        NEXT_PUBLIC_API_URL: https://api.balanceio.id/api
+      run: npm run build
+
+    - name: Stage Frontend Output
+      run: xcopy /E /I /Y frontend\out publish\client
 
     # --- DEPLOYMENT ---
+    # NOTE: scripts/ is gitignored and checkout cleans ignored files, so this
+    # path is empty after a fresh checkout unless the runner restores it.
+    # Confirm where deploy.ps1 lives before relying on this step.
     - name: Execute Deployment Script
-      run: |
-        powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1 -SourcePath .
+      run: powershell -ExecutionPolicy Bypass -File ./scripts/deploy.ps1 -SourcePath .

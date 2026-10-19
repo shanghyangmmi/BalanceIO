@@ -3,6 +3,7 @@ using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using BalanceIO.API.Services;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -56,6 +57,7 @@ public class AttachmentsController : ControllerBase
     /// List all evidence attachments for a specific financial document
     /// </summary>
     [HttpGet("{entityType}/{entityId}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<List<EvidenceAttachment>>> GetAttachments(string entityType, Guid entityId)
     {
         var companyId = GetCurrentCompanyId();
@@ -76,6 +78,7 @@ public class AttachmentsController : ControllerBase
     /// Upload evidence document attached to an entity
     /// </summary>
     [HttpPost("upload")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<EvidenceAttachment>> UploadAttachment([FromForm] UploadAttachmentRequest request)
     {
@@ -131,6 +134,7 @@ public class AttachmentsController : ControllerBase
     /// Verify an evidence attachment as approved supporting documentation
     /// </summary>
     [HttpPost("{id}/verify")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<IActionResult> VerifyAttachment(Guid id)
     {
         var companyId = GetCurrentCompanyId();
@@ -153,6 +157,7 @@ public class AttachmentsController : ControllerBase
     /// Delete an attachment (subject to ledger immutability rules)
     /// </summary>
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<IActionResult> DeleteAttachment(Guid id)
     {
         var companyId = GetCurrentCompanyId();
@@ -221,6 +226,7 @@ public class AttachmentsController : ControllerBase
     /// what the evidence panel now does - not to open the endpoint.
     /// </summary>
     [HttpGet("{id}/preview")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<IActionResult> PreviewAttachment(Guid id)
     {
         return await StreamAsync(id, inline: true);
@@ -235,6 +241,7 @@ public class AttachmentsController : ControllerBase
     /// company's evidence by id.
     /// </summary>
     [HttpGet("{id}/download")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<IActionResult> DownloadAttachment(Guid id)
     {
         return await StreamAsync(id, inline: false);

@@ -47,7 +47,7 @@ public class ModuleHealthService
         response.Modules.Add(await TaxAsync(companyId, today, currency));
         response.Modules.Add(await InventoryAsync(companyId, today));
         response.Modules.Add(await FixedAssetsAsync(companyId, today, currency));
-        response.Modules.Add(Payroll());
+        response.Modules.Add(await PayrollAsync(companyId, today, currency));
 
         response.Overall = ModuleHealthStatus.Worst(response.Modules.Select(m => m.Status));
 
@@ -880,7 +880,7 @@ public class ModuleHealthService
         var module = new ModuleHealth
         {
             Key  = "fixedAssets",
-            Name = "Assets",
+            Name = "Fixed Assets",
             Href = "/dashboard/assets",
         };
 
@@ -958,9 +958,25 @@ public class ModuleHealthService
             })
             .FirstOrDefaultAsync();
 
-        // Quantity times buy price, added as decimal. Not a costing method,
-        // and the DTO says so.
-        var stockAtBuyPrice = await SumExactAsync(tracked.Select(p => p.StockOnHand * p.BuyPrice));
+        // Carrying value at moving-average cost, inactive items included:
+        // the inventory account still holds them.
+        var stockValue = await SumExactAsync(_context.Products.AsNoTracking()
+            .Where(p => p.CompanyId == companyId && p.TrackInventory)
+            .Select(p => p.InventoryValue));
+
+        var inventoryAccountIds = await _context.Products.AsNoTracking()
+            .Where(p => p.CompanyId == companyId && p.InventoryAccountId != null)
+            .Select(p => p.InventoryAccountId!.Value)
+            .Distinct()
+            .ToListAsync();
+        var inventoryCodes = await _context.Accounts.AsNoTracking()
+            .Where(a => a.CompanyId == companyId && (a.Code == "1-1400" || inventoryAccountIds.Contains(a.Id)))
+            .Select(a => a.Code)
+            .ToListAsync();
+        var (inventoryDebit, inventoryCredit) = await SumDebitCreditAsync(_context.JournalLines.AsNoTracking()
+            .Where(l => l.JournalEntry!.CompanyId == companyId
+                     && l.JournalEntry.Status == JournalEntryStatus.Posted
+                     && inventoryCodes.Contains(l.AccountId)));
 
         var position = new StockPosition
         {
@@ -968,7 +984,8 @@ public class ModuleHealthService
             Negative                = counts?.Negative ?? 0,
             LowStock                = counts?.LowStock ?? 0,
             WithoutInventoryAccount = counts?.NoAccount ?? 0,
-            StockAtBuyPrice         = stockAtBuyPrice,
+            StockValue              = stockValue,
+            InventoryAccountBalance = inventoryDebit - inventoryCredit,
         };
 
         // ── counting ──────────────────────────────────────────────────
@@ -1335,19 +1352,77 @@ public class ModuleHealthService
 
     // ── Payroll ───────────────────────────────────────────────────────
 
-    private static ModuleHealth Payroll() => new()
+    // Posted when last month's run is on the ledger. Salary expense for a
+    // closed month that never posted understates expenses and PPh 21
+    // payable for that month, so a missing run is overdue, not pending.
+
+    private async Task<ModuleHealth> PayrollAsync(Guid companyId, DateOnly today, string currency)
     {
-        Key         = "payroll",
-        Name        = "Payroll",
-        Status      = ModuleHealthStatus.Inactive,
-        Implemented = false,
-        Href        = null,
-        Headline    = "Not built",
-        Detail      = "Salary expense, PPh 21 and BPJS post to the ledger, so payroll qualifies. It is not built yet.",
-        // Deliberately empty. Zeros would read as "nobody was paid this
-        // month", which is a different and much worse statement.
-        Figures     = new List<ModuleFigure>(),
-    };
+        var module = new ModuleHealth
+        {
+            Key  = "payroll",
+            Name = "Payroll",
+            Href = "/dashboard/payroll",
+        };
+
+        var employees = await _context.EmployeeCompensations
+            .AsNoTracking()
+            .CountAsync(e => e.CompanyId == companyId && e.IsActive
+                          && e.Contact!.IsEmployee && e.Contact.IsActive);
+
+        var runs = await _context.PayrollRuns
+            .AsNoTracking()
+            .Where(r => r.CompanyId == companyId && r.Status != PayrollRunStatus.Void)
+            .Select(r => new { r.Year, r.Month, r.Status, r.TotalNetPay, r.TotalGross, r.TotalPph21 })
+            .ToListAsync();
+
+        if (employees == 0 && runs.Count == 0)
+        {
+            module.Status   = ModuleHealthStatus.Inactive;
+            module.Headline = "No employees on payroll";
+            module.Detail   = "Mark contacts as employees and record their compensation to run payroll.";
+            module.Figures.Add(Count("Employees", 0));
+            return module;
+        }
+
+        var drafts = runs.Count(r => r.Status == PayrollRunStatus.Draft);
+        var lastPosted = runs
+            .Where(r => r.Status == PayrollRunStatus.Posted)
+            .OrderByDescending(r => r.Year).ThenByDescending(r => r.Month)
+            .FirstOrDefault();
+
+        var previous = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var previousPosted = runs.Any(r => r.Status == PayrollRunStatus.Posted
+                                        && r.Year == previous.Year && r.Month == previous.Month);
+
+        module.Figures.Add(lastPosted is null
+            ? Count("Employees", employees)
+            : Money("Last net pay", lastPosted.TotalNetPay, currency));
+        module.Figures.Add(Count("Awaiting approval", drafts));
+
+        if (!previousPosted && employees > 0)
+        {
+            module.Status   = ModuleHealthStatus.Overdue;
+            module.Headline = string.Format(CultureInfo.InvariantCulture, "Payroll for {0:MMMM yyyy} not posted", previous);
+            module.Detail   = "Salary expense, PPh 21 and BPJS for that month are missing from the ledger.";
+        }
+        else if (drafts > 0)
+        {
+            module.Status   = ModuleHealthStatus.Attention;
+            module.Headline = drafts == 1 ? "1 run awaiting approval" : $"{drafts} runs awaiting approval";
+            module.Detail   = "A calculated run reaches the ledger once a second person posts it.";
+        }
+        else
+        {
+            module.Status   = ModuleHealthStatus.Balanced;
+            module.Headline = lastPosted is null
+                ? "No run posted yet"
+                : $"Posted through {PayrollService.PeriodLabel(lastPosted.Year, lastPosted.Month)}";
+            module.Detail   = employees == 1 ? "1 employee on payroll." : $"{employees} employees on payroll.";
+        }
+
+        return module;
+    }
 
     // ── exact aggregation ─────────────────────────────────────────────
     //

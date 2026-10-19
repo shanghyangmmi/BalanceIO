@@ -1,4 +1,6 @@
 "use client";
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 import { AssetDisposalForm } from "@/components/assets/asset-disposal-form";
 export default function DisposalPage() {
   return (
@@ -11,7 +13,9 @@ export default function DisposalPage() {
       </div>
       <div className="max-w-3xl">
         {" "}
-        <AssetDisposalForm />{" "}
+        <RBACGuard permission={PERMISSIONS.AssetsManage} fallback={<NoPermission permission={PERMISSIONS.AssetsManage} />}>
+          <AssetDisposalForm />
+        </RBACGuard>{" "}
       </div>{" "}
     </div>
   );

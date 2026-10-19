@@ -68,7 +68,15 @@ public class PermissionFilter : IAsyncAuthorizationFilter
 
         if (!hasPermission)
         {
-            context.Result = new ForbidResult(); // 403 Forbidden
+            // A body naming the permission: without one the client could only
+            // guess why, and guessed "Owner or Manager only" for every refusal.
+            context.Result = new ObjectResult(new
+            {
+                code = "PERMISSION_DENIED",
+                message = $"Your role in this company does not include the {_requiredPermission} permission.",
+                permission = _requiredPermission,
+            })
+            { StatusCode = StatusCodes.Status403Forbidden };
         }
     }
 }

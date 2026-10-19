@@ -17,6 +17,7 @@ export const PERMISSIONS = {
     FinanceView: "Finance.View",
     FinanceCreate: "Finance.Create",
     FinanceEdit: "Finance.Edit",
+    FinanceDelete: "Finance.Delete",
     FinanceReport: "Finance.Report",
 
     // Inventory
@@ -28,6 +29,11 @@ export const PERMISSIONS = {
     AssetsView: "Assets.View",
     AssetsManage: "Assets.Manage",
     AssetsDepreciate: "Assets.Depreciate",
+
+    // Payroll
+    PayrollView: "Payroll.View",
+    PayrollManage: "Payroll.Manage",
+    PayrollApprove: "Payroll.Approve",
 
     // Contacts
     ContactsView: "Contacts.View",

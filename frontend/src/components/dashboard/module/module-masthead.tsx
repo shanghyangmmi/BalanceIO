@@ -65,7 +65,7 @@ export function ModuleMasthead({
           className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
         >
           <ChevronLeft className="h-3 w-3" strokeWidth={2} />
-          Module hub
+          Financial operations
         </Link>
         <span aria-hidden className="text-muted-foreground/40">
           /

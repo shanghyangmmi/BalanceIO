@@ -4,13 +4,50 @@ import { format } from "date-fns"
 
 const BASE_URL = siteConfig.api.baseUrl;
 
+/**
+ * A failed API call. `code` is the server's stable machine-readable reason
+ * (for example PERIOD_LOCKED or SEGREGATION_OF_DUTIES_VIOLATION) when it sent
+ * one; callers branch on that, never on the message text.
+ */
+export class ApiError extends Error {
+    constructor(message: string, readonly status: number, readonly code?: string) {
+        super(message)
+        this.name = "ApiError"
+    }
+}
+
+export interface JournalLineInput {
+    accountId: string;
+    description?: string;
+    debit: number;
+    credit: number;
+    tax?: string;
+}
+
+/** What the API accepts for a Draft. Status, tenant and approval fields are server-owned. */
+export interface JournalEntryInput {
+    date: string;
+    referenceNumber?: string;
+    tags?: string;
+    contactId?: string;
+    currency?: string;
+    notes?: string;
+    projectId?: string | null;
+    isAdjustingEntry?: boolean;
+    lines: JournalLineInput[];
+}
+
+/** `silent` leaves error reporting to the caller instead of toasting. */
+type ApiOptions = RequestInit & { silent?: boolean }
+
 type ApiResponse<T> = {
     data: T
     status: number
     message?: string
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}, tokenKey: string = "token"): Promise<T> {
+async function request<T>(endpoint: string, apiOptions: ApiOptions = {}, tokenKey: string = "token"): Promise<T> {
+    const { silent, ...options } = apiOptions
     const url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
 
     const isServer = typeof window === "undefined"
@@ -41,7 +78,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}, tokenKey:
     }
 
     try {
-        const response = await fetch(url, { ...options, headers })
+        const response = await fetch(url, { ...options, headers, credentials: "include" })
 
         // Handle 503 Service Unavailable (Maintenance Mode)
         if (response.status === 503) {
@@ -54,26 +91,33 @@ async function request<T>(endpoint: string, options: RequestInit = {}, tokenKey:
 
         if (!response.ok) {
             const status = response.status;
-            let codePrefix = `ERR_${status}`;
+            const codePrefix = `ERR_${status}`;
 
             // Handle 401 Unauthorized specifically
             if (status === 401) {
-                throw new Error(`${codePrefix}: Session expired or unauthorized access.`);
+                throw new ApiError(`${codePrefix}: Session expired or unauthorized access.`, status);
             }
 
-            if (status === 403) {
-                throw new Error(`${codePrefix}: Action forbidden. This operation is restricted to Owner or Manager roles.`);
-            }
-
-            // Try to parse error message from server
-            let errorMessage = "An error occurred";
+            // The server's reason, whatever its shape: ProblemDetails, our
+            // { code, message } envelope, or a bare string.
+            let errorMessage = "";
+            let code: string | undefined;
+            const raw = await response.text().catch(() => "");
             try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorData.message || errorData.title || errorMessage;
-            } catch (e) {
-                errorMessage = response.statusText || "Server response error";
+                const errorData = JSON.parse(raw);
+                code = typeof errorData?.code === "string" ? errorData.code : undefined;
+                errorMessage = errorData?.error || errorData?.message || errorData?.title
+                    || (typeof errorData === "string" ? errorData : "");
+            } catch {
+                errorMessage = raw.length > 0 && raw.length <= 300 ? raw : "";
             }
-            throw new Error(`${codePrefix}: ${errorMessage}`);
+
+            if (!errorMessage) {
+                errorMessage = status === 403
+                    ? "Action forbidden. This operation is restricted to Owner or Manager roles."
+                    : response.statusText || "Server response error";
+            }
+            throw new ApiError(`${codePrefix}: ${errorMessage}`, status, code);
         }
 
         // Handle 204 No Content
@@ -89,7 +133,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}, tokenKey:
         }
 
         // Only log and toast on client to avoid blocking build with server-side logs/errors
-        if (!isServer) {
+        if (!isServer && !silent) {
             if (!error.message?.includes("Session expired")) {
                 console.error("API Error:", error);
                 toast.error(error.message || "ERR_500: Network Error");
@@ -104,7 +148,7 @@ export const apiClient = {
         return request<T>(url, { ...options, method: "GET" }, "token")
     },
 
-    post: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    post: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "POST",
@@ -112,7 +156,7 @@ export const apiClient = {
         }, "token")
     },
 
-    put: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    put: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "PUT",
@@ -285,12 +329,21 @@ export const apiClient = {
         return apiClient.get<any>(`/JournalEntries/${id}`);
     },
 
-    createJournalEntry: async (data: any) => {
-        return apiClient.post<any>("/JournalEntries", data);
+    // One idempotency key per submission, supplied by the caller: a retry of
+    // the same submission must carry the same key to be de-duplicated.
+    createJournalEntry: async (data: JournalEntryInput, idempotencyKey?: string, options: ApiOptions = {}) => {
+        return apiClient.post<any>("/JournalEntries", data, {
+            ...options,
+            headers: idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : undefined,
+        });
     },
 
-    updateJournalEntry: async (id: string, data: any) => {
-        return apiClient.put<any>(`/JournalEntries/${id}`, data);
+    postJournalEntry: async (id: string, options: ApiOptions = {}) => {
+        return apiClient.post<any>(`/JournalEntries/${id}/post`, {}, options);
+    },
+
+    updateJournalEntry: async (id: string, data: JournalEntryInput, options: ApiOptions = {}) => {
+        return apiClient.put<any>(`/JournalEntries/${id}`, data, options);
     },
 
     deleteJournalEntry: async (id: string) => {
@@ -766,6 +819,24 @@ export const apiClient = {
         return apiClient.post<any>("/taxreports/settle-ppn", data);
     },
 
+    getNsfpRanges: async (year?: number) => {
+        const query = new URLSearchParams();
+        if (year) query.append("year", year.toString());
+        return apiClient.get<any[]>(`/taxreports/nsfp-ranges?${query.toString()}`);
+    },
+
+    createNsfpRange: async (data: { startNumber: string; endNumber: string; year?: number; allocatedDate?: string }) => {
+        return apiClient.post<any>("/taxreports/nsfp-ranges", data);
+    },
+
+    deleteNsfpRange: async (id: string) => {
+        return apiClient.delete<any>(`/taxreports/nsfp-ranges/${id}`);
+    },
+
+    getCoretaxExport: async (year: number, month: number) => {
+        return apiClient.get<any>(`/taxreports/coretax-export?year=${year}&month=${month}`);
+    },
+
     // --- BANK RECONCILIATION ---
     getBankReconciliationAccounts: async () => {
         return apiClient.get<any[]>("/bankreconciliation/accounts");
@@ -861,7 +932,247 @@ export const apiClient = {
 
     getLatestE2ELifecycleValidation: async () => {
         return apiClient.get<any>("/e2evalidation/latest-run");
+    },
+
+    // --- PHASE 2: AUDIT HISTORY & SUPPORT TICKETING ---
+    getDocumentHistory: async (documentType: string, id: string): Promise<DocumentHistoryEvent[]> => {
+        return apiClient.get<DocumentHistoryEvent[]>(`/documents/${documentType}/${id}/history`);
+    },
+
+    createSupportTicket: async (data: {
+        subject: string;
+        description: string;
+        priority: number;
+        grantTemporaryAccess: boolean;
+    }): Promise<SupportTicket> => {
+        return apiClient.post<SupportTicket>("/support/tickets", data);
+    },
+
+    getSupportTickets: async (status?: number): Promise<SupportTicket[]> => {
+        const query = status !== undefined ? `?status=${status}` : "";
+        return apiClient.get<SupportTicket[]>(`/support/tickets${query}`);
+    },
+
+    getSupportTicket: async (id: string): Promise<SupportTicket> => {
+        return apiClient.get<SupportTicket>(`/support/tickets/${id}`);
+    },
+
+    replySupportTicket: async (id: string, message: string): Promise<SupportTicketMessage> => {
+        return apiClient.post<SupportTicketMessage>(`/support/tickets/${id}/messages`, { message });
+    },
+
+    closeSupportTicket: async (id: string): Promise<void> => {
+        return apiClient.post<void>(`/support/tickets/${id}/close`, {});
+    },
+
+    // --- PHASE 6: TRADE FLOWS & COMMERCIAL OPERATIONS ---
+    // Credit Notes (Sales returns / adjustments)
+    getCreditNotes: async (status?: string): Promise<CreditNote[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<CreditNote[]>(`/CreditNotes${query}`);
+    },
+    getCreditNote: async (id: string): Promise<CreditNote> => {
+        return apiClient.get<CreditNote>(`/CreditNotes/${id}`);
+    },
+    createCreditNote: async (data: Partial<CreditNote>): Promise<CreditNote> => {
+        return apiClient.post<CreditNote>("/CreditNotes", data);
+    },
+    updateCreditNote: async (id: string, data: Partial<CreditNote>): Promise<CreditNote> => {
+        return apiClient.put<CreditNote>(`/CreditNotes/${id}`, data);
+    },
+    approveCreditNote: async (id: string): Promise<CreditNote> => {
+        return apiClient.post<CreditNote>(`/CreditNotes/${id}/approve`, {});
+    },
+    voidCreditNote: async (id: string, reason?: string): Promise<CreditNote> => {
+        return apiClient.post<CreditNote>(`/CreditNotes/${id}/void`, { reason });
+    },
+    deleteCreditNote: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/CreditNotes/${id}`);
+    },
+
+    // Debit Notes (Purchase returns / adjustments)
+    getDebitNotes: async (status?: string): Promise<DebitNote[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<DebitNote[]>(`/DebitNotes${query}`);
+    },
+    getDebitNote: async (id: string): Promise<DebitNote> => {
+        return apiClient.get<DebitNote>(`/DebitNotes/${id}`);
+    },
+    createDebitNote: async (data: Partial<DebitNote>): Promise<DebitNote> => {
+        return apiClient.post<DebitNote>("/DebitNotes", data);
+    },
+    updateDebitNote: async (id: string, data: Partial<DebitNote>): Promise<DebitNote> => {
+        return apiClient.put<DebitNote>(`/DebitNotes/${id}`, data);
+    },
+    approveDebitNote: async (id: string): Promise<DebitNote> => {
+        return apiClient.post<DebitNote>(`/DebitNotes/${id}/approve`, {});
+    },
+    voidDebitNote: async (id: string, reason?: string): Promise<DebitNote> => {
+        return apiClient.post<DebitNote>(`/DebitNotes/${id}/void`, { reason });
+    },
+    deleteDebitNote: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/DebitNotes/${id}`);
+    },
+
+    // Fund Transfers (Cash & Bank inter-account transfers)
+    getFundTransfers: async (status?: string): Promise<FundTransfer[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<FundTransfer[]>(`/FundTransfers${query}`);
+    },
+    getFundTransfer: async (id: string): Promise<FundTransfer> => {
+        return apiClient.get<FundTransfer>(`/FundTransfers/${id}`);
+    },
+    createFundTransfer: async (data: Partial<FundTransfer>): Promise<FundTransfer> => {
+        return apiClient.post<FundTransfer>("/FundTransfers", data);
+    },
+    updateFundTransfer: async (id: string, data: Partial<FundTransfer>): Promise<FundTransfer> => {
+        return apiClient.put<FundTransfer>(`/FundTransfers/${id}`, data);
+    },
+    postFundTransfer: async (id: string): Promise<FundTransfer> => {
+        return apiClient.post<FundTransfer>(`/FundTransfers/${id}/post`, {});
+    },
+    voidFundTransfer: async (id: string, reason?: string): Promise<FundTransfer> => {
+        return apiClient.post<FundTransfer>(`/FundTransfers/${id}/void`, { reason });
+    },
+    deleteFundTransfer: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/FundTransfers/${id}`);
+    },
+
+    // Delivery Orders (Customer Shipments)
+    getDeliveryOrders: async (status?: string): Promise<DeliveryOrder[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<DeliveryOrder[]>(`/DeliveryOrders${query}`);
+    },
+    getDeliveryOrder: async (id: string): Promise<DeliveryOrder> => {
+        return apiClient.get<DeliveryOrder>(`/DeliveryOrders/${id}`);
+    },
+    createDeliveryOrder: async (data: Partial<DeliveryOrder>): Promise<DeliveryOrder> => {
+        return apiClient.post<DeliveryOrder>("/DeliveryOrders", data);
+    },
+    updateDeliveryOrder: async (id: string, data: Partial<DeliveryOrder>): Promise<DeliveryOrder> => {
+        return apiClient.put<DeliveryOrder>(`/DeliveryOrders/${id}`, data);
+    },
+    shipDeliveryOrder: async (id: string): Promise<DeliveryOrder> => {
+        return apiClient.post<DeliveryOrder>(`/DeliveryOrders/${id}/ship`, {});
+    },
+    deliverDeliveryOrder: async (id: string): Promise<DeliveryOrder> => {
+        return apiClient.post<DeliveryOrder>(`/DeliveryOrders/${id}/deliver`, {});
+    },
+    deleteDeliveryOrder: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/DeliveryOrders/${id}`);
+    },
+
+    // Goods Receipts (Vendor Receipts)
+    getGoodsReceipts: async (status?: string): Promise<GoodsReceipt[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<GoodsReceipt[]>(`/GoodsReceipts${query}`);
+    },
+    getGoodsReceipt: async (id: string): Promise<GoodsReceipt> => {
+        return apiClient.get<GoodsReceipt>(`/GoodsReceipts/${id}`);
+    },
+    createGoodsReceipt: async (data: Partial<GoodsReceipt>): Promise<GoodsReceipt> => {
+        return apiClient.post<GoodsReceipt>("/GoodsReceipts", data);
+    },
+    updateGoodsReceipt: async (id: string, data: Partial<GoodsReceipt>): Promise<GoodsReceipt> => {
+        return apiClient.put<GoodsReceipt>(`/GoodsReceipts/${id}`, data);
+    },
+    receiveGoodsReceipt: async (id: string): Promise<GoodsReceipt> => {
+        return apiClient.post<GoodsReceipt>(`/GoodsReceipts/${id}/receive`, {});
+    },
+    deleteGoodsReceipt: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/GoodsReceipts/${id}`);
+    },
+
+    // Sales Orders (Customer Orders)
+    getSalesOrders: async (status?: string): Promise<SalesOrder[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<SalesOrder[]>(`/SalesOrders${query}`);
+    },
+    getSalesOrder: async (id: string): Promise<SalesOrder> => {
+        return apiClient.get<SalesOrder>(`/SalesOrders/${id}`);
+    },
+    createSalesOrder: async (data: Partial<SalesOrder>): Promise<SalesOrder> => {
+        return apiClient.post<SalesOrder>("/SalesOrders", data);
+    },
+    updateSalesOrder: async (id: string, data: Partial<SalesOrder>): Promise<SalesOrder> => {
+        return apiClient.put<SalesOrder>(`/SalesOrders/${id}`, data);
+    },
+    approveSalesOrder: async (id: string): Promise<SalesOrder> => {
+        return apiClient.post<SalesOrder>(`/SalesOrders/${id}/approve`, {});
+    },
+    cancelSalesOrder: async (id: string): Promise<SalesOrder> => {
+        return apiClient.post<SalesOrder>(`/SalesOrders/${id}/cancel`, {});
+    },
+    deleteSalesOrder: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/SalesOrders/${id}`);
+    },
+
+    // --- PHASE 7: PERIOD CLOSING & MIGRATION WIZARD ---
+    getPeriodClosePreview: async (fiscalYear: number): Promise<PeriodClosePreview> => {
+        return apiClient.get<PeriodClosePreview>(`/accounting/period-close/preview?fiscalYear=${fiscalYear}`);
+    },
+    executeYearEndClose: async (data: PeriodCloseYearEndRequest): Promise<PeriodCloseYearEndResult> => {
+        return apiClient.post<PeriodCloseYearEndResult>("/accounting/period-close/year-end", data);
+    },
+    getPeriodCloseHistory: async (): Promise<any[]> => {
+        return apiClient.get<any[]>("/accounting/period-close/history");
+    },
+    lockPeriod: async (lockDate: string): Promise<{ lockDate: string; message: string }> => {
+        return apiClient.post<{ lockDate: string; message: string }>("/accounting/period-close/lock", { lockDate });
+    },
+    unlockPeriod: async (): Promise<{ message: string }> => {
+        return apiClient.post<{ message: string }>("/accounting/period-close/unlock", {});
+    },
+    getMigrationWizardStatus: async (): Promise<MigrationWizardStatus> => {
+        return apiClient.get<MigrationWizardStatus>("/migration/wizard/status");
+    },
+    getMigrationWizardReconciliation: async (): Promise<MigrationWizardReconciliation> => {
+        return apiClient.get<MigrationWizardReconciliation>("/migration/wizard/reconciliation");
     }
+}
+
+export interface DocumentHistoryEvent {
+    id: string;
+    companyId: string;
+    documentType: string;
+    documentId: string;
+    action: string;
+    userId?: string;
+    userEmail?: string;
+    reason?: string;
+    rowHash: string;
+    previousHash?: string;
+    metadataJson?: string;
+    createdAt: string;
+}
+
+export interface SupportTicket {
+    id: string;
+    companyId: string;
+    ticketNumber: string;
+    subject: string;
+    description: string;
+    priority: number;
+    status: number;
+    createdByUserId: string;
+    assignedToAdminId?: string;
+    grantedAccessExpiry?: string;
+    createdAt: string;
+    updatedAt: string;
+    resolvedAt?: string;
+    closedAt?: string;
+    messages?: SupportTicketMessage[];
+}
+
+export interface SupportTicketMessage {
+    id: string;
+    supportTicketId: string;
+    senderUserId?: string;
+    senderEmail?: string;
+    isStaffReply: boolean;
+    isInternalNote: boolean;
+    message: string;
+    createdAt: string;
 }
 
 export const adminApiClient = {
@@ -869,7 +1180,7 @@ export const adminApiClient = {
         return request<T>(url, { ...options, method: "GET" }, "adminToken")
     },
 
-    post: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    post: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "POST",
@@ -877,7 +1188,7 @@ export const adminApiClient = {
         }, "adminToken")
     },
 
-    put: async <T>(url: string, body: any, options: RequestInit = {}): Promise<T> => {
+    put: async <T>(url: string, body: any, options: ApiOptions = {}): Promise<T> => {
         return request<T>(url, {
             ...options,
             method: "PUT",
@@ -889,3 +1200,312 @@ export const adminApiClient = {
         return request<T>(url, { ...options, method: "DELETE" }, "adminToken")
     }
 }
+
+// --- PHASE 6: TRADE FLOW INTERFACES ---
+
+export interface CreditNoteLine {
+    id?: string;
+    creditNoteId?: string;
+    lineNumber?: number;
+    salesInvoiceLineId?: string | null;
+    productId?: string | null;
+    accountId?: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    costCenterId?: string | null;
+}
+
+export interface CreditNote {
+    id: string;
+    companyId: string;
+    creditNoteNumber: string;
+    date: string;
+    contactId: string;
+    salesInvoiceId?: string | null;
+    warehouseId?: string | null;
+    returnToInventory: boolean;
+    currency: string;
+    exchangeRate: number;
+    subtotal: number;
+    taxAmount: number;
+    totalAmount: number;
+    remainingAmount: number;
+    status: number; // 0=Draft, 1=Approved, 2=Applied, 3=Voided
+    reason?: string | null;
+    notes?: string | null;
+    journalEntryId?: string | null;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    voidedAt?: string | null;
+    voidedByUserId?: string | null;
+    voidReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: CreditNoteLine[];
+}
+
+export interface DebitNoteLine {
+    id?: string;
+    debitNoteId?: string;
+    lineNumber?: number;
+    purchaseBillLineId?: string | null;
+    productId?: string | null;
+    accountId?: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    costCenterId?: string | null;
+}
+
+export interface DebitNote {
+    id: string;
+    companyId: string;
+    debitNoteNumber: string;
+    date: string;
+    contactId: string;
+    purchaseBillId?: string | null;
+    warehouseId?: string | null;
+    returnToInventory: boolean;
+    currency: string;
+    exchangeRate: number;
+    subtotal: number;
+    taxAmount: number;
+    totalAmount: number;
+    remainingAmount: number;
+    status: number; // 0=Draft, 1=Approved, 2=Applied, 3=Voided
+    reason?: string | null;
+    notes?: string | null;
+    journalEntryId?: string | null;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    voidedAt?: string | null;
+    voidedByUserId?: string | null;
+    voidReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: DebitNoteLine[];
+}
+
+export interface FundTransfer {
+    id: string;
+    companyId: string;
+    transferNumber: string;
+    transferDate: string;
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    currency: string;
+    exchangeRate: number;
+    bankFee: number;
+    referenceNumber?: string | null;
+    notes?: string | null;
+    status: number; // 0=Draft, 1=Posted, 2=Voided
+    journalEntryId?: string | null;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    voidedAt?: string | null;
+    voidedByUserId?: string | null;
+    voidReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface DeliveryOrderLine {
+    id?: string;
+    deliveryOrderId?: string;
+    lineNumber?: number;
+    salesOrderLineId?: string | null;
+    productId: string;
+    description: string;
+    quantityOrdered: number;
+    quantityShipped: number;
+    unit: string;
+    notes?: string | null;
+}
+
+export interface DeliveryOrder {
+    id: string;
+    companyId: string;
+    deliveryNumber: string;
+    deliveryDate: string;
+    salesOrderId?: string | null;
+    contactId: string;
+    warehouseId?: string | null;
+    shippingAddress?: string | null;
+    trackingNumber?: string | null;
+    driverName?: string | null;
+    vehiclePlateNumber?: string | null;
+    status: number; // 0=Draft, 1=Shipped, 2=Delivered, 3=Cancelled
+    shippedDate?: string | null;
+    deliveredDate?: string | null;
+    notes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: DeliveryOrderLine[];
+}
+
+export interface GoodsReceiptLine {
+    id?: string;
+    goodsReceiptId?: string;
+    lineNumber?: number;
+    purchaseOrderLineId?: string | null;
+    productId: string;
+    description: string;
+    quantityOrdered: number;
+    quantityReceived: number;
+    unit: string;
+    notes?: string | null;
+}
+
+export interface GoodsReceipt {
+    id: string;
+    companyId: string;
+    receiptNumber: string;
+    receiptDate: string;
+    purchaseOrderId?: string | null;
+    contactId: string;
+    warehouseId?: string | null;
+    vendorDeliveryNumber?: string | null;
+    receivedBy?: string | null;
+    status: number; // 0=Draft, 1=Received, 2=Cancelled
+    receivedDate?: string | null;
+    notes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: GoodsReceiptLine[];
+}
+
+export interface SalesOrderLine {
+    id?: string;
+    salesOrderId?: string;
+    lineNumber?: number;
+    productId?: string | null;
+    description: string;
+    quantity: number;
+    unit: string;
+    unitPrice: number;
+    discountPercent: number;
+    discountAmount: number;
+    isTaxable: boolean;
+    taxRate: number;
+    taxAmount: number;
+    lineTotal: number;
+    notes?: string | null;
+    costCenterId?: string | null;
+}
+
+export interface SalesOrder {
+    id: string;
+    companyId: string;
+    orderNumber: string;
+    orderDate: string;
+    expectedDeliveryDate?: string | null;
+    contactId: string;
+    shippingAddress?: string | null;
+    currency: string;
+    exchangeRate: number;
+    subtotal: number;
+    discountAmount: number;
+    discountPercent: number;
+    taxAmount: number;
+    total: number;
+    status: number; // 0=Draft, 1=Approved, 2=PartiallyDelivered, 3=Delivered, 4=Invoiced, 5=Cancelled
+    referenceNumber?: string | null;
+    notes?: string | null;
+    terms?: string | null;
+    templateName: string;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    cancelledAt?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: SalesOrderLine[];
+}
+
+export interface PeriodClosePreviewAccount {
+    accountId: string;
+    accountCode: string;
+    accountName: string;
+    accountType: string;
+    classification: string;
+    balance: number;
+    closingDebit: number;
+    closingCredit: number;
+}
+
+export interface PeriodClosePreview {
+    fiscalYear: number;
+    closingDate: string;
+    retainedEarningsAccountId: string;
+    totalRevenue: number;
+    totalExpense: number;
+    netIncome: number;
+    retainedEarningsAdjustmentDebit: number;
+    retainedEarningsAdjustmentCredit: number;
+    isBalanced: boolean;
+    nominalAccounts: PeriodClosePreviewAccount[];
+}
+
+export interface PeriodCloseYearEndRequest {
+    fiscalYear: number;
+    closingDate?: string;
+    retainedEarningsAccountId?: string;
+    notes?: string;
+    lockPeriod?: boolean;
+}
+
+export interface PeriodCloseYearEndResult {
+    journalEntryId: string;
+    referenceNumber: string;
+    closingDate: string;
+    fiscalYear: number;
+    netIncome: number;
+    linesCount: number;
+    periodLockedUntil?: string | null;
+    message: string;
+}
+
+export interface MigrationMilestone {
+    step: number;
+    title: string;
+    key: string;
+    status: "completed" | "in_progress" | "pending";
+    count: number;
+    detail: string;
+}
+
+export interface MigrationWizardStatus {
+    companyId: string;
+    companyName: string;
+    lockDate?: string | null;
+    overallProgressPercent: number;
+    milestones: MigrationMilestone[];
+}
+
+export interface MigrationVarianceItem {
+    name: string;
+    glAccountCode: string;
+    glAccountName: string;
+    glBalance: number;
+    subledgerTotal: number;
+    variance: number;
+    isBalanced: boolean;
+    recommendation: string;
+}
+
+export interface MigrationWizardReconciliation {
+    companyId: string;
+    checkedAt: string;
+    openingBalanceEquityBalance: number;
+    isEquityCleared: boolean;
+    isFullyReconciled: boolean;
+    items: MigrationVarianceItem[];
+}
+

@@ -1,4 +1,6 @@
 import { InvoiceForm } from "@/components/sales/invoice-form";
+import { RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function NewInvoicePage() {
   return (
@@ -8,7 +10,9 @@ export default function NewInvoicePage() {
       </div>
 
       <div className="mx-auto max-w-5xl">
-        <InvoiceForm />
+        <RBACGuard permission={PERMISSIONS.SalesCreate} fallback={<NoPermission permission={PERMISSIONS.SalesCreate} />}>
+<InvoiceForm />
+</RBACGuard>
       </div>
     </div>
   );

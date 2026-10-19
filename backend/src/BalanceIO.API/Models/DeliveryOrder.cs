@@ -11,6 +11,13 @@ public class DeliveryOrder
     public Guid Id { get; set; }
 
     [Required]
+    public Guid CompanyId { get; set; }
+
+    [ForeignKey("CompanyId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Company? Company { get; set; }
+
+    [Required]
     [MaxLength(50)]
     public string DeliveryNumber { get; set; } = string.Empty;
 
@@ -24,6 +31,10 @@ public class DeliveryOrder
     // Link to Sales Order
     public Guid? SalesOrderId { get; set; }
     public SalesOrder? SalesOrder { get; set; }
+
+    public Guid? WarehouseId { get; set; }
+    [ForeignKey("WarehouseId")]
+    public Warehouse? Warehouse { get; set; }
 
     [MaxLength(500)]
     public string? ShippingAddress { get; set; }
@@ -41,11 +52,20 @@ public class DeliveryOrder
     // Navigation
     public List<DeliveryOrderLine> Lines { get; set; } = new();
 
-    // Audit
+    // Audit & Segregation of Duties
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? ShippedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
+
+    public Guid? CreatedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? CreatedBy { get; set; }
+
+    public Guid? ApprovedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
 }
 
 public class DeliveryOrderLine

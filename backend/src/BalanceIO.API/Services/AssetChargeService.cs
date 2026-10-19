@@ -261,6 +261,7 @@ public class AssetChargeService
                 Description = $"{words.Noun} — {Label(asset)}",
                 Debit       = charge,
                 Credit      = 0m,
+                CostCenterId = asset.CostCenterId,
             });
 
             lines.Add(new JournalLine

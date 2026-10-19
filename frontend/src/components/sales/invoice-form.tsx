@@ -1,5 +1,6 @@
 "use client"
 
+import { WarehouseSelect } from "@/components/inventory/warehouse-select"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
@@ -66,6 +67,7 @@ export function InvoiceForm() {
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [warehouseId, setWarehouseId] = useState("");
 
     const form = useForm<InvoiceFormValues>({
         resolver: zodResolver(invoiceSchema),
@@ -162,6 +164,7 @@ export function InvoiceForm() {
                 invoiceDate: data.date,
                 dueDate: data.dueDate,
                 projectId: data.projectId || null,
+                warehouseId: warehouseId || null,
                 billingAddress: customers.find(c => c.id === data.customerId)?.address || "",
                 currency: data.currency || "IDR",
                 exchangeRate: data.currency === "IDR" ? 1 : (Number(data.exchangeRate) || 1),
@@ -254,6 +257,7 @@ export function InvoiceForm() {
                             </FormItem>
                         )}
                     />
+                    <WarehouseSelect value={warehouseId} onChange={setWarehouseId} />
                     <FormField
                         control={form.control}
                         name="projectId"

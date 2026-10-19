@@ -62,6 +62,17 @@ public class Product
     [Column(TypeName = "decimal(19,4)")]
     public decimal StockOnHand { get; set; } = 0;
 
+    /// <summary>
+    /// Carrying value of StockOnHand at moving-average cost. Only
+    /// InventoryLedger changes it, in step with the inventory account.
+    /// </summary>
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal InventoryValue { get; set; } = 0;
+
+    /// <summary>InventoryValue / StockOnHand, kept as the last average when stock reaches zero.</summary>
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal AverageCost { get; set; } = 0;
+
     [Column(TypeName = "decimal(19,4)")]
     public decimal ReorderLevel { get; set; } = 0;
 

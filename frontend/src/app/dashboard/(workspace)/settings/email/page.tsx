@@ -9,8 +9,11 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { Loader2, Save, Send } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useCan, RBACGuard, NoPermission } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
-export default function EmailSettingsPage() {
+function EmailSettingsPageContent() {
+    const can = useCan();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -174,18 +177,28 @@ export default function EmailSettingsPage() {
             </div>
 
             <div className="flex justify-between pt-4">
-              <Button type="button" variant="outline" onClick={handleTest} disabled={testing || saving}>
+              {can(PERMISSIONS.SettingsManage) && <Button type="button" variant="outline" onClick={handleTest} disabled={testing || saving}>
                 {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 Test Connection
-              </Button>
-              <Button type="submit" disabled={saving || testing}>
+              </Button>}
+              {can(PERMISSIONS.SettingsManage) && <Button type="submit" disabled={saving || testing}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <Save className="mr-2 h-4 w-4" /> Save Settings
-              </Button>
+              </Button>}
             </div>
           </form>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// The page's data is readable only with Settings.View; without it, say so
+// rather than firing requests the API refuses.
+export default function EmailSettingsPage() {
+  return (
+    <RBACGuard permission={PERMISSIONS.SettingsView} fallback={<NoPermission permission={PERMISSIONS.SettingsView} />}>
+      <EmailSettingsPageContent />
+    </RBACGuard>
   );
 }

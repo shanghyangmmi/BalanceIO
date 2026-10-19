@@ -1,5 +1,6 @@
 "use client";
 
+import { WarehouseSelect } from "@/components/inventory/warehouse-select";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,8 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils/formatter";
 import { Badge } from "@/components/ui/badge";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface StockOpname {
   id: string;
@@ -20,6 +23,8 @@ interface StockOpname {
 }
 
 export default function StockOpnamePage() {
+  const [warehouseId, setWarehouseId] = useState("");
+    const can = useCan();
   const [opnames, setOpnames] = useState<StockOpname[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,7 +49,9 @@ export default function StockOpnamePage() {
       // Create a draft immediately and redirect
       const draft = await apiClient.createStockOpname({
         opnameDate: new Date().toISOString().split('T')[0],
-        status: 0
+        status: 0,
+        // A count of one warehouse; empty counts the company total.
+        warehouseId: warehouseId || null,
       });
       // Initialize it with current stock? Maybe let user decide in detail page.
       // For now, let's just redirect.
@@ -60,9 +67,16 @@ export default function StockOpnamePage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight text-gradient">Stock Opname</h2>
-        <Button onClick={handleCreate}>
-          <PlusCircle className="mr-2 h-4 w-4" /> New Session
-        </Button>
+        {can(PERMISSIONS.InventoryOpname) && (
+          <div className="flex items-end gap-3">
+            <div className="w-64">
+              <WarehouseSelect value={warehouseId} onChange={setWarehouseId} label="Warehouse to count" id="opname-warehouse" />
+            </div>
+            <Button onClick={handleCreate}>
+              <PlusCircle className="mr-2 h-4 w-4" /> New Session
+            </Button>
+          </div>
+        )}
       </div>
 
       <Card>

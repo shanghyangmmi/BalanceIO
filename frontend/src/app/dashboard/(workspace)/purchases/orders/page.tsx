@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface PurchaseOrder {
   id: string
@@ -39,6 +41,7 @@ const statusLabels: Record<number, string> = {
 }
 
 export default function PurchaseOrdersPage() {
+    const can = useCan();
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -71,10 +74,10 @@ export default function PurchaseOrdersPage() {
   const handleReceive = async (id: string) => {
     try {
       await apiClient.receivePurchaseOrder(id)
-      toast.success("Order received and stock updated")
+      toast.success("Order received: stock added and posted to goods received not invoiced")
       loadOrders()
     } catch (error) {
-      toast.error("Failed to receive order")
+      toast.error(error instanceof Error ? error.message : "Failed to receive order")
     }
   }
 
@@ -156,17 +159,19 @@ export default function PurchaseOrdersPage() {
 
               {status === 0 && (
                 <>
-                  <DropdownMenuItem onClick={() => handleApprove(row.original.id)}>
+                  {can(PERMISSIONS.PurchasesApprove) && <DropdownMenuItem onClick={() => handleApprove(row.original.id)}>
                     <CheckCircle className="mr-2 h-4 w-4 text-emerald-600" /> Approve
-                  </DropdownMenuItem>
+                  </DropdownMenuItem>}
+                  {can(PERMISSIONS.PurchasesDelete) && <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(row.original.id)}>
                     <Trash className="mr-2 h-4 w-4" /> Delete
                   </DropdownMenuItem>
+                  </>}
                 </>
               )}
 
-              {status === 1 && (
+              {status === 1 && can(PERMISSIONS.InventoryManage) && (
                 <DropdownMenuItem onClick={() => handleReceive(row.original.id)}>
                   <Package className="mr-2 h-4 w-4 text-blue-600" /> Receive Items
                 </DropdownMenuItem>
@@ -193,11 +198,11 @@ export default function PurchaseOrdersPage() {
           <h2 className="text-3xl font-bold tracking-tight text-gradient">Purchase Orders</h2>
           <p className="text-muted-foreground">Manage orders to vendors.</p>
         </div>
-        <Link href="/dashboard/purchases/orders/new">
+        {can(PERMISSIONS.PurchasesCreate) && <Link href="/dashboard/purchases/orders/new">
           <Button>
             <PlusCircle className="mr-2 h-4 w-4" /> New Order
           </Button>
-        </Link>
+        </Link>}
       </div>
 
       <DataTable

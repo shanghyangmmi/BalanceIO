@@ -12,10 +12,45 @@ namespace BalanceIO.API.Controllers.Admin;
 public class AdminSubscriptionController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly BalanceIO.API.Services.Payments.PaymentService _payments;
 
-    public AdminSubscriptionController(ApplicationDbContext context)
+    public AdminSubscriptionController(ApplicationDbContext context, BalanceIO.API.Services.Payments.PaymentService payments)
     {
         _context = context;
+        _payments = payments;
+    }
+
+    // --- Payments ---
+
+    /// <summary>Payments not yet settled, newest first, with the company and plan.</summary>
+    [HttpGet("payments")]
+    public async Task<IActionResult> GetPayments([FromQuery] string? status = "Pending")
+    {
+        var query = _context.Payments.AsNoTracking().AsQueryable();
+        if (Enum.TryParse<PaymentStatus>(status, true, out var s)) query = query.Where(p => p.Status == s);
+
+        var payments = await query.OrderByDescending(p => p.CreatedAt).Take(200).ToListAsync();
+        var companyIds = payments.Where(p => p.CompanyId.HasValue).Select(p => p.CompanyId!.Value).Distinct().ToList();
+        var planIds = payments.Where(p => p.PlanId.HasValue).Select(p => p.PlanId!.Value).Distinct().ToList();
+        var companies = await _context.Companies.AsNoTracking().Where(c => companyIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name);
+        var plans = await _context.Plans.AsNoTracking().Where(p => planIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Name);
+
+        return Ok(payments.Select(p => new
+        {
+            p.Id, orderId = p.GatewayOrderId, p.Provider, p.Amount, p.Currency, status = p.Status.ToString(),
+            p.BillingCycle, p.CreatedAt, p.PaidAt,
+            company = p.CompanyId is Guid c && companies.TryGetValue(c, out var cn) ? cn : null,
+            plan = p.PlanId is Guid pl && plans.TryGetValue(pl, out var pn) ? pn : null,
+        }));
+    }
+
+    /// <summary>Confirms a manual transfer has arrived; the plan activates.</summary>
+    [HttpPost("payments/{id:guid}/confirm")]
+    public async Task<IActionResult> ConfirmPayment(Guid id)
+    {
+        var who = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "platform admin";
+        var payment = await _payments.ConfirmManualAsync(id, who);
+        return Ok(new { payment.Id, status = payment.Status.ToString(), payment.SubscriptionId, payment.PaidAt });
     }
 
     // --- Subscriptions ---

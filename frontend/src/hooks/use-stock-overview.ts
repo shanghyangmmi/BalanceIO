@@ -11,11 +11,10 @@ export interface StockPosition {
   tracked: number
   negative: number
   lowStock: number
-  /**
-   * Quantity times buy price. Not a moving average, not a FIFO layer — the
-   * name is deliberate, and the UI must not relabel it "valuation".
-   */
-  stockAtBuyPrice: number
+  /** Carrying value at moving-average cost. */
+  stockValue: number
+  /** Posted balance of the inventory accounts; differs by unjournaled opening stock and anything posted by hand. */
+  inventoryAccountBalance: number
   withoutInventoryAccount: number
 }
 

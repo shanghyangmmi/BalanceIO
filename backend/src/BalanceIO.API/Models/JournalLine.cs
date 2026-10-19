@@ -28,4 +28,15 @@ public class JournalLine
 
     [MaxLength(50)]
     public string? Tax { get; set; } // Comma separated codes if multiple
+
+    // Dimensions
+    public Guid? CostCenterId { get; set; }
+    [ForeignKey("CostCenterId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public CostCenter? CostCenter { get; set; }
+
+    public Guid? ProjectId { get; set; }
+    [ForeignKey("ProjectId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Project? Project { get; set; }
 }

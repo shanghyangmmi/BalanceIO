@@ -17,10 +17,12 @@ namespace BalanceIO.API.Services;
 public class TaxAnalysisService
 {
     private readonly ApplicationDbContext _context;
+    private readonly FiscalDepreciationService _fiscalDepreciation;
 
-    public TaxAnalysisService(ApplicationDbContext context)
+    public TaxAnalysisService(ApplicationDbContext context, FiscalDepreciationService fiscalDepreciation)
     {
         _context = context;
+        _fiscalDepreciation = fiscalDepreciation;
     }
 
     // ── rekonsiliasi fiskal ───────────────────────────────────────────
@@ -107,6 +109,26 @@ public class TaxAnalysisService
 
             if (direction == "positive") response.PositiveCorrections += balance;
             else                          response.NegativeCorrections += balance;
+        }
+
+        // Depreciation is a timing difference the register computes, not a
+        // classification: commercial less fiscal, for assets given a fiscal
+        // group. More commercial depreciation is added back.
+        var assets = await _fiscalDepreciation.ForYearAsync(companyId, year);
+        response.UnclassifiedAssets = assets.Unclassified;
+        if (assets.Correction != 0m)
+        {
+            var direction = assets.Correction > 0m ? "positive" : "negative";
+            var amount = Math.Abs(assets.Correction);
+            response.Corrections.Add(new FiscalCorrectionLine
+            {
+                Code      = "ASET",
+                Name      = "Selisih penyusutan dan pelepasan aset tetap (komersial − fiskal)",
+                Direction = direction,
+                Amount    = amount,
+            });
+            if (direction == "positive") response.PositiveCorrections += amount;
+            else                          response.NegativeCorrections += amount;
         }
 
         response.Corrections = response.Corrections

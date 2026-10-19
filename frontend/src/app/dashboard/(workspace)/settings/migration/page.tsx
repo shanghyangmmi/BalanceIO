@@ -41,10 +41,16 @@ import {
   FileText,
   History,
   Info,
+  Folder,
+  Sparkles,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, MigrationWizardStatus, MigrationWizardReconciliation } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { useCan, NoPermission } from "@/components/auth/rbac-guard";
+import { usePermission } from "@/contexts/permission-context";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 // Lightweight in-browser CSV parser
 function parseCSV(text: string): Record<string, string>[] {
@@ -108,6 +114,7 @@ function formatIDR(amount: number) {
 }
 
 export default function MigrationHubPage() {
+    const can = useCan();
   const [activeTab, setActiveTab] = useState("opening-balances");
   const [conversionDate, setConversionDate] = useState("2025-01-01");
   const [plugAccount, setPlugAccount] = useState("3-2000");
@@ -129,6 +136,11 @@ export default function MigrationHubPage() {
   const [rollbackBatch, setRollbackBatch] = useState<any>(null);
   const [isRollingBack, setIsRollingBack] = useState(false);
 
+  // Wizard Milestones & Subledger Reconciliation
+  const [wizardStatus, setWizardStatus] = useState<MigrationWizardStatus | null>(null);
+  const [wizardRecon, setWizardRecon] = useState<MigrationWizardReconciliation | null>(null);
+  const [isLoadingWizard, setIsLoadingWizard] = useState(false);
+
   const fileInputId = useId();
 
   // Load batch history
@@ -144,8 +156,25 @@ export default function MigrationHubPage() {
     }
   };
 
+  const loadWizardData = async () => {
+    setIsLoadingWizard(true);
+    try {
+      const [status, recon] = await Promise.all([
+        apiClient.getMigrationWizardStatus(),
+        apiClient.getMigrationWizardReconciliation(),
+      ]);
+      setWizardStatus(status);
+      setWizardRecon(recon);
+    } catch (err: any) {
+      console.error("Failed to load wizard status", err);
+    } finally {
+      setIsLoadingWizard(false);
+    }
+  };
+
   useEffect(() => {
     loadBatches();
+    loadWizardData();
   }, []);
 
   const resetState = () => {
@@ -177,6 +206,8 @@ export default function MigrationHubPage() {
 
   const getImportTypeEnum = (tab: string): number => {
     switch (tab) {
+      case "chart-of-accounts":
+        return 6; // ChartOfAccounts
       case "opening-balances":
         return 0; // OpeningBalances
       case "contacts":
@@ -235,6 +266,7 @@ export default function MigrationHubPage() {
       toast.success(res.message || "Migration batch committed successfully!");
       resetState();
       loadBatches();
+      loadWizardData();
     } catch (err: any) {
       toast.error(err.message || "Failed to commit migration batch.");
     } finally {
@@ -251,12 +283,20 @@ export default function MigrationHubPage() {
       toast.success(res.message || `Batch ${rollbackBatch.batchNumber} reversed successfully.`);
       setRollbackBatch(null);
       loadBatches();
+      loadWizardData();
     } catch (err: any) {
       toast.error(err.message || "Failed to rollback batch.");
     } finally {
       setIsRollingBack(false);
     }
   };
+
+  // Every import step posts or stages ledger data; without Finance.Create the
+  // page has nothing it can do.
+  const { isReady } = usePermission();
+  if (isReady && !can(PERMISSIONS.FinanceCreate)) {
+    return <NoPermission permission={PERMISSIONS.FinanceCreate} />;
+  }
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -298,6 +338,151 @@ export default function MigrationHubPage() {
         </div>
       </div>
 
+      {/* ── OPENING BALANCE MIGRATION WIZARD STATUS & RECONCILIATION ── */}
+      {wizardStatus && (
+        <Card className="border-border/60 bg-card/60 overflow-hidden shadow-sm">
+          <CardHeader className="pb-3 border-b border-border/40 bg-muted/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-emerald-500" />
+                  Opening Balance Migration Wizard
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Step-by-step progress tracking from Chart of Accounts to Subledger Reconciliation.
+                </CardDescription>
+              </div>
+
+              {/* Progress percentage */}
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-xs font-semibold text-foreground">
+                    {wizardStatus.overallProgressPercent}% Complete
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {wizardStatus.milestones.filter((m) => m.status === "completed").length} of 7 Milestones Done
+                  </div>
+                </div>
+                <div className="w-24 bg-muted rounded-full h-2.5 overflow-hidden border border-border/60">
+                  <div
+                    className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500"
+                    style={{ width: `${wizardStatus.overallProgressPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="pt-4 space-y-4">
+            {/* 7-Step Milestones Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              {wizardStatus.milestones.map((m) => (
+                <div
+                  key={m.step}
+                  className={cn(
+                    "p-2.5 rounded-lg border text-center transition-colors",
+                    m.status === "completed"
+                      ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+                      : m.status === "in_progress"
+                      ? "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300"
+                      : "border-border/40 bg-muted/20 text-muted-foreground opacity-75"
+                  )}
+                >
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    {m.status === "completed" ? (
+                      <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <span className="text-[10px] font-mono font-bold">Step {m.step}</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-semibold truncate" title={m.title}>
+                    {m.title}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground truncate mt-0.5" title={m.detail}>
+                    {m.detail}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Subledger vs General Ledger Health Checks */}
+            {wizardRecon && (
+              <div className="pt-2 border-t border-border/40">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Scale className="h-3.5 w-3.5 text-primary" />
+                    Subledger vs General Ledger Equilibrium Checks
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px]",
+                      wizardRecon.isFullyReconciled
+                        ? "border-emerald-500/40 text-emerald-600 bg-emerald-500/5"
+                        : "border-amber-500/40 text-amber-600 bg-amber-500/5"
+                    )}
+                  >
+                    {wizardRecon.isFullyReconciled ? "All Ledgers Reconciled (Rp 0 Variance)" : "Variances Detected"}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {wizardRecon.items.map((item) => (
+                    <div
+                      key={item.glAccountCode}
+                      className={cn(
+                        "p-3 rounded-lg border text-xs space-y-1",
+                        item.isBalanced
+                          ? "border-border/60 bg-muted/20"
+                          : "border-amber-500/30 bg-amber-500/5"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[11px]">{item.name}</span>
+                        {item.isBalanced ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                        ) : (
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                        )}
+                      </div>
+                      <div className="flex justify-between text-muted-foreground text-[10px] font-mono">
+                        <span>GL ({item.glAccountCode}):</span>
+                        <span>{formatIDR(item.glBalance)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground text-[10px] font-mono">
+                        <span>Subledger:</span>
+                        <span>{formatIDR(item.subledgerTotal)}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold font-mono text-[11px] pt-1 border-t border-border/30">
+                        <span>Variance:</span>
+                        <span className={item.variance === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600"}>
+                          {formatIDR(item.variance)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Equity 3-9000 status indicator */}
+                <div className="mt-3 flex items-center justify-between text-xs p-2 rounded bg-muted/30 border border-border/40 font-mono">
+                  <span className="text-muted-foreground">
+                    Account 3-9000 (Opening Balance Equity Plug):
+                  </span>
+                  <span className={cn(
+                    "font-bold",
+                    wizardRecon.openingBalanceEquityBalance === 0
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  )}>
+                    {formatIDR(wizardRecon.openingBalanceEquityBalance)} ({wizardRecon.isEquityCleared ? "Cleared / Balanced" : "Unallocated Balance Remaining"})
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Tabs */}
       <Tabs
         value={activeTab}
@@ -307,7 +492,10 @@ export default function MigrationHubPage() {
         }}
         className="space-y-6"
       >
-        <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full bg-muted/60 p-1 border border-border/60">
+        <TabsList className="grid grid-cols-2 md:grid-cols-6 w-full bg-muted/60 p-1 border border-border/60">
+          <TabsTrigger value="chart-of-accounts" className="text-xs md:text-sm font-medium gap-1.5">
+            <Folder className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> COA Setup
+          </TabsTrigger>
           <TabsTrigger value="opening-balances" className="text-xs md:text-sm font-medium gap-1.5">
             <Scale className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Opening Balances
           </TabsTrigger>
@@ -324,6 +512,171 @@ export default function MigrationHubPage() {
             <History className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Batch History
           </TabsTrigger>
         </TabsList>
+
+        {/* ── TAB 0: CHART OF ACCOUNTS (WIZARD STEP 1) ──────────────────────────────────── */}
+        <TabsContent value="chart-of-accounts" className="space-y-6">
+          <Card className="border-border/60">
+            <CardHeader className="pb-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <Folder className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    Step 1: Chart of Accounts (COA) Structure
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Import your master chart of accounts structure. Creates new accounts without modifying existing active accounts.
+                  </CardDescription>
+                </div>
+                <a
+                  href={apiClient.getMigrationTemplateUrl("chart-of-accounts")}
+                  download="balanceio_template_chart_of_accounts.csv"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline bg-primary/5 border border-primary/20 px-3 py-1.5 rounded-md"
+                >
+                  <Download className="h-3.5 w-3.5" /> Download Template (.csv)
+                </a>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-6">
+              {/* Upload Dropzone */}
+              <div className="border-2 border-dashed border-border/80 hover:border-primary/50 transition-colors rounded-xl p-6 text-center bg-card/40">
+                <input
+                  id={fileInputId}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <label
+                  htmlFor={fileInputId}
+                  className="cursor-pointer flex flex-col items-center justify-center gap-2"
+                >
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                    <UploadCloud className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-sm text-foreground">
+                      {fileName ? fileName : "Click to select or drag & drop CSV file"}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Required columns: <code className="font-mono">AccountCode</code>, <code className="font-mono">AccountName</code>, <code className="font-mono">AccountType</code>, <code className="font-mono">Classification</code>, <code className="font-mono">NormalBalance</code>
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Live Preview */}
+              {isValidating && (
+                <div className="flex items-center justify-center p-8 gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Validating Chart of Accounts entries...
+                </div>
+              )}
+
+              {previewData && (
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-muted/40 border border-border/60 p-4 rounded-xl">
+                    <div>
+                      <span className="text-xs font-mono text-muted-foreground uppercase">Total Rows</span>
+                      <p className="text-lg font-bold font-money text-foreground">
+                        {previewData.totalRows || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-mono text-muted-foreground uppercase">New Accounts to Create</span>
+                      <p className="text-lg font-bold font-money text-emerald-600 dark:text-emerald-400">
+                        {previewData.newAccountsCount ?? previewData.validRows ?? 0}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-mono text-muted-foreground uppercase">Existing Accounts</span>
+                      <p className="text-lg font-bold font-money text-blue-600 dark:text-blue-400">
+                        {previewData.existingAccountsCount || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-mono text-muted-foreground uppercase">Validation Status</span>
+                      <div className="mt-1">
+                        {previewData.isValid ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800 gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Ready to Import
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-rose-500/10 text-rose-600 border-rose-200 dark:border-rose-800 gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Errors Found
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {previewData.errors && previewData.errors.length > 0 && (
+                    <Alert variant="destructive" className="bg-rose-500/5 border-rose-200 dark:border-rose-900/50">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle className="text-xs font-semibold">Validation Errors</AlertTitle>
+                      <AlertDescription className="text-xs space-y-1 mt-1">
+                        {previewData.errors.slice(0, 5).map((err: any, idx: number) => (
+                          <div key={idx}>Row {err.row}: {err.message}</div>
+                        ))}
+                        {previewData.errors.length > 5 && (
+                          <div className="text-muted-foreground italic">...and {previewData.errors.length - 5} more issues.</div>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Accounts preview table */}
+                  {previewData.rows && previewData.rows.length > 0 && (
+                    <div className="border border-border/60 rounded-lg overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted/50 border-b border-border/60 font-mono">
+                          <tr>
+                            <th className="p-2 text-left">Code</th>
+                            <th className="p-2 text-left">Name</th>
+                            <th className="p-2 text-left">Type</th>
+                            <th className="p-2 text-left">Classification</th>
+                            <th className="p-2 text-left">Normal Balance</th>
+                            <th className="p-2 text-left">Parent</th>
+                            <th className="p-2 text-left">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40 font-mono">
+                          {previewData.rows.slice(0, 15).map((r: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-muted/20">
+                              <td className="p-2 font-semibold">{r.accountCode}</td>
+                              <td className="p-2 font-sans">{r.accountName}</td>
+                              <td className="p-2">{r.accountType}</td>
+                              <td className="p-2 font-sans text-muted-foreground">{r.classification}</td>
+                              <td className="p-2">{r.normalBalance}</td>
+                              <td className="p-2">{r.parentCode || "—"}</td>
+                              <td className="p-2 font-sans">
+                                {r.isExisting ? (
+                                  <span className="text-blue-500 text-[11px]">Exists (Keep)</span>
+                                ) : (
+                                  <span className="text-emerald-500 text-[11px]">New</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-4">
+                    <Button
+                      onClick={handleCommit}
+                      disabled={isCommitting || !previewData.isValid}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                    >
+                      {isCommitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Commit Chart of Accounts Import
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ── TAB 1: OPENING BALANCES ──────────────────────────────────── */}
         <TabsContent value="opening-balances" className="space-y-6">
@@ -1001,7 +1354,7 @@ export default function MigrationHubPage() {
                             )}
                           </td>
                           <td className="py-2 px-3 text-right">
-                            {b.status === 0 && (
+                            {b.status === 0 && can(PERMISSIONS.FinanceEdit) && (
                               <Button
                                 variant="destructive"
                                 size="sm"

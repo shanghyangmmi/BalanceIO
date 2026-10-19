@@ -16,23 +16,49 @@ public class SalesInvoicesController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly IPeriodLockService _periodLockService;
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+    private readonly IDocumentHistoryService _historyService;
 
-    public SalesInvoicesController(ApplicationDbContext context, INotificationService notificationService, IPeriodLockService periodLockService)
+    public SalesInvoicesController(
+        ApplicationDbContext context,
+        INotificationService notificationService,
+        IPeriodLockService periodLockService,
+        BalanceIO.API.Services.InventoryLedger inventory,
+        IDocumentHistoryService historyService)
     {
+        _inventory = inventory;
         _context = context;
         _notificationService = notificationService;
         _periodLockService = periodLockService;
+        _historyService = historyService;
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("id")?.Value
+                 ?? User.FindFirst("sub")?.Value
+                 ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    private string GetCurrentUserName()
+    {
+        return User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+            ?? User.FindFirst("name")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? "User";
     }
 
 
     // GET: api/salesinvoices
     [HttpGet]
     [RequiresPermission(Permissions.SalesView)]
-    public async Task<ActionResult<IEnumerable<SalesInvoice>>> GetAll()
+    public async Task<ActionResult<IEnumerable<SalesInvoice>>> GetAll([FromQuery] Guid? contactId = null)
     {
         var invoices = await _context.SalesInvoices
             .Include(i => i.Contact)
             .Include(i => i.Lines)
+            .Where(i => !contactId.HasValue || i.ContactId == contactId)
             .OrderByDescending(i => i.InvoiceDate)
             .ThenByDescending(i => i.CreatedAt)
             .ToListAsync();
@@ -42,6 +68,7 @@ public class SalesInvoicesController : ControllerBase
 
     // GET: api/salesinvoices/{id}
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.SalesView)]
     public async Task<ActionResult<SalesInvoice>> GetById(Guid id)
     {
         var invoice = await _context.SalesInvoices
@@ -90,11 +117,21 @@ public class SalesInvoicesController : ControllerBase
         _context.SalesInvoices.Add(invoice);
         await _context.SaveChangesAsync();
 
+        await _historyService.RecordEventAsync(
+            invoice.CompanyId,
+            "SalesInvoice",
+            invoice.Id,
+            "Created",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {invoice.InvoiceNumber} created as Draft");
+
         return CreatedAtAction(nameof(GetById), new { id = invoice.Id }, invoice);
     }
 
     // PUT: api/salesinvoices/{id}
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.SalesEdit)]
     public async Task<IActionResult> Update(Guid id, SalesInvoice invoice)
     {
         if (id != invoice.Id)
@@ -128,6 +165,8 @@ public class SalesInvoicesController : ControllerBase
         existing.DiscountPercent = invoice.DiscountPercent;
         existing.DiscountAmount = invoice.DiscountAmount;
         existing.ReferenceNumber = invoice.ReferenceNumber;
+        existing.FakturPajakNumber = invoice.FakturPajakNumber;
+        existing.NsfpStatus = invoice.NsfpStatus;
         existing.Notes = invoice.Notes;
         existing.Terms = invoice.Terms;
         existing.TemplateName = invoice.TemplateName;
@@ -142,6 +181,15 @@ public class SalesInvoicesController : ControllerBase
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            existing.CompanyId,
+            "SalesInvoice",
+            existing.Id,
+            "Updated",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {existing.InvoiceNumber} updated");
 
         return NoContent();
     }
@@ -165,8 +213,50 @@ public class SalesInvoicesController : ControllerBase
         // Check Period Lock
         await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, invoice.InvoiceDate);
 
-        if (invoice.Status != InvoiceStatus.Draft)
-            return BadRequest("Invoice is already posted");
+        // Allocate NSFP from valid range if invoice is taxable
+        if (invoice.TaxAmount > 0 || invoice.Lines.Any(l => l.TaxAmount > 0))
+        {
+            if (string.IsNullOrEmpty(invoice.FakturPajakNumber))
+            {
+                var invoiceYear = invoice.InvoiceDate.Year;
+                var range = await _context.TaxInvoiceNumberRanges
+                    .Where(r => r.CompanyId == invoice.CompanyId && r.Year == invoiceYear && !r.IsExhausted)
+                    .OrderBy(r => r.StartNumber)
+                    .FirstOrDefaultAsync();
+
+                if (range != null)
+                {
+                    var (allocated, isExhausted, remaining) = NsfpHelper.AllocateNext(range.CurrentNumber, range.StartNumber, range.EndNumber);
+                    range.CurrentNumber = allocated;
+                    range.IsExhausted = isExhausted;
+                    range.UpdatedAt = DateTime.UtcNow;
+
+                    invoice.FakturPajakNumber = NsfpHelper.Format(allocated);
+                    invoice.NsfpStatus = "ALLOCATED";
+
+                    if (remaining < 10)
+                    {
+                        await _notificationService.CreateAsync(
+                            title: "Low NSFP Range Alert",
+                            message: $"Tax invoice number range for {invoiceYear} is running low ({remaining} remaining). Please request additional NSFP from DJP Online.",
+                            type: "warning",
+                            relatedEntityId: range.Id.ToString(),
+                            relatedEntityType: "TaxInvoiceNumberRange"
+                        );
+                    }
+                }
+                else
+                {
+                    // No valid range configured: never fabricate tax numbers!
+                    invoice.FakturPajakNumber = null;
+                    invoice.NsfpStatus = "PENDING_NSFP";
+                }
+            }
+            else
+            {
+                invoice.NsfpStatus = "ALLOCATED";
+            }
+        }
 
         // Create Journal Entry
         var journalEntry = await CreateJournalEntry(invoice);
@@ -176,7 +266,7 @@ public class SalesInvoicesController : ControllerBase
         invoice.PostedAt = DateTime.UtcNow;
         invoice.UpdatedAt = DateTime.UtcNow;
 
-        // Inventory Logic: Deduct stock, record inventory movement, and check low stock alerts
+        // Stock left with the journal entry; warn on what is now low.
         foreach (var line in invoice.Lines)
         {
             if (line.ProductId.HasValue)
@@ -184,26 +274,6 @@ public class SalesInvoicesController : ControllerBase
                 var product = await _context.Products.FindAsync(line.ProductId.Value);
                 if (product != null && product.TrackInventory)
                 {
-                    product.StockOnHand -= line.Quantity;
-                    
-                    var unitCost = product.BuyPrice;
-                    var totalCost = line.Quantity * unitCost;
-
-                    _context.InventoryMovements.Add(new InventoryMovement
-                    {
-                        Id = Guid.NewGuid(),
-                        CompanyId = _context.CurrentCompanyId.Value,
-                        ProductId = product.Id,
-                        MovementDate = invoice.InvoiceDate,
-                        Type = InventoryMovementType.Sale,
-                        Quantity = -line.Quantity,
-                        UnitCost = unitCost,
-                        TotalCost = -totalCost,
-                        ReferenceNumber = invoice.InvoiceNumber,
-                        JournalEntryId = journalEntry.Id,
-                        Notes = $"Sales Invoice {invoice.InvoiceNumber}"
-                    });
-
                     if (product.StockOnHand <= product.ReorderLevel)
                     {
                         await _notificationService.CreateAsync(
@@ -220,6 +290,15 @@ public class SalesInvoicesController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        await _historyService.RecordEventAsync(
+            invoice.CompanyId,
+            "SalesInvoice",
+            invoice.Id,
+            "Posted",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {invoice.InvoiceNumber} approved and posted to General Ledger (Journal: {journalEntry.ReferenceNumber ?? journalEntry.Id.ToString()})");
+
         // Create Notification
         await _notificationService.CreateAsync(
             title: "Invoice Posted",
@@ -234,6 +313,7 @@ public class SalesInvoicesController : ControllerBase
 
     // POST: api/salesinvoices/{id}/void
     [HttpPost("{id}/void")]
+    [RequiresPermission(Permissions.SalesDelete)]
     public async Task<IActionResult> Void(Guid id)
     {
         if (!_context.CurrentCompanyId.HasValue)
@@ -262,41 +342,25 @@ public class SalesInvoicesController : ControllerBase
             }
         }
 
-        // Return stock on void
-        foreach (var line in invoice.Lines)
-        {
-            if (line.ProductId.HasValue)
-            {
-                var product = await _context.Products.FindAsync(line.ProductId.Value);
-                if (product != null && product.TrackInventory)
-                {
-                    product.StockOnHand += line.Quantity;
-
-                    var unitCost = product.BuyPrice;
-                    var totalCost = line.Quantity * unitCost;
-
-                    _context.InventoryMovements.Add(new InventoryMovement
-                    {
-                        Id = Guid.NewGuid(),
-                        CompanyId = _context.CurrentCompanyId.Value,
-                        ProductId = product.Id,
-                        MovementDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                        Type = InventoryMovementType.ManualAdjustment,
-                        Quantity = line.Quantity,
-                        UnitCost = unitCost,
-                        TotalCost = totalCost,
-                        ReferenceNumber = $"VOID-{invoice.InvoiceNumber}",
-                        Notes = $"Void of Sales Invoice {invoice.InvoiceNumber}"
-                    });
-                }
-            }
-        }
+        // Return the stock this invoice took, to the warehouses it left.
+        await _inventory.ReverseAsync(_context.CurrentCompanyId.Value, invoice.InvoiceNumber, InventoryMovementType.Sale,
+            DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), $"VOID-{invoice.InvoiceNumber}",
+            $"Void of Sales Invoice {invoice.InvoiceNumber}");
 
         invoice.Status = InvoiceStatus.Void;
         invoice.VoidedAt = DateTime.UtcNow;
         invoice.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        await _historyService.RecordEventAsync(
+            invoice.CompanyId,
+            "SalesInvoice",
+            invoice.Id,
+            "Voided",
+            GetCurrentUserId() ?? Guid.Empty,
+            GetCurrentUserName(),
+            $"Invoice {invoice.InvoiceNumber} voided");
 
         return Ok(new { message = "Invoice voided successfully" });
     }
@@ -439,6 +503,8 @@ public class SalesInvoicesController : ControllerBase
 
     private async Task<JournalEntry> CreateJournalEntry(SalesInvoice invoice)
     {
+        var rate = invoice.ExchangeRate > 0 ? invoice.ExchangeRate : 1m;
+
         // Get default accounts
         var receivableAccountId = invoice.Contact?.DefaultReceivableAccountId;
         
@@ -446,7 +512,7 @@ public class SalesInvoicesController : ControllerBase
         if (receivableAccountId == null)
         {
             var defaultAR = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.Code.StartsWith("1130") || a.Name.Contains("Receivable"));
+                .FirstOrDefaultAsync(a => a.Code == "1-1200" || a.Code.StartsWith("1120") || a.Code.StartsWith("1130") || a.Name.Contains("Receivable") || a.Name.Contains("Piutang"));
             receivableAccountId = defaultAR?.Id;
         }
 
@@ -456,13 +522,18 @@ public class SalesInvoicesController : ControllerBase
             Date = invoice.InvoiceDate,
             ReferenceNumber = invoice.InvoiceNumber,
             ContactId = invoice.ContactId.ToString(),
-            Currency = invoice.Currency,
-            Notes = $"Sales Invoice {invoice.InvoiceNumber}",
+            Currency = "IDR",
+            Notes = $"Sales Invoice {invoice.InvoiceNumber}" + (rate != 1m ? $" (FX {invoice.Currency} @ {rate:N2})" : ""),
             Status = JournalEntryStatus.Posted,
             CreatedAt = DateTime.UtcNow,
             ProjectId = invoice.ProjectId,
             Lines = new List<JournalLine>()
         };
+
+        var arAmount = Math.Round(invoice.Total * rate, 2, MidpointRounding.ToEven);
+        var discountAmount = invoice.DiscountAmount > 0 
+            ? Math.Round(invoice.DiscountAmount * rate, 2, MidpointRounding.ToEven) 
+            : 0m;
 
         // Debit: Accounts Receivable
         journalEntry.Lines.Add(new JournalLine
@@ -471,11 +542,32 @@ public class SalesInvoicesController : ControllerBase
             JournalEntryId = journalEntry.Id,
             AccountId = (receivableAccountId ?? Guid.Empty).ToString(),
             Description = $"Invoice {invoice.InvoiceNumber} - {invoice.Contact?.Name}",
-            Debit = invoice.Total,
+            Debit = arAmount,
             Credit = 0
         });
 
+        // Debit: Sales Discount (contra-revenue) if invoice carries a discount
+        if (discountAmount > 0)
+        {
+            var defaultDiscount = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "4-4000" || a.Code.StartsWith("4400") || a.Code == "4-9000" || a.Name.Contains("Sales Discount") || a.Name.Contains("Diskon Penjualan"));
+            var defaultRev = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == "4-1000" || a.Code.StartsWith("4100") || (a.Code.StartsWith("4") && !a.IsHeader));
+            var discountAccount = defaultDiscount?.Code ?? defaultRev?.Code ?? "4-1000";
+
+            journalEntry.Lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                JournalEntryId = journalEntry.Id,
+                AccountId = discountAccount,
+                Description = $"Discount - Invoice {invoice.InvoiceNumber}",
+                Debit = discountAmount,
+                Credit = 0
+            });
+        }
+
         // Credit: Revenue accounts (from line items)
+        var revenueLines = new List<JournalLine>();
         foreach (var line in invoice.Lines)
         {
             var revenueAccountId = line.AccountId ?? line.Product?.IncomeAccountId;
@@ -483,26 +575,32 @@ public class SalesInvoicesController : ControllerBase
             if (revenueAccountId == null)
             {
                 var defaultRevenue = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.Code.StartsWith("4100") || a.Name.Contains("Revenue"));
+                    .FirstOrDefaultAsync(a => a.Code == "4-1000" || a.Code.StartsWith("4100") || a.Name.Contains("Revenue"));
                 revenueAccountId = defaultRevenue?.Id;
             }
 
-            journalEntry.Lines.Add(new JournalLine
+            var lineRevenue = Math.Round((line.LineTotal - line.TaxAmount) * rate, 2, MidpointRounding.ToEven);
+            var revLine = new JournalLine
             {
                 Id = Guid.NewGuid(),
                 JournalEntryId = journalEntry.Id,
                 AccountId = (revenueAccountId ?? Guid.Empty).ToString(),
                 Description = line.Description,
                 Debit = 0,
-                Credit = line.LineTotal - line.TaxAmount
-            });
+                Credit = lineRevenue,
+                CostCenterId = line.CostCenterId,
+                ProjectId = line.ProjectId ?? invoice.ProjectId
+            };
+            revenueLines.Add(revLine);
+            journalEntry.Lines.Add(revLine);
 
             // Credit: Tax payable (if taxable)
             if (line.IsTaxable && line.TaxAmount > 0)
             {
                 var taxAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.Code.StartsWith("2140") || a.Name.Contains("Tax Payable") || a.Name.Contains("PPN"));
+                    .FirstOrDefaultAsync(a => a.Code == "2-1300" || a.Code.StartsWith("2140") || a.Name.Contains("Tax Payable") || a.Name.Contains("PPN") || a.Name.Contains("VAT Out"));
 
+                var lineTax = Math.Round(line.TaxAmount * rate, 2, MidpointRounding.ToEven);
                 journalEntry.Lines.Add(new JournalLine
                 {
                     Id = Guid.NewGuid(),
@@ -510,22 +608,38 @@ public class SalesInvoicesController : ControllerBase
                     AccountId = (taxAccount?.Id ?? Guid.Empty).ToString(),
                     Description = $"PPN - {line.Description}",
                     Debit = 0,
-                    Credit = line.TaxAmount
+                    Credit = lineTax
                 });
             }
+        }
 
-            // Debit: COGS (5-1000) & Credit: Inventory (1-1400) for tracked inventory products
+        // Decimal balance check across FX and rounding:
+        var totalInvoiceDebits = arAmount + discountAmount;
+        var totalInvoiceCredits = journalEntry.Lines.Where(l => l.Credit > 0).Sum(l => l.Credit);
+        var diff = totalInvoiceDebits - totalInvoiceCredits;
+        if (diff != 0m && revenueLines.Count > 0)
+        {
+            revenueLines[0].Credit += diff;
+        }
+
+        // Debit: COGS (5-1000) & Credit: Inventory (1-1400) for tracked inventory products.
+        // The stock leaves here at moving-average cost, and COGS is
+        // exactly the value the movement took off the inventory (already base IDR).
+        foreach (var line in invoice.Lines)
+        {
             if (line.ProductId.HasValue)
             {
                 var product = await _context.Products.FindAsync(line.ProductId.Value);
                 if (product != null && product.TrackInventory)
                 {
-                    var unitCost = product.BuyPrice;
-                    var cogsAmount = line.Quantity * unitCost;
+                    var issue = await _inventory.MoveAsync(product, invoice.WarehouseId, -line.Quantity, InventoryMovementType.Sale,
+                        invoice.InvoiceDate, null, invoice.InvoiceNumber, journalEntry.Id,
+                        $"Sales Invoice {invoice.InvoiceNumber}");
+                    var unitCost = issue.UnitCost;
+                    var cogsAmount = -issue.TotalCost;
 
                     if (cogsAmount > 0)
                     {
-                        // Resolve COGS account (product's ExpenseAccountId or 5-1000)
                         var cogsAccountId = product.ExpenseAccountId?.ToString();
                         if (string.IsNullOrEmpty(cogsAccountId))
                         {
@@ -534,7 +648,6 @@ public class SalesInvoicesController : ControllerBase
                             cogsAccountId = defaultCogs?.Code ?? "5-1000";
                         }
 
-                        // Resolve Inventory account (product's InventoryAccountId or 1-1400)
                         var inventoryAccountId = product.InventoryAccountId?.ToString();
                         if (string.IsNullOrEmpty(inventoryAccountId))
                         {
@@ -543,7 +656,6 @@ public class SalesInvoicesController : ControllerBase
                             inventoryAccountId = defaultInventory?.Code ?? "1-1400";
                         }
 
-                        // Debit COGS
                         journalEntry.Lines.Add(new JournalLine
                         {
                             Id = Guid.NewGuid(),
@@ -551,10 +663,11 @@ public class SalesInvoicesController : ControllerBase
                             AccountId = cogsAccountId,
                             Description = $"COGS - {product.Name} ({line.Quantity} {product.Unit} @ {unitCost:N0})",
                             Debit = cogsAmount,
-                            Credit = 0
+                            Credit = 0,
+                            CostCenterId = line.CostCenterId,
+                            ProjectId = line.ProjectId ?? invoice.ProjectId
                         });
 
-                        // Credit Inventory
                         journalEntry.Lines.Add(new JournalLine
                         {
                             Id = Guid.NewGuid(),
@@ -562,7 +675,9 @@ public class SalesInvoicesController : ControllerBase
                             AccountId = inventoryAccountId,
                             Description = $"Inventory Relief - {product.Name} ({line.Quantity} {product.Unit})",
                             Debit = 0,
-                            Credit = cogsAmount
+                            Credit = cogsAmount,
+                            CostCenterId = line.CostCenterId,
+                            ProjectId = line.ProjectId ?? invoice.ProjectId
                         });
                     }
                 }

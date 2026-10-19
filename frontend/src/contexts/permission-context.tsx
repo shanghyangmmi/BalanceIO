@@ -8,6 +8,8 @@ import { Permission } from "@/lib/auth/permissions"
 interface PermissionContextType {
     permissions: string[]
     isLoading: boolean
+    /** True once permissions for the selected company are known. */
+    isReady: boolean
     role: string
     isSuperAdmin: boolean
     isAdmin: boolean
@@ -26,6 +28,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     const { company } = useCompany()
     const [permissions, setPermissions] = useState<string[]>([])
     const [isLoading, setIsLoading] = useState(false)
+    const [loadedFor, setLoadedFor] = useState<string | null>(null)
 
     const refreshPermissions = async () => {
         if (!company?.id) {
@@ -42,6 +45,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
             setPermissions([])
         } finally {
             setIsLoading(false)
+            setLoadedFor(company.id)
         }
     }
 
@@ -61,6 +65,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     }, [company?.role]);
 
     const isSuperAdmin = normalizedRole === "Superadmin";
+    const isReady = !!company?.id && (isSuperAdmin || (loadedFor === company.id && !isLoading));
     const isAdmin = normalizedRole === "Admin" || isSuperAdmin;
     const isFinance = normalizedRole === "Finance";
     const isAuditor = normalizedRole === "Auditor";
@@ -85,6 +90,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         <PermissionContext.Provider value={{
             permissions,
             isLoading,
+            isReady,
             role: normalizedRole,
             isSuperAdmin,
             isAdmin,

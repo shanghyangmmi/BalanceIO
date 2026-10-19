@@ -1,4 +1,5 @@
 using BalanceIO.API.Data;
+using BalanceIO.API.Security;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,13 +27,22 @@ public class CompanyController : ControllerBase
     }
 
     /// <summary>
-    /// Get the current company profile (returns first company or null)
+    /// The company named by the request's X-Company-Id, which the scope
+    /// middleware has already checked the caller belongs to. Companies carry
+    /// no global query filter, so every lookup here must go through this.
+    /// </summary>
+    private Task<Company?> CurrentCompanyAsync() =>
+        _context.CurrentCompanyId is Guid id
+            ? _context.Companies.FirstOrDefaultAsync(c => c.Id == id)
+            : Task.FromResult<Company?>(null);
+
+    /// <summary>
+    /// Get the current company profile
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<Company?>> GetCompany()
     {
-        var company = await _context.Companies.FirstOrDefaultAsync();
-        return Ok(company);
+        return Ok(await CurrentCompanyAsync());
     }
 
     /// <summary>
@@ -41,7 +51,7 @@ public class CompanyController : ControllerBase
     [HttpGet("status")]
     public async Task<ActionResult<object>> GetOnboardingStatus()
     {
-        var company = await _context.Companies.FirstOrDefaultAsync();
+        var company = await CurrentCompanyAsync();
         return Ok(new
         {
             isOnboarded = company?.IsOnboarded ?? false,
@@ -52,44 +62,28 @@ public class CompanyController : ControllerBase
     /// <summary>
     /// Create company during onboarding
     /// </summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     [HttpPost("onboard")]
     public async Task<ActionResult<Company>> Onboard([FromBody] CompanyOnboardRequest request)
     {
-        // Check if company already exists
-        var company = await _context.Companies.FirstOrDefaultAsync();
-        
+        // Companies are created for a user by GET /api/Users/me/companies;
+        // onboarding completes the profile of the company in scope.
+        var company = await CurrentCompanyAsync();
         if (company == null)
-        {
-            // Create New
-            company = new Company
-            {
-                Name = request.Name,
-                Industry = request.Industry,
-                Currency = request.Currency ?? "IDR",
-                Address = request.Address,
-                City = request.City ?? "Jakarta",
-                Country = request.Country ?? "Indonesia",
-                IsOnboarded = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            _context.Companies.Add(company);
-        }
-        else
-        {
-            // Update Existing (Idempotent)
-            company.Name = request.Name;
-            company.Industry = request.Industry;
-            // Only update currency if not set or explicitly requested (usually safer to keep existing currency if transactions exist, but for onboarding we assume fresh)
-            if (!string.IsNullOrEmpty(request.Currency)) company.Currency = request.Currency; 
-            company.Address = request.Address;
-            company.City = request.City ?? "Jakarta";
-            company.Country = request.Country ?? "Indonesia";
-            company.IsOnboarded = true;
-            company.UpdatedAt = DateTime.UtcNow;
-            
-            _context.Companies.Update(company);
-        }
+            return NotFound(new { error = "Company not found. Select a company first." });
+
+        // Update (idempotent)
+        company.Name = request.Name;
+        company.Industry = request.Industry;
+        // Only update currency if not set or explicitly requested (usually safer to keep existing currency if transactions exist, but for onboarding we assume fresh)
+        if (!string.IsNullOrEmpty(request.Currency)) company.Currency = request.Currency; 
+        company.Address = request.Address;
+        company.City = request.City ?? "Jakarta";
+        company.Country = request.Country ?? "Indonesia";
+        company.IsOnboarded = true;
+        company.UpdatedAt = DateTime.UtcNow;
+        
+        _context.Companies.Update(company);
 
         await _context.SaveChangesAsync();
 
@@ -99,10 +93,11 @@ public class CompanyController : ControllerBase
     /// <summary>
     /// Update company profile
     /// </summary>
+    [RequiresPermission(Permissions.SettingsManage)]
     [HttpPut]
     public async Task<ActionResult<Company>> UpdateCompany([FromBody] CompanyUpdateRequest request)
     {
-        var company = await _context.Companies.FirstOrDefaultAsync();
+        var company = await CurrentCompanyAsync();
         if (company == null)
         {
             return NotFound(new { error = "Company not found. Complete onboarding first." });

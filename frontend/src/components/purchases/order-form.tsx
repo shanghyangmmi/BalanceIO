@@ -36,6 +36,8 @@ import { apiClient } from "@/lib/api-client"
 import { Contact, Product } from "@/lib/types/sales"
 import { toast } from "sonner"
 import { ProjectSelect } from "@/components/projects/project-select"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 const orderSchema = z.object({
     vendorId: z.string().min(1, "Vendor is required"),
@@ -56,6 +58,7 @@ const orderSchema = z.object({
 type OrderFormValues = z.infer<typeof orderSchema>
 
 export function OrderForm({ existingOrder }: { existingOrder?: any }) {
+    const can = useCan();
     const [vendors, setVendors] = useState<Contact[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
@@ -426,10 +429,10 @@ export function OrderForm({ existingOrder }: { existingOrder?: any }) {
                     <Button variant="outline" type="button" onClick={() => window.history.back()} disabled={isSubmitting}>
                         Cancel
                     </Button>
-                    <Button type="submit" disabled={isSubmitting}>
+                    {can(existingOrder ? PERMISSIONS.PurchasesEdit : PERMISSIONS.PurchasesCreate) && <Button type="submit" disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {existingOrder ? "Update Order" : "Create Order"}
-                    </Button>
+                    </Button>}
                 </div>
             </form>
         </Form>

@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -20,20 +21,56 @@ namespace BalanceIO.API.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly BalanceIO.API.Services.FinancialStatementsService _statements;
 
-    public ReportsController(ApplicationDbContext context)
+    public ReportsController(ApplicationDbContext context, BalanceIO.API.Services.FinancialStatementsService statements)
     {
         _context = context;
+        _statements = statements;
+    }
+
+    /// <summary>
+    /// The full statement set, bilingual (Bahasa Indonesia and English), with
+    /// the prior year alongside when <paramref name="comparative"/> is set.
+    /// Defaults to the fiscal year to date.
+    /// </summary>
+    [HttpGet("financial-statements")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<BalanceIO.API.DTOs.FinancialStatementPack>> GetFinancialStatements(
+        [FromQuery] DateOnly? start, [FromQuery] DateOnly? end, [FromQuery] bool comparative = true)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, 1, 1);
+        var who = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
+
+        return Ok(await _statements.BuildAsync(_context.CurrentCompanyId.Value, from, to, comparative, who));
+    }
+
+    /// <summary>Cash and cash equivalents over a period, per account, with weekly balances.</summary>
+    [HttpGet("cash-position")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<BalanceIO.API.DTOs.CashPositionResponse>> GetCashPosition([FromQuery] DateOnly? start, [FromQuery] DateOnly? end)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, to.Month, 1);
+        return Ok(await _statements.CashPositionAsync(_context.CurrentCompanyId.Value, from, to));
     }
 
     [HttpGet("balance-sheet")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<BalanceSheetResponse>> GetBalanceSheet([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var reportDate = asOf ?? DateTime.UtcNow;
         var dateDateOnly = DateOnly.FromDateTime(reportDate);
 
         // 1. Fetch all Accounts
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToListAsync();
+        var accounts = await _context.Accounts.ToListAsync();
 
         // 2. Fetch Journal Lines up to date
         var query = _context.JournalLines
@@ -161,6 +198,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("profit-loss")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<ProfitLossResponse>> GetProfitLoss([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -168,8 +206,7 @@ public class ReportsController : ControllerBase
 
         // Fetch Accounts (Expense/Revenue)
         var accounts = await _context.Accounts
-            .Where(a => a.IsActive && 
-                       (a.Code.StartsWith("4") || a.Code.StartsWith("5") || 
+            .Where(a => (a.Code.StartsWith("4") || a.Code.StartsWith("5") || 
                         a.Code.StartsWith("6") || a.Code.StartsWith("7") || 
                         a.Code.StartsWith("8") || a.Code.StartsWith("9")))
             .ToListAsync();
@@ -231,6 +268,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("aged-receivables")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AgedReportResponse>> GetAgedReceivables()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -278,6 +316,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("aged-payables")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AgedReportResponse>> GetAgedPayables()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -325,25 +364,25 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("inventory-valuation")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<InventoryValuationResponse>> GetInventoryValuation()
     {
         var products = await _context.Products
-            .Where(p => p.Type == ProductType.Product && p.TrackInventory && p.IsActive)
+            .Where(p => p.Type == ProductType.Product && p.TrackInventory && (p.IsActive || p.StockOnHand != 0m || p.InventoryValue != 0m))
             .ToListAsync();
 
         var report = new InventoryValuationResponse();
 
         foreach (var p in products)
         {
-            var value = p.StockOnHand * p.BuyPrice; // Evaluating at Cost (BuyPrice)
             report.Items.Add(new InventoryReportItem
             {
                 ProductId = p.Id,
                 Code = p.Code,
                 Name = p.Name,
                 Quantity = p.StockOnHand,
-                AverageCost = p.BuyPrice,
-                TotalValue = value
+                AverageCost = p.AverageCost,
+                TotalValue = p.InventoryValue
             });
         }
 
@@ -352,13 +391,191 @@ public class ReportsController : ControllerBase
 
         return report;
     }
+    /// <summary>
+    /// Stock card from the movement ledger: per product, the balance before
+    /// the period, every movement in it with the running quantity and value,
+    /// and the closing balance. Value runs company-wide (the average is
+    /// company-wide), so a warehouse filter returns quantities only.
+    /// </summary>
+    [HttpGet("inventory-movements")]
+    [RequiresPermission(Permissions.InventoryView)]
+    public async Task<IActionResult> GetInventoryMovements([FromQuery] DateOnly? start, [FromQuery] DateOnly? end,
+        [FromQuery] Guid? productId, [FromQuery] Guid? warehouseId)
+    {
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, to.Month, 1);
+        if (from > to)
+            return BadRequest(new { code = "VALIDATION_FAILED", message = "Start is after end." });
+        var withValue = !warehouseId.HasValue;
+
+        // Read in memory: SQLite stores decimal(19,4) as REAL.
+        var movements = await _context.InventoryMovements.AsNoTracking()
+            .Where(m => m.MovementDate <= to
+                     && (!productId.HasValue || m.ProductId == productId)
+                     && (!warehouseId.HasValue || m.WarehouseId == warehouseId))
+            .OrderBy(m => m.MovementDate).ThenBy(m => m.CreatedAt)
+            .Select(m => new
+            {
+                m.Id, m.ProductId, m.WarehouseId, m.MovementDate, m.Type, m.Quantity, m.UnitCost, m.TotalCost,
+                m.ReferenceNumber, m.Notes,
+            })
+            .ToListAsync();
+
+        var productIds = movements.Select(m => m.ProductId).Distinct().ToList();
+        var products = await _context.Products.AsNoTracking()
+            .Where(p => productIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Code, p.Name, p.Unit })
+            .ToDictionaryAsync(p => p.Id);
+        var warehouses = await _context.Warehouses.AsNoTracking()
+            .Select(w => new { w.Id, w.Code })
+            .ToDictionaryAsync(w => w.Id, w => w.Code);
+
+        var cards = movements
+            .Where(m => products.ContainsKey(m.ProductId))
+            .GroupBy(m => m.ProductId)
+            .Select(g =>
+            {
+                var p = products[g.Key];
+                var before = g.Where(m => m.MovementDate < from).ToList();
+                var qty = before.Sum(m => m.Quantity);
+                var value = before.Sum(m => m.TotalCost);
+                var openingQty = qty;
+                var openingValue = value;
+                var lines = new List<object>();
+                decimal qtyIn = 0m, qtyOut = 0m, valueIn = 0m, valueOut = 0m;
+
+                foreach (var m in g.Where(m => m.MovementDate >= from))
+                {
+                    qty += m.Quantity;
+                    value += m.TotalCost;
+                    if (m.Quantity > 0m) qtyIn += m.Quantity; else qtyOut -= m.Quantity;
+                    if (m.TotalCost > 0m) valueIn += m.TotalCost; else valueOut -= m.TotalCost;
+                    lines.Add(new
+                    {
+                        m.Id, Date = m.MovementDate, Type = m.Type.ToString(), Reference = m.ReferenceNumber, m.Notes,
+                        Warehouse = m.WarehouseId.HasValue && warehouses.TryGetValue(m.WarehouseId.Value, out var code) ? code : null,
+                        QuantityIn = m.Quantity > 0m ? m.Quantity : 0m,
+                        QuantityOut = m.Quantity < 0m ? -m.Quantity : 0m,
+                        m.UnitCost,
+                        Value = withValue ? m.TotalCost : (decimal?)null,
+                        BalanceQuantity = qty,
+                        BalanceValue = withValue ? value : (decimal?)null,
+                    });
+                }
+
+                return new
+                {
+                    ProductId = p.Id, p.Code, p.Name, p.Unit,
+                    OpeningQuantity = openingQty,
+                    OpeningValue = withValue ? openingValue : (decimal?)null,
+                    QuantityIn = qtyIn, QuantityOut = qtyOut,
+                    ValueIn = withValue ? valueIn : (decimal?)null,
+                    ValueOut = withValue ? valueOut : (decimal?)null,
+                    ClosingQuantity = qty,
+                    ClosingValue = withValue ? value : (decimal?)null,
+                    Movements = lines,
+                };
+            })
+            .Where(c => c.Movements.Count > 0 || c.OpeningQuantity != 0m || (c.OpeningValue ?? 0m) != 0m)
+            .OrderBy(c => c.Code)
+            .ToList();
+
+        return Ok(new
+        {
+            Start = from, End = to, WarehouseId = warehouseId, WithValue = withValue,
+            OpeningValue = withValue ? cards.Sum(c => c.OpeningValue ?? 0m) : (decimal?)null,
+            ValueIn = withValue ? cards.Sum(c => c.ValueIn ?? 0m) : (decimal?)null,
+            ValueOut = withValue ? cards.Sum(c => c.ValueOut ?? 0m) : (decimal?)null,
+            ClosingValue = withValue ? cards.Sum(c => c.ClosingValue ?? 0m) : (decimal?)null,
+            Products = cards,
+        });
+    }
+
+    /// <summary>
+    /// Age of the stock on hand. Units on hand are taken to be the most
+    /// recently received (first in, first out for ageing; cost stays at the
+    /// moving average), so each unit's age is the age of the receipt it is
+    /// attributed to. Transfers do not reset age. Value per bucket is at the
+    /// average, with the last bucket taking the rounding so the buckets add
+    /// up to the carrying value.
+    /// </summary>
+    [HttpGet("inventory-aging")]
+    [RequiresPermission(Permissions.InventoryView)]
+    public async Task<IActionResult> GetInventoryAging([FromQuery] DateOnly? asOf)
+    {
+        var date = asOf ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        int[] limits = [30, 60, 90];
+
+        var products = await _context.Products.AsNoTracking()
+            .Where(p => p.TrackInventory && p.StockOnHand > 0m)
+            .Select(p => new { p.Id, p.Code, p.Name, p.Unit, p.StockOnHand, p.InventoryValue, p.AverageCost })
+            .ToListAsync();
+        var ids = products.Select(p => p.Id).ToList();
+
+        // Read in memory: SQLite stores decimal(19,4) as REAL.
+        var movements = await _context.InventoryMovements.AsNoTracking()
+            .Where(m => ids.Contains(m.ProductId) && m.MovementDate <= date && m.Type != InventoryMovementType.Transfer)
+            .Select(m => new { m.ProductId, m.MovementDate, m.Quantity, m.Type })
+            .ToListAsync();
+        var byProduct = movements.ToLookup(m => m.ProductId);
+
+        var rows = products.OrderBy(p => p.Code).Select(p =>
+        {
+            var buckets = new decimal[limits.Length + 1];
+            var remaining = p.StockOnHand;
+            foreach (var receipt in byProduct[p.Id].Where(m => m.Quantity > 0m).OrderByDescending(m => m.MovementDate))
+            {
+                if (remaining <= 0m) break;
+                var take = Math.Min(remaining, receipt.Quantity);
+                var age = date.DayNumber - receipt.MovementDate.DayNumber;
+                var bucket = Array.FindIndex(limits, l => age <= l);
+                buckets[bucket < 0 ? limits.Length : bucket] += take;
+                remaining -= take;
+            }
+            // Stock with no receipt on record is of unknown age; it is shown as the oldest.
+            buckets[limits.Length] += remaining;
+
+            var values = new decimal[buckets.Length];
+            var last = Array.FindLastIndex(buckets, q => q != 0m);
+            for (var i = 0; i < buckets.Length; i++)
+                values[i] = i == last ? 0m : Math.Round(buckets[i] * p.AverageCost, 2, MidpointRounding.ToEven);
+            if (last >= 0) values[last] = p.InventoryValue - values.Sum();
+
+            var lastSale = byProduct[p.Id].Where(m => m.Type == InventoryMovementType.Sale && m.Quantity < 0m)
+                .Select(m => (DateOnly?)m.MovementDate).Max();
+
+            return new
+            {
+                ProductId = p.Id, p.Code, p.Name, p.Unit,
+                Quantity = p.StockOnHand, Value = p.InventoryValue, p.AverageCost,
+                Buckets = buckets.Select((q, i) => new { Quantity = q, Value = values[i] }).ToList(),
+                LastSale = lastSale,
+                DaysSinceLastSale = lastSale.HasValue ? date.DayNumber - lastSale.Value.DayNumber : (int?)null,
+            };
+        }).ToList();
+
+        return Ok(new
+        {
+            AsOf = date,
+            Buckets = new[] { "0-30", "31-60", "61-90", "90+" },
+            Totals = Enumerable.Range(0, limits.Length + 1).Select(i => new
+            {
+                Quantity = rows.Sum(r => r.Buckets[i].Quantity),
+                Value = rows.Sum(r => r.Buckets[i].Value),
+            }).ToList(),
+            Value = rows.Sum(r => r.Value),
+            Rows = rows,
+        });
+    }
+
     [HttpGet("trial-balance")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<TrialBalanceResponse>> GetTrialBalance([FromQuery] DateTime? asOf = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var reportDate = asOf ?? DateTime.UtcNow;
         var dateDateOnly = DateOnly.FromDateTime(reportDate);
 
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToListAsync();
+        var accounts = await _context.Accounts.ToListAsync();
 
         var query = _context.JournalLines
             .Where(l => l.JournalEntry!.Date <= dateDateOnly && l.JournalEntry.Status == JournalEntryStatus.Posted)
@@ -432,6 +649,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("general-ledger")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<GeneralLedgerResponse>> GetGeneralLedger([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] string? accountId = null, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -529,6 +747,7 @@ public class ReportsController : ControllerBase
         return report;
     }
     [HttpGet("cash-flow")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<CashFlowResponse>> GetCashFlow([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -545,7 +764,7 @@ public class ReportsController : ControllerBase
             .ToListAsync();
             
         // Pre-fetch accounts to categorize
-        var accounts = await _context.Accounts.Where(a => a.IsActive).ToDictionaryAsync(a => a.Code, a => a);
+        var accounts = await _context.Accounts.ToDictionaryAsync(a => a.Code, a => a);
         
         decimal netIncome = 0;
         decimal depreciation = 0;
@@ -657,6 +876,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("equity")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<EquityChangeResponse>> GetEquity([FromQuery] DateOnly? startDate, [FromQuery] DateOnly? endDate, [FromQuery] Guid? projectId = null, [FromQuery] bool? excludeAdjusting = null, [FromQuery] bool? onlyAdjusting = null)
     {
         var end = endDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
@@ -724,6 +944,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("assets-schedule")]
+    [RequiresPermission(Permissions.FinanceReport)]
     public async Task<ActionResult<AssetsScheduleResponse>> GetAssetsSchedule([FromQuery] DateOnly? asOf = null)
     {
         // For now, simple snapshot of current state
@@ -759,6 +980,301 @@ public class ReportsController : ControllerBase
         report.TotalBookValue = report.Items.Sum(x => x.BookValue);
 
         return report;
+    }
+
+    /// <summary>
+    /// Columnar Profit & Loss matrix breaking down revenue and expenses by dimension (CostCenter or Project).
+    /// </summary>
+    [HttpGet("profit-loss-by-dimension")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<DimensionalProfitLossResponse>> GetProfitLossByDimension(
+        [FromQuery] string dimensionType = "CostCenter",
+        [FromQuery] DateOnly? start = null,
+        [FromQuery] DateOnly? end = null,
+        [FromQuery] bool? excludeAdjusting = null,
+        [FromQuery] bool? onlyAdjusting = null)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var companyId = _context.CurrentCompanyId.Value;
+        var to = end ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = start ?? new DateOnly(to.Year, 1, 1);
+
+        var isCostCenter = string.Equals(dimensionType, "CostCenter", StringComparison.OrdinalIgnoreCase);
+
+        // Fetch accounts
+        var accounts = await _context.Accounts
+            .Where(a => a.CompanyId == companyId && (a.Code.StartsWith("4") || a.Code.StartsWith("5") ||
+                        a.Code.StartsWith("6") || a.Code.StartsWith("7") ||
+                        a.Code.StartsWith("8") || a.Code.StartsWith("9")))
+            .OrderBy(a => a.Code)
+            .ToListAsync();
+
+        // Fetch dimension headers
+        var dimensionHeaders = new List<DimensionColumnHeader>();
+        if (isCostCenter)
+        {
+            var costCenters = await _context.CostCenters
+                .Where(c => c.CompanyId == companyId && c.IsActive)
+                .OrderBy(c => c.Code)
+                .ToListAsync();
+
+            dimensionHeaders.AddRange(costCenters.Select(c => new DimensionColumnHeader
+            {
+                Id = c.Id.ToString(),
+                Code = c.Code,
+                Name = c.Name
+            }));
+        }
+        else // Project
+        {
+            var projects = await _context.Projects
+                .Where(p => p.CompanyId == companyId)
+                .OrderBy(p => p.Code)
+                .ToListAsync();
+
+            dimensionHeaders.AddRange(projects.Select(p => new DimensionColumnHeader
+            {
+                Id = p.Id.ToString(),
+                Code = p.Code ?? p.Name,
+                Name = p.Name
+            }));
+        }
+
+        // Always include an unassigned column header
+        var unassignedHeader = new DimensionColumnHeader
+        {
+            Id = "unassigned",
+            Code = "UNASSIGNED",
+            Name = "Unassigned / General"
+        };
+        dimensionHeaders.Add(unassignedHeader);
+
+        // Fetch posted lines in date range
+        var query = _context.JournalLines
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry!.CompanyId == companyId &&
+                        l.JournalEntry.Date >= from && l.JournalEntry.Date <= to &&
+                        l.JournalEntry.Status == JournalEntryStatus.Posted);
+
+        query = FilterAJE(query, excludeAdjusting, onlyAdjusting);
+        var lines = await query.ToListAsync();
+
+        // Group lines by AccountCode and DimensionKey
+        var matrix = new Dictionary<string, Dictionary<string, decimal>>(); // accountCode -> (dimensionKey -> net)
+
+        foreach (var line in lines)
+        {
+            string dimKey;
+            if (isCostCenter)
+            {
+                dimKey = line.CostCenterId.HasValue ? line.CostCenterId.Value.ToString() : "unassigned";
+            }
+            else
+            {
+                var pId = line.ProjectId ?? line.JournalEntry?.ProjectId;
+                dimKey = pId.HasValue ? pId.Value.ToString() : "unassigned";
+            }
+
+            if (!matrix.TryGetValue(line.AccountId, out var dimDict))
+            {
+                dimDict = new Dictionary<string, decimal>();
+                matrix[line.AccountId] = dimDict;
+            }
+
+            dimDict.TryGetValue(dimKey, out var curr);
+            // Revenue (4xxx, 7xxx) -> Credit normal (Credit - Debit)
+            // Expense / COGS (5xxx, 6xxx, 8xxx, 9xxx) -> Debit normal (Debit - Credit)
+            var isRevenue = line.AccountId.StartsWith("4") || line.AccountId.StartsWith("7");
+            var change = isRevenue ? (line.Credit - line.Debit) : (line.Debit - line.Credit);
+            dimDict[dimKey] = curr + change;
+        }
+
+        var response = new DimensionalProfitLossResponse
+        {
+            StartDate = from,
+            EndDate = to,
+            DimensionType = isCostCenter ? "CostCenter" : "Project",
+            Dimensions = dimensionHeaders
+        };
+
+        // Initialize dimension total dictionaries
+        foreach (var dim in dimensionHeaders)
+        {
+            response.TotalRevenueByDimension[dim.Id] = 0m;
+            response.TotalCogsByDimension[dim.Id] = 0m;
+            response.TotalExpensesByDimension[dim.Id] = 0m;
+        }
+
+        foreach (var acc in accounts)
+        {
+            if (!matrix.TryGetValue(acc.Code, out var dimDict)) continue;
+            var rowTotal = dimDict.Values.Sum();
+            if (rowTotal == 0m && dimDict.Values.All(v => v == 0m)) continue;
+
+            var row = new DimensionalReportRow
+            {
+                AccountCode = acc.Code,
+                AccountName = acc.Name,
+                Total = rowTotal,
+                BalancesByDimension = new Dictionary<string, decimal>()
+            };
+
+            foreach (var dim in dimensionHeaders)
+            {
+                dimDict.TryGetValue(dim.Id, out var val);
+                row.BalancesByDimension[dim.Id] = val;
+            }
+
+            if (acc.Code.StartsWith("4") || acc.Code.StartsWith("7")) // Revenue
+            {
+                row.Category = "Revenue";
+                response.RevenueRows.Add(row);
+                foreach (var dim in dimensionHeaders)
+                {
+                    row.BalancesByDimension.TryGetValue(dim.Id, out var val);
+                    response.TotalRevenueByDimension[dim.Id] += val;
+                }
+            }
+            else if (acc.Code.StartsWith("5")) // COGS
+            {
+                row.Category = "COGS";
+                response.CogsRows.Add(row);
+                foreach (var dim in dimensionHeaders)
+                {
+                    row.BalancesByDimension.TryGetValue(dim.Id, out var val);
+                    response.TotalCogsByDimension[dim.Id] += val;
+                }
+            }
+            else // Operating & other expenses
+            {
+                row.Category = "Expense";
+                response.ExpenseRows.Add(row);
+                foreach (var dim in dimensionHeaders)
+                {
+                    row.BalancesByDimension.TryGetValue(dim.Id, out var val);
+                    response.TotalExpensesByDimension[dim.Id] += val;
+                }
+            }
+        }
+
+        // Totals
+        response.TotalRevenue = response.RevenueRows.Sum(r => r.Total);
+        response.TotalCogs = response.CogsRows.Sum(r => r.Total);
+        response.TotalGrossProfit = response.TotalRevenue - response.TotalCogs;
+        response.TotalExpenses = response.ExpenseRows.Sum(r => r.Total);
+        response.TotalNetIncome = response.TotalGrossProfit - response.TotalExpenses;
+
+        foreach (var dim in dimensionHeaders)
+        {
+            var rev = response.TotalRevenueByDimension[dim.Id];
+            var cogs = response.TotalCogsByDimension[dim.Id];
+            var exp = response.TotalExpensesByDimension[dim.Id];
+            response.GrossProfitByDimension[dim.Id] = rev - cogs;
+            response.NetIncomeByDimension[dim.Id] = rev - cogs - exp;
+        }
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Direct revenue vs direct expenses and gross margin for a given project.
+    /// </summary>
+    [HttpGet("project-profitability")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<ProjectProfitabilityResponse>> GetProjectProfitability(
+        [FromQuery] Guid projectId,
+        [FromQuery] DateOnly? start = null,
+        [FromQuery] DateOnly? end = null)
+    {
+        if (!_context.CurrentCompanyId.HasValue)
+            return BadRequest(new { code = "COMPANY_REQUIRED", message = "Company context is required." });
+
+        var companyId = _context.CurrentCompanyId.Value;
+
+        var project = await _context.Projects
+            .FirstOrDefaultAsync(p => p.CompanyId == companyId && p.Id == projectId);
+
+        if (project == null)
+            return NotFound(new { code = "PROJECT_NOT_FOUND", message = "Project not found." });
+
+        var query = _context.JournalLines
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry!.CompanyId == companyId &&
+                        l.JournalEntry.Status == JournalEntryStatus.Posted &&
+                        (l.ProjectId == projectId || l.JournalEntry.ProjectId == projectId));
+
+        if (start.HasValue)
+            query = query.Where(l => l.JournalEntry!.Date >= start.Value);
+        if (end.HasValue)
+            query = query.Where(l => l.JournalEntry!.Date <= end.Value);
+
+        var lines = await query.ToListAsync();
+
+        var accountCodes = lines.Select(l => l.AccountId).Distinct().ToList();
+        var accounts = await _context.Accounts
+            .Where(a => a.CompanyId == companyId && accountCodes.Contains(a.Code))
+            .ToDictionaryAsync(a => a.Code, a => a.Name);
+
+        var revenueBreakdown = new List<ProjectCostBreakdownItem>();
+        var costBreakdown = new List<ProjectCostBreakdownItem>();
+
+        var grouped = lines.GroupBy(l => l.AccountId).ToList();
+        foreach (var g in grouped)
+        {
+            var accCode = g.Key;
+            var accName = accounts.TryGetValue(accCode, out var name) ? name : accCode;
+
+            if (accCode.StartsWith("4") || accCode.StartsWith("7")) // Revenue / Other Income
+            {
+                var netRevenue = g.Sum(l => l.Credit - l.Debit);
+                if (netRevenue != 0m)
+                {
+                    revenueBreakdown.Add(new ProjectCostBreakdownItem
+                    {
+                        AccountCode = accCode,
+                        AccountName = accName,
+                        Amount = netRevenue
+                    });
+                }
+            }
+            else if (accCode.StartsWith("5") || accCode.StartsWith("6") || accCode.StartsWith("8") || accCode.StartsWith("9")) // Cost of Sales / Expense
+            {
+                var netCost = g.Sum(l => l.Debit - l.Credit);
+                if (netCost != 0m)
+                {
+                    costBreakdown.Add(new ProjectCostBreakdownItem
+                    {
+                        AccountCode = accCode,
+                        AccountName = accName,
+                        Amount = netCost
+                    });
+                }
+            }
+        }
+
+        var totalRev = revenueBreakdown.Sum(r => r.Amount);
+        var totalCost = costBreakdown.Sum(c => c.Amount);
+        var grossProfit = totalRev - totalCost;
+        var marginPct = totalRev != 0m ? Math.Round((grossProfit / totalRev) * 100m, 2) : 0m;
+
+        var response = new ProjectProfitabilityResponse
+        {
+            ProjectId = project.Id,
+            ProjectCode = project.Code ?? "",
+            ProjectName = project.Name,
+            StartDate = start,
+            EndDate = end,
+            TotalRevenue = totalRev,
+            TotalDirectCost = totalCost,
+            GrossProfit = grossProfit,
+            GrossMarginPercentage = marginPct,
+            RevenueBreakdown = revenueBreakdown.OrderBy(r => r.AccountCode).ToList(),
+            CostBreakdown = costBreakdown.OrderBy(c => c.AccountCode).ToList()
+        };
+
+        return Ok(response);
     }
 
     private IQueryable<JournalLine> FilterAJE(IQueryable<JournalLine> query, bool? excludeAdjusting, bool? onlyAdjusting)
@@ -934,3 +1450,65 @@ public class InventoryReportItem
     public decimal AverageCost { get; set; }
     public decimal TotalValue { get; set; }
 }
+
+public class DimensionalProfitLossResponse
+{
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public string DimensionType { get; set; } = "CostCenter";
+    public List<DimensionColumnHeader> Dimensions { get; set; } = new();
+    public List<DimensionalReportRow> RevenueRows { get; set; } = new();
+    public List<DimensionalReportRow> CogsRows { get; set; } = new();
+    public List<DimensionalReportRow> ExpenseRows { get; set; } = new();
+    public Dictionary<string, decimal> TotalRevenueByDimension { get; set; } = new();
+    public Dictionary<string, decimal> TotalCogsByDimension { get; set; } = new();
+    public Dictionary<string, decimal> GrossProfitByDimension { get; set; } = new();
+    public Dictionary<string, decimal> TotalExpensesByDimension { get; set; } = new();
+    public Dictionary<string, decimal> NetIncomeByDimension { get; set; } = new();
+    public decimal TotalRevenue { get; set; }
+    public decimal TotalCogs { get; set; }
+    public decimal TotalGrossProfit { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal TotalNetIncome { get; set; }
+}
+
+public class DimensionColumnHeader
+{
+    public string Id { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
+public class DimensionalReportRow
+{
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public Dictionary<string, decimal> BalancesByDimension { get; set; } = new();
+    public decimal Total { get; set; }
+}
+
+public class ProjectProfitabilityResponse
+{
+    public Guid ProjectId { get; set; }
+    public string ProjectCode { get; set; } = string.Empty;
+    public string ProjectName { get; set; } = string.Empty;
+    public string? CustomerName { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public decimal ContractAmount { get; set; }
+    public decimal TotalRevenue { get; set; }
+    public decimal TotalDirectCost { get; set; }
+    public decimal GrossProfit { get; set; }
+    public decimal GrossMarginPercentage { get; set; }
+    public List<ProjectCostBreakdownItem> RevenueBreakdown { get; set; } = new();
+    public List<ProjectCostBreakdownItem> CostBreakdown { get; set; } = new();
+}
+
+public class ProjectCostBreakdownItem
+{
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+}
+

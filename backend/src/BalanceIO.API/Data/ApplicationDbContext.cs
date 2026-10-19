@@ -8,7 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 
 namespace BalanceIO.API.Data;
 
-public class ApplicationDbContext : DbContext
+public partial class ApplicationDbContext : DbContext
 {
     private readonly IHttpContextAccessor? _httpContextAccessor;
 
@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<JournalEntry> JournalEntries { get; set; }
     public DbSet<JournalLine> JournalLines { get; set; }
     public DbSet<Account> Accounts { get; set; }
+    public DbSet<CostCenter> CostCenters { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
     public DbSet<Notification> Notifications { get; set; }
 
@@ -100,11 +101,13 @@ public class ApplicationDbContext : DbContext
     public DbSet<ProductCategory> ProductCategories { get; set; }
     public DbSet<ProductUnit> ProductUnits { get; set; }
     public DbSet<StockOpname> StockOpnames { get; set; }
+    public DbSet<Warehouse> Warehouses { get; set; }
     public DbSet<StockOpnameLine> StockOpnameLines { get; set; }
     public DbSet<InventoryMovement> InventoryMovements { get; set; }
 
     // Tax & Compliance
     public DbSet<TaxRate> TaxRates { get; set; }
+    public DbSet<TaxInvoiceNumberRange> TaxInvoiceNumberRanges { get; set; }
 
     // Settings
     public DbSet<EmailSettings> EmailSettings { get; set; }
@@ -122,6 +125,21 @@ public class ApplicationDbContext : DbContext
     // Operations
     public DbSet<ScheduledJob> ScheduledJobs { get; set; }
     public DbSet<JobRun> JobRuns { get; set; }
+
+    // Payroll
+    public DbSet<EmployeeCompensation> EmployeeCompensations { get; set; }
+    public DbSet<PayrollRun> PayrollRuns { get; set; }
+    public DbSet<PayrollLine> PayrollLines { get; set; }
+
+    // Sessions & Security Grants
+    public DbSet<UserSession> UserSessions { get; set; }
+    public DbSet<SupportAccessGrant> SupportAccessGrants { get; set; }
+
+    // Audit History & In-App Support Ticketing
+    public DbSet<DocumentHistoryEvent> DocumentHistoryEvents { get; set; }
+    public DbSet<SupportTicket> SupportTickets { get; set; }
+    public DbSet<SupportTicketMessage> SupportTicketMessages { get; set; }
+    public DbSet<SupportTicketAttachment> SupportTicketAttachments { get; set; }
 
     public Guid? CurrentCompanyId { get; set; }
 
@@ -211,14 +229,16 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ProductUnit>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<StockOpname>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<InventoryMovement>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<Warehouse>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         
         // Assets
         modelBuilder.Entity<FixedAsset>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<FixedAssetCategory>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<FixedAssetLocation>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         
-        // Projects
+        // Projects & Cost Centers
         modelBuilder.Entity<Project>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<CostCenter>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
 
         // Recurring
         modelBuilder.Entity<RecurringJournalEntry>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
@@ -259,12 +279,115 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<BudgetLine>()
             .HasQueryFilter(e => e.Budget!.CompanyId == CurrentCompanyId);
 
+        modelBuilder.Entity<EmployeeCompensation>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<PayrollRun>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<PayrollLine>()
+            .HasQueryFilter(e => e.PayrollRun!.CompanyId == CurrentCompanyId);
+
+        modelBuilder.Entity<UserSession>().HasQueryFilter(e => !e.IsRevoked);
+        modelBuilder.Entity<SupportAccessGrant>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+
+        modelBuilder.Entity<DocumentHistoryEvent>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SupportTicket>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SupportTicketMessage>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SupportTicketAttachment>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<TaxInvoiceNumberRange>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+
+        // Trade Flow Entities (Phase 6 Multi-tenancy)
+        modelBuilder.Entity<CreditNote>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<DebitNote>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<FundTransfer>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<DeliveryOrder>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<GoodsReceipt>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SalesOrder>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+
         // --- Indexes for Performance ---
+        modelBuilder.Entity<CreditNote>().HasIndex(e => new { e.CompanyId, e.CreditNoteNumber }).IsUnique();
+        modelBuilder.Entity<DebitNote>().HasIndex(e => new { e.CompanyId, e.DebitNoteNumber }).IsUnique();
+        modelBuilder.Entity<FundTransfer>().HasIndex(e => new { e.CompanyId, e.TransferNumber }).IsUnique();
+        modelBuilder.Entity<DeliveryOrder>().HasIndex(e => new { e.CompanyId, e.DeliveryNumber }).IsUnique();
+        modelBuilder.Entity<GoodsReceipt>().HasIndex(e => new { e.CompanyId, e.ReceiptNumber }).IsUnique();
+        modelBuilder.Entity<SalesOrder>().HasIndex(e => new { e.CompanyId, e.OrderNumber }).IsUnique();
+
+        modelBuilder.Entity<TaxInvoiceNumberRange>().HasIndex(e => new { e.CompanyId, e.Year, e.IsExhausted });
+        modelBuilder.Entity<UserSession>().HasIndex(e => e.UserId);
+        modelBuilder.Entity<UserSession>().HasIndex(e => e.RefreshTokenHash);
+        modelBuilder.Entity<SupportAccessGrant>().HasIndex(e => new { e.CompanyId, e.ValidUntil });
+        modelBuilder.Entity<SupportAccessGrant>()
+            .HasOne<SupportTicket>()
+            .WithMany()
+            .HasForeignKey(g => g.TicketId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<DocumentHistoryEvent>().HasIndex(e => new { e.CompanyId, e.DocumentType, e.DocumentId });
+        modelBuilder.Entity<DocumentHistoryEvent>().HasIndex(e => new { e.CompanyId, e.Timestamp });
+
+        modelBuilder.Entity<SupportTicket>().HasIndex(e => new { e.CompanyId, e.TicketNumber }).IsUnique();
+        modelBuilder.Entity<SupportTicket>().HasIndex(e => new { e.CompanyId, e.Status });
+        modelBuilder.Entity<SupportTicket>().HasIndex(e => new { e.CompanyId, e.CreatedAt });
+        modelBuilder.Entity<SupportTicket>()
+            .HasOne(t => t.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(t => t.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SupportTicket>()
+            .HasOne(t => t.AssignedAdminUser)
+            .WithMany()
+            .HasForeignKey(t => t.AssignedAdminUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<SupportTicketMessage>().HasIndex(e => e.TicketId);
+        modelBuilder.Entity<SupportTicketMessage>().HasIndex(e => new { e.CompanyId, e.CreatedAt });
+        modelBuilder.Entity<SupportTicketMessage>()
+            .HasOne(m => m.Ticket)
+            .WithMany(t => t.Messages)
+            .HasForeignKey(m => m.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SupportTicketMessage>()
+            .HasOne(m => m.SenderUser)
+            .WithMany()
+            .HasForeignKey(m => m.SenderUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SupportTicketAttachment>().HasIndex(e => e.TicketMessageId);
+        modelBuilder.Entity<SupportTicketAttachment>()
+            .HasOne(a => a.TicketMessage)
+            .WithMany(m => m.Attachments)
+            .HasForeignKey(a => a.TicketMessageId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SupportTicketAttachment>()
+            .HasOne(a => a.StoredFile)
+            .WithMany()
+            .HasForeignKey(a => a.StoredFileId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<JournalEntry>().HasIndex(e => new { e.CompanyId, e.Date });
         modelBuilder.Entity<JournalEntry>().HasIndex(e => e.ProjectId);
+
+        // Idempotency is decided by this index, not by a check-then-insert in
+        // the controller. NULL keys are distinct in both SQLite and
+        // PostgreSQL, so entries without a key are unaffected.
+        modelBuilder.Entity<JournalEntry>()
+            .HasIndex(e => new { e.CompanyId, e.IdempotencyKey })
+            .IsUnique();
         
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.AccountId);
         modelBuilder.Entity<JournalLine>().HasIndex(e => e.JournalEntryId);
+        modelBuilder.Entity<JournalLine>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<JournalLine>().HasIndex(e => e.ProjectId);
+
+        modelBuilder.Entity<CostCenter>().HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
+        modelBuilder.Entity<CostCenter>().HasIndex(e => e.ParentId);
+        modelBuilder.Entity<CostCenter>().HasIndex(e => e.ManagerContactId);
+
+        modelBuilder.Entity<SalesInvoiceLine>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<SalesInvoiceLine>().HasIndex(e => e.ProjectId);
+
+        modelBuilder.Entity<PurchaseBillLine>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<PurchaseBillLine>().HasIndex(e => e.ProjectId);
+
+        modelBuilder.Entity<FixedAsset>().HasIndex(e => e.CostCenterId);
+        modelBuilder.Entity<EmployeeCompensation>().HasIndex(e => e.CostCenterId);
 
         modelBuilder.Entity<SalesInvoice>().HasIndex(e => new { e.CompanyId, e.InvoiceDate });
         modelBuilder.Entity<SalesInvoice>().HasIndex(e => new { e.CompanyId, e.Status });
@@ -290,11 +413,43 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<ImportBatch>().HasIndex(e => new { e.CompanyId, e.ConversionDate });
         modelBuilder.Entity<ExchangeRate>().HasIndex(e => new { e.RateDate, e.FromCurrency, e.RateType });
         modelBuilder.Entity<ExchangeRate>().HasIndex(e => new { e.ValidFrom, e.ValidTo, e.FromCurrency });
+
+        modelBuilder.Entity<EmployeeCompensation>()
+            .HasIndex(e => new { e.CompanyId, e.ContactId })
+            .IsUnique();
+
+        // One live run per month. A voided run steps aside so the month can
+        // be run again; the filter is the same SQL on SQLite and PostgreSQL.
+        modelBuilder.Entity<PayrollRun>()
+            .HasIndex(e => new { e.CompanyId, e.Year, e.Month })
+            .IsUnique()
+            .HasFilter("\"Status\" <> 2");
+
+        modelBuilder.Entity<PayrollLine>().HasIndex(e => e.ContactId);
+
+        modelBuilder.Entity<Warehouse>().HasIndex(e => new { e.CompanyId, e.Code }).IsUnique();
+        modelBuilder.Entity<InventoryMovement>().HasIndex(e => new { e.CompanyId, e.WarehouseId, e.ProductId });
+    }
+
+    /// <summary>
+    /// The synchronous overload skips every async ledger guard, so it may not
+    /// be used for anything that touches the ledger.
+    /// </summary>
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        if (ChangeTracker.Entries().Any(e => e.State != EntityState.Unchanged && e.State != EntityState.Detached
+                                             && (e.Entity is JournalEntry || e.Entity is JournalLine)))
+        {
+            throw new InvalidOperationException("Ledger writes must use SaveChangesAsync so the ledger guards run.");
+        }
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        ValidateJournalEntryBalances();
+        StampTenantScope();
+        await EnforceLedgerInvariantsAsync(cancellationToken);
         await EnforceJournalQuotaAsync(cancellationToken);
         StampAuditLogCompanyScope();
         var auditEntries = OnBeforeSaveChanges();
@@ -391,27 +546,6 @@ public class ApplicationDbContext : DbContext
         }
     }
 
-    private void ValidateJournalEntryBalances()
-    {
-        var postedEntries = ChangeTracker.Entries<JournalEntry>()
-            .Where(e => (e.State == EntityState.Added || e.State == EntityState.Modified) && e.Entity.Status == JournalEntryStatus.Posted)
-            .Select(e => e.Entity);
-
-        foreach (var journal in postedEntries)
-        {
-            var lines = journal.Lines;
-            if (lines != null && lines.Count > 0)
-            {
-                var totalDebit = lines.Sum(l => l.Debit);
-                var totalCredit = lines.Sum(l => l.Credit);
-                if (totalDebit != totalCredit)
-                {
-                    throw new InvalidOperationException($"ERR_409: Database Balance Guard Fault — Journal Entry '{journal.ReferenceNumber}' is unbalanced! Total Debit ({totalDebit}) != Total Credit ({totalCredit}). Saved transaction aborted.");
-                }
-            }
-        }
-    }
-
     private List<AuditEntry> OnBeforeSaveChanges()
     {
         ChangeTracker.DetectChanges();
@@ -424,7 +558,7 @@ public class ApplicationDbContext : DbContext
 
             // Only audit important operational tables to avoid log bloat
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
-            var allowedTables = new[] { "Accounts", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets" };
+            var allowedTables = new[] { "Accounts", "CostCenters", "JournalEntries", "JournalLines", "Contacts", "Products", "SalesInvoices", "PurchaseBills", "FixedAssets", "EmployeeCompensations", "PayrollRuns" };
             if (!allowedTables.Contains(tableName))
                 continue;
 

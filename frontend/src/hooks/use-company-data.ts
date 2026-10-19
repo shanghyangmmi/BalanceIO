@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { queryKeys } from "@/lib/query-keys"
 
 export interface CompanyData {
     id?: string
@@ -22,7 +22,7 @@ export interface CompanyData {
 }
 
 const defaultCompanyData: CompanyData = {
-    name: "Your Company Name",
+    name: "",
     industry: "",
     currency: "IDR",
     city: "Jakarta",
@@ -30,42 +30,42 @@ const defaultCompanyData: CompanyData = {
 }
 
 /**
- * Hook to get company data from API
+ * Hook to get company data from API using TanStack Query.
+ * Cached across routes with 60s stale time to eliminate redundant network requests
+ * and prevent flash of placeholder "Your Company Name" text.
  */
 export function useCompanyData(): { company: CompanyData; isLoading: boolean; refetch: () => void } {
-    const [companyData, setCompanyData] = useState<CompanyData>(defaultCompanyData)
-    const [isLoading, setIsLoading] = useState(true)
+    const { data, isLoading, refetch } = useQuery<CompanyData>({
+        queryKey: queryKeys.company.details(),
+        queryFn: async () => {
+            const result = await apiClient.get<CompanyData>("/company")
+            return result || defaultCompanyData
+        },
+        staleTime: 60_000,
+    })
 
-    const fetchCompany = async () => {
-        try {
-            setIsLoading(true)
-            // Through apiClient: /company needs the bearer token and the
-            // X-Company-Id header, and a bare fetch sent neither. It only
-            // ever worked because the endpoint was unauthenticated, which
-            // also meant it answered without knowing which tenant was asking.
-            const data = await apiClient.get<CompanyData>("/company")
-            if (data) {
-                setCompanyData({
-                    ...defaultCompanyData,
-                    ...data
-                })
-            }
-        } catch (error) {
-            console.error("Failed to fetch company data:", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }
+    const company = data ? { ...defaultCompanyData, ...data } : defaultCompanyData
 
-    useEffect(() => {
-        fetchCompany()
-    }, [])
-
-    return { company: companyData, isLoading, refetch: fetchCompany }
+    return { company, isLoading, refetch }
 }
 
 /**
- * Update company data via API
+ * TanStack Mutation Hook to update company data with automatic cache invalidation
+ */
+export function useUpdateCompanyData() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: async (data: Partial<CompanyData>) => {
+            return apiClient.put("/company", data)
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.company.all })
+        },
+    })
+}
+
+/**
+ * Legacy imperative updater for backwards compatibility
  */
 export async function updateCompanyData(data: Partial<CompanyData>): Promise<{ success: boolean; error?: string }> {
     try {

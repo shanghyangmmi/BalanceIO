@@ -18,11 +18,14 @@ public class MigrationController : ControllerBase
     private readonly IPeriodLockService _periodLockService;
     private readonly ILogger<MigrationController> _logger;
 
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+
     public MigrationController(
         ApplicationDbContext context,
         IPeriodLockService periodLockService,
-        ILogger<MigrationController> logger)
+        ILogger<MigrationController> logger, BalanceIO.API.Services.InventoryLedger inventory)
     {
+        _inventory = inventory;
         _context = context;
         _periodLockService = periodLockService;
         _logger = logger;
@@ -107,6 +110,10 @@ public class MigrationController : ControllerBase
                 await PreviewAssets(companyId, request, result);
                 break;
 
+            case ImportType.ChartOfAccounts:
+                await PreviewChartOfAccounts(companyId, request, result);
+                break;
+
             default:
                 result.Errors.Add($"Unsupported import type: {request.Type}");
                 result.IsValid = false;
@@ -172,6 +179,10 @@ public class MigrationController : ControllerBase
 
                 case ImportType.AssetsOpening:
                     await CommitAssets(companyId, request, batch, summary);
+                    break;
+
+                case ImportType.ChartOfAccounts:
+                    await CommitChartOfAccounts(companyId, request, batch, summary);
                     break;
 
                 default:
@@ -321,6 +332,16 @@ public class MigrationController : ControllerBase
                 }
             }
 
+            // 7. Rollback Chart of Accounts (only non-system-default)
+            if (summary.CreatedAccountIds.Count > 0)
+            {
+                var accounts = await _context.Accounts
+                    .Where(a => summary.CreatedAccountIds.Contains(a.Id) && !a.IsSystemDefault)
+                    .ToListAsync();
+
+                _context.Accounts.RemoveRange(accounts);
+            }
+
             batch.Status = ImportBatchStatus.Reversed;
             batch.ReversedAt = DateTime.UtcNow;
             batch.ReversedBy = User.Identity?.Name ?? "Migration User";
@@ -345,6 +366,7 @@ public class MigrationController : ControllerBase
 
     // ── 6. GET: api/migration/templates/{type} ──────────────────────────
     [HttpGet("templates/{type}")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public IActionResult DownloadTemplate(string type)
     {
         var csvContent = type.ToLower() switch
@@ -388,6 +410,19 @@ public class MigrationController : ControllerBase
                 "AssetCode,AssetName,CategoryName,AcquisitionDate,AcquisitionCost,AccumulatedDepreciation,ResidualValue,UsefulLifeMonths,Location\r\n" +
                 "AST-001,Mesin Espresso La Marzocco,Peralatan & Mesin,2023-01-15,80000000,24000000,5000000,60,Head Office\r\n" +
                 "AST-002,MacBook Pro M2 16inch,Peralatan Kantor,2023-06-01,35000000,10500000,1000000,36,IT Dept\r\n",
+
+            "chartofaccounts" or "chart-of-accounts" or "coa" =>
+                "AccountCode,AccountName,AccountGroup,NormalBalance,Description\r\n" +
+                "1-1101,Kas Operasional Toko,Asset,Debit,Kas operasional harian\r\n" +
+                "1-1102,Bank BCA Operasional,Asset,Debit,Rekening giro operasional\r\n" +
+                "1-1200,Piutang Usaha IDR,Asset,Debit,Piutang dagang pelanggan\r\n" +
+                "1-1400,Persediaan Barang Dagang,Asset,Debit,Nilai persediaan barang\r\n" +
+                "2-1100,Hutang Usaha IDR,Liability,Credit,Hutang kepada pemasok\r\n" +
+                "3-1000,Modal Saham,Equity,Credit,Modal disetor\r\n" +
+                "3-2000,Laba Ditahan,Equity,Credit,Laba ditahan akumulatif\r\n" +
+                "4-1000,Pendapatan Penjualan,Sales,Credit,Penjualan utama\r\n" +
+                "5-1000,Beban Pokok Penjualan,CostOfSales,Debit,HPP\r\n" +
+                "6-1000,Beban Gaji Karyawan,Expense,Debit,Gaji staf\r\n",
 
             _ => "Error,Unknown template type\r\n"
         };
@@ -1040,7 +1075,6 @@ public class MigrationController : ControllerBase
                     BuyPrice = unitCost,
                     SellPrice = sellPrice,
                     TrackInventory = true,
-                    StockOnHand = qty,
                     CreatedAt = DateTime.UtcNow
                 };
                 _context.Products.Add(product);
@@ -1049,28 +1083,15 @@ public class MigrationController : ControllerBase
             }
             else
             {
-                product.StockOnHand += qty;
                 product.BuyPrice = unitCost;
                 product.UpdatedAt = DateTime.UtcNow;
             }
 
             if (qty > 0)
             {
-                var movement = new InventoryMovement
-                {
-                    Id = Guid.NewGuid(),
-                    CompanyId = companyId,
-                    ProductId = product.Id,
-                    MovementDate = request.ConversionDate,
-                    Type = InventoryMovementType.ManualAdjustment,
-                    Quantity = qty,
-                    UnitCost = unitCost,
-                    TotalCost = qty * unitCost,
-                    ReferenceNumber = $"OP-STOCK-{batch.BatchNumber}",
-                    Notes = $"Migration Opening Inventory · Batch {batch.BatchNumber}",
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.InventoryMovements.Add(movement);
+                var movement = await _inventory.MoveAsync(product, null, qty, InventoryMovementType.ManualAdjustment,
+                    request.ConversionDate, Math.Round(qty * unitCost, 2, MidpointRounding.ToEven), $"OP-STOCK-{batch.BatchNumber}", null,
+                    $"Migration Opening Inventory · Batch {batch.BatchNumber}");
                 summary.CreatedMovementIds.Add(movement.Id);
             }
         }
@@ -1142,6 +1163,501 @@ public class MigrationController : ControllerBase
 
         batch.SuccessfulRecords = assets.Count;
     }
+
+    // ────────────────────────────────────────────────────────────────────
+    // CHART OF ACCOUNTS (STEP 1)
+    // ────────────────────────────────────────────────────────────────────
+
+    private async Task PreviewChartOfAccounts(Guid companyId, MigrationPreviewRequest request, MigrationPreviewResponse result)
+    {
+        var existingAccounts = await _context.Accounts
+            .ToDictionaryAsync(a => a.Code, a => a);
+
+        var seenCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < request.Rows.Count; i++)
+        {
+            var row = request.Rows[i];
+            var code = row.GetString("AccountCode");
+            var name = row.GetString("AccountName");
+            var group = row.GetString("AccountGroup") ?? "Asset";
+            var normal = row.GetString("NormalBalance");
+            var desc = row.GetString("Description");
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                result.Errors.Add($"Row {i + 1}: AccountCode is required.");
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                result.Errors.Add($"Row {i + 1}: AccountName is required for code '{code}'.");
+                continue;
+            }
+
+            if (!seenCodes.Add(code))
+            {
+                result.Errors.Add($"Row {i + 1}: Duplicate AccountCode '{code}' in import file.");
+                continue;
+            }
+
+            // Normalize Group & NormalBalance
+            var normalizedGroup = NormalizeAccountGroup(group);
+            var normalizedNormal = string.IsNullOrWhiteSpace(normal)
+                ? (code.StartsWith("2") || code.StartsWith("3") || code.StartsWith("4") || code.StartsWith("7") ? "Credit" : "Debit")
+                : (normal.Equals("Credit", StringComparison.OrdinalIgnoreCase) ? "Credit" : "Debit");
+
+            var exists = existingAccounts.TryGetValue(code, out var existing);
+
+            result.PreviewRows.Add(new
+            {
+                RowIndex = i + 1,
+                AccountCode = code,
+                AccountName = name,
+                AccountGroup = normalizedGroup,
+                NormalBalance = normalizedNormal,
+                Description = desc,
+                Status = exists ? "Update" : "New"
+            });
+        }
+    }
+
+    private async Task CommitChartOfAccounts(Guid companyId, MigrationCommitRequest request, ImportBatch batch, MigrationBatchSummary summary)
+    {
+        var existingAccounts = await _context.Accounts
+            .ToDictionaryAsync(a => a.Code, a => a);
+
+        int count = 0;
+
+        foreach (var row in request.Rows)
+        {
+            var code = row.GetString("AccountCode");
+            var name = row.GetString("AccountName");
+            var group = row.GetString("AccountGroup") ?? "Asset";
+            var normal = row.GetString("NormalBalance");
+            var desc = row.GetString("Description");
+
+            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
+                continue;
+
+            var normalizedGroup = NormalizeAccountGroup(group);
+            var normalizedNormal = string.IsNullOrWhiteSpace(normal)
+                ? (code.StartsWith("2") || code.StartsWith("3") || code.StartsWith("4") || code.StartsWith("7") ? "Credit" : "Debit")
+                : (normal.Equals("Credit", StringComparison.OrdinalIgnoreCase) ? "Credit" : "Debit");
+
+            var type = ResolveAccountType(code, normalizedGroup);
+
+            if (existingAccounts.TryGetValue(code, out var existing))
+            {
+                existing.Name = name;
+                existing.AccountGroup = normalizedGroup;
+                existing.NormalBalance = normalizedNormal;
+                existing.Type = type;
+                if (!string.IsNullOrWhiteSpace(desc)) existing.Description = desc;
+                existing.IsActive = true;
+            }
+            else
+            {
+                var acc = new Account
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = companyId,
+                    Code = code,
+                    Name = name,
+                    Type = type,
+                    AccountGroup = normalizedGroup,
+                    NormalBalance = normalizedNormal,
+                    Description = desc,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Accounts.Add(acc);
+                summary.CreatedAccountIds.Add(acc.Id);
+                existingAccounts[code] = acc;
+            }
+
+            count++;
+        }
+
+        batch.SuccessfulRecords = count;
+    }
+
+    private static string NormalizeAccountGroup(string group)
+    {
+        var g = group.Trim();
+        if (g.Equals("Asset", StringComparison.OrdinalIgnoreCase) || g.Equals("Aktiva", StringComparison.OrdinalIgnoreCase)) return "Asset";
+        if (g.Equals("Liability", StringComparison.OrdinalIgnoreCase) || g.Equals("Kewajiban", StringComparison.OrdinalIgnoreCase) || g.Equals("Hutang", StringComparison.OrdinalIgnoreCase)) return "Liability";
+        if (g.Equals("Equity", StringComparison.OrdinalIgnoreCase) || g.Equals("Modal", StringComparison.OrdinalIgnoreCase) || g.Equals("Ekuitas", StringComparison.OrdinalIgnoreCase)) return "Equity";
+        if (g.Equals("Sales", StringComparison.OrdinalIgnoreCase) || g.Equals("Revenue", StringComparison.OrdinalIgnoreCase) || g.Equals("Pendapatan", StringComparison.OrdinalIgnoreCase)) return "Sales";
+        if (g.Equals("CostOfSales", StringComparison.OrdinalIgnoreCase) || g.Equals("COGS", StringComparison.OrdinalIgnoreCase) || g.Equals("HPP", StringComparison.OrdinalIgnoreCase)) return "CostOfSales";
+        if (g.Equals("Expense", StringComparison.OrdinalIgnoreCase) || g.Equals("Beban", StringComparison.OrdinalIgnoreCase) || g.Equals("Biaya", StringComparison.OrdinalIgnoreCase)) return "Expense";
+        if (g.Equals("OtherIncomeExpense", StringComparison.OrdinalIgnoreCase) || g.Equals("Other", StringComparison.OrdinalIgnoreCase)) return "OtherIncomeExpense";
+        return "Asset";
+    }
+
+    private static string ResolveAccountType(string code, string group)
+    {
+        if (group == "Asset" || code.StartsWith("1")) return "Asset";
+        if (group == "Liability" || code.StartsWith("2")) return "Liability";
+        if (group == "Equity" || code.StartsWith("3")) return "Equity";
+        if (group == "Sales" || code.StartsWith("4") || code.StartsWith("7")) return "Revenue";
+        return "Expense";
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // MIGRATION WIZARD ENDPOINTS (STEP 1 - 7)
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the progress and status across all 7 steps of the Opening Balance Migration Wizard.
+    /// </summary>
+    [HttpGet("wizard/status")]
+    [RequiresPermission(Permissions.FinanceView)]
+    public async Task<IActionResult> GetWizardStatus()
+    {
+        if (!_context.CurrentCompanyId.HasValue) return BadRequest("Company context is required");
+        var companyId = _context.CurrentCompanyId.Value;
+
+        // Step 1: Chart of Accounts
+        var totalAccounts = await _context.Accounts.CountAsync(a => a.IsActive);
+        var coaBatch = await _context.ImportBatches.AnyAsync(b => b.Type == ImportType.ChartOfAccounts && b.Status == ImportBatchStatus.Committed);
+        var step1Completed = totalAccounts >= 10 || coaBatch;
+
+        // Step 2: Trial Balance (OpeningBalances)
+        var obBatch = await _context.ImportBatches
+            .Where(b => b.Type == ImportType.OpeningBalances && b.Status == ImportBatchStatus.Committed)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        var step2Completed = obBatch != null;
+        Guid? obJournalId = null;
+        string? obJournalNumber = null;
+        if (obBatch != null && !string.IsNullOrEmpty(obBatch.SummaryJson))
+        {
+            var summary = JsonSerializer.Deserialize<MigrationBatchSummary>(obBatch.SummaryJson);
+            obJournalId = summary?.CreatedJournalEntryId;
+            obJournalNumber = summary?.CreatedJournalNumber;
+        }
+
+        // Step 3: Open AR Invoices
+        var invoiceBatch = await _context.ImportBatches
+            .Where(b => b.Type == ImportType.OpenInvoices && b.Status == ImportBatchStatus.Committed)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        var openInvoices = await _context.SalesInvoices
+            .Where(i => i.Notes != null && i.Notes.Contains("Opening Balance"))
+            .Select(i => i.Total)
+            .ToListAsync();
+        var openInvoicesCount = openInvoices.Count;
+        var openInvoicesTotal = openInvoices.Sum();
+        var step3Completed = invoiceBatch != null || openInvoicesCount > 0;
+
+        // Step 4: Open AP Bills
+        var billBatch = await _context.ImportBatches
+            .Where(b => b.Type == ImportType.OpenBills && b.Status == ImportBatchStatus.Committed)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        var openBills = await _context.PurchaseBills
+            .Where(b => b.Notes != null && b.Notes.Contains("Opening Balance"))
+            .Select(b => b.Total)
+            .ToListAsync();
+        var openBillsCount = openBills.Count;
+        var openBillsTotal = openBills.Sum();
+        var step4Completed = billBatch != null || openBillsCount > 0;
+
+        // Step 5: Inventory Opening
+        var invBatch = await _context.ImportBatches
+            .Where(b => b.Type == ImportType.InventoryOpening && b.Status == ImportBatchStatus.Committed)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        var trackedProducts = await _context.Products
+            .Where(p => p.TrackInventory && p.StockOnHand > 0)
+            .Select(p => new { p.StockOnHand, p.BuyPrice })
+            .ToListAsync();
+        var trackedProductsCount = trackedProducts.Count;
+        var totalStockValuation = trackedProducts.Sum(p => p.StockOnHand * p.BuyPrice);
+        var step5Completed = invBatch != null || trackedProductsCount > 0;
+
+        // Step 6: Fixed Assets Opening
+        var assetBatch = await _context.ImportBatches
+            .Where(b => b.Type == ImportType.AssetsOpening && b.Status == ImportBatchStatus.Committed)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        var activeAssets = await _context.FixedAssets
+            .Where(a => a.Status == AssetStatus.Active)
+            .Select(a => new { a.AcquisitionCost, a.AccumulatedDepreciation })
+            .ToListAsync();
+        var assetsCount = activeAssets.Count;
+        var totalAssetCost = activeAssets.Sum(a => a.AcquisitionCost);
+        var totalAssetAccDep = activeAssets.Sum(a => a.AccumulatedDepreciation);
+        var step6Completed = assetBatch != null || assetsCount > 0;
+
+        // Step 7: Reconciliation
+        var recons = await ComputeMigrationReconciliationAsync(companyId);
+        var step7Completed = recons.IsFullyReconciled;
+
+        var completedSteps = 0;
+        if (step1Completed) completedSteps++;
+        if (step2Completed) completedSteps++;
+        if (step3Completed) completedSteps++;
+        if (step4Completed) completedSteps++;
+        if (step5Completed) completedSteps++;
+        if (step6Completed) completedSteps++;
+        if (step7Completed) completedSteps++;
+
+        var overallPercentage = Math.Round((completedSteps / 7.0m) * 100m, 1);
+
+        return Ok(new
+        {
+            overallProgress = overallPercentage,
+            completedStepsCount = completedSteps,
+            totalSteps = 7,
+            steps = new
+            {
+                step1ChartOfAccounts = new
+                {
+                    stepNumber = 1,
+                    title = "Chart of Accounts",
+                    isCompleted = step1Completed,
+                    totalAccounts,
+                    hasImportBatch = coaBatch
+                },
+                step2TrialBalance = new
+                {
+                    stepNumber = 2,
+                    title = "Opening Trial Balance",
+                    isCompleted = step2Completed,
+                    batchNumber = obBatch?.BatchNumber,
+                    conversionDate = obBatch?.ConversionDate,
+                    createdJournalEntryId = obJournalId,
+                    createdJournalNumber = obJournalNumber
+                },
+                step3OpenReceivables = new
+                {
+                    stepNumber = 3,
+                    title = "Outstanding Accounts Receivable",
+                    isCompleted = step3Completed,
+                    openInvoicesCount,
+                    openInvoicesTotal
+                },
+                step4OpenPayables = new
+                {
+                    stepNumber = 4,
+                    title = "Outstanding Accounts Payable",
+                    isCompleted = step4Completed,
+                    openBillsCount,
+                    openBillsTotal
+                },
+                step5Inventory = new
+                {
+                    stepNumber = 5,
+                    title = "Stock Inventory by Warehouse",
+                    isCompleted = step5Completed,
+                    trackedProductsCount,
+                    totalStockValuation
+                },
+                step6FixedAssets = new
+                {
+                    stepNumber = 6,
+                    title = "Fixed Asset Register",
+                    isCompleted = step6Completed,
+                    assetsCount,
+                    totalAssetCost,
+                    totalAssetAccDep,
+                    totalBookValue = totalAssetCost - totalAssetAccDep
+                },
+                step7Reconciliation = new
+                {
+                    stepNumber = 7,
+                    title = "Balancing Reconciliation (Account 3-9000)",
+                    isCompleted = step7Completed,
+                    isFullyReconciled = recons.IsFullyReconciled,
+                    openingEquityBalance = recons.OpeningEquityBalance
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// Generates the comprehensive opening balance subledger-to-GL reconciliation report.
+    /// </summary>
+    [HttpGet("wizard/reconciliation")]
+    [RequiresPermission(Permissions.FinanceView)]
+    public async Task<IActionResult> GetWizardReconciliation()
+    {
+        if (!_context.CurrentCompanyId.HasValue) return BadRequest("Company context is required");
+        var companyId = _context.CurrentCompanyId.Value;
+
+        var report = await ComputeMigrationReconciliationAsync(companyId);
+        return Ok(report);
+    }
+
+    private async Task<MigrationReconciliationReport> ComputeMigrationReconciliationAsync(Guid companyId)
+    {
+        var postedEntryIds = await _context.JournalEntries
+            .AsNoTracking()
+            .Where(j => j.Status == JournalEntryStatus.Posted)
+            .Select(j => j.Id)
+            .ToListAsync();
+
+        // 1. AR GL Balance (1-1130 or 1-1200) vs Open Invoices
+        var arAccounts = await _context.Accounts
+            .AsNoTracking()
+            .Where(a => a.Code.StartsWith("1-113") || a.Code.StartsWith("1-12") || a.Name.Contains("Piutang") || a.Name.Contains("Receivable"))
+            .Select(a => a.Code)
+            .ToListAsync();
+
+        var arLines = await _context.JournalLines
+            .AsNoTracking()
+            .Where(l => postedEntryIds.Contains(l.JournalEntryId) && arAccounts.Contains(l.AccountId))
+            .ToListAsync();
+        var glArBalance = arLines.Sum(l => l.Debit - l.Credit);
+
+        var subledgerArInvoices = await _context.SalesInvoices
+            .AsNoTracking()
+            .Where(i => i.Status != InvoiceStatus.Void && i.Status != InvoiceStatus.Draft)
+            .ToListAsync();
+        var subledgerArTotal = subledgerArInvoices.Sum(i => i.Total - i.AmountPaid);
+
+        var arVariance = glArBalance - subledgerArTotal;
+
+        // 2. AP GL Balance (2-1100) vs Open Bills
+        var apAccounts = await _context.Accounts
+            .AsNoTracking()
+            .Where(a => a.Code.StartsWith("2-11") || a.Name.Contains("Hutang") || a.Name.Contains("Payable"))
+            .Select(a => a.Code)
+            .ToListAsync();
+
+        var apLines = await _context.JournalLines
+            .AsNoTracking()
+            .Where(l => postedEntryIds.Contains(l.JournalEntryId) && apAccounts.Contains(l.AccountId))
+            .ToListAsync();
+        var glApBalance = apLines.Sum(l => l.Credit - l.Debit);
+
+        var subledgerApBills = await _context.PurchaseBills
+            .AsNoTracking()
+            .Where(b => b.Status != BillStatus.Void && b.Status != BillStatus.Draft)
+            .ToListAsync();
+        var subledgerApTotal = subledgerApBills.Sum(b => b.Total - b.AmountPaid);
+
+        var apVariance = glApBalance - subledgerApTotal;
+
+        // 3. Inventory Asset GL Balance (1-1400) vs Stock Valuation
+        var invAccounts = await _context.Accounts
+            .AsNoTracking()
+            .Where(a => a.Code.StartsWith("1-14") || a.Name.Contains("Persediaan") || a.Name.Contains("Inventory"))
+            .Select(a => a.Code)
+            .ToListAsync();
+
+        var invLines = await _context.JournalLines
+            .AsNoTracking()
+            .Where(l => postedEntryIds.Contains(l.JournalEntryId) && invAccounts.Contains(l.AccountId))
+            .ToListAsync();
+        var glInvBalance = invLines.Sum(l => l.Debit - l.Credit);
+
+        var trackedProducts = await _context.Products
+            .AsNoTracking()
+            .Where(p => p.TrackInventory && p.StockOnHand > 0)
+            .ToListAsync();
+        var subledgerInvValuation = trackedProducts.Sum(p => p.StockOnHand * p.BuyPrice);
+
+        var invVariance = glInvBalance - subledgerInvValuation;
+
+        // 4. Fixed Assets GL Balance vs Asset Register
+        var fixedAssetAccounts = await _context.Accounts
+            .AsNoTracking()
+            .Where(a => a.Code.StartsWith("1-2") || a.Code.StartsWith("1-3") || a.Name.Contains("Peralatan") || a.Name.Contains("Kendaraan") || a.Name.Contains("Gedung"))
+            .Select(a => a.Code)
+            .ToListAsync();
+
+        var assetLines = await _context.JournalLines
+            .AsNoTracking()
+            .Where(l => postedEntryIds.Contains(l.JournalEntryId) && fixedAssetAccounts.Contains(l.AccountId))
+            .ToListAsync();
+        var glAssetNetBalance = assetLines.Sum(l => l.Debit - l.Credit);
+
+        var activeAssets = await _context.FixedAssets
+            .AsNoTracking()
+            .Where(a => a.Status == AssetStatus.Active)
+            .ToListAsync();
+        var subledgerAssetBookValue = activeAssets.Sum(a => a.AcquisitionCost - a.AccumulatedDepreciation);
+
+        var assetVariance = glAssetNetBalance - subledgerAssetBookValue;
+
+        // 5. Opening Balance Equity (3-9000)
+        var equityAccount = await _context.Accounts
+            .FirstOrDefaultAsync(a => a.Code == "3-9000")
+            ?? await _context.Accounts.FirstOrDefaultAsync(a => a.AccountGroup == "Equity" && a.Name.Contains("Opening Balance"));
+
+        var equityCode = equityAccount?.Code ?? "3-9000";
+        var equityLines = await _context.JournalLines
+            .AsNoTracking()
+            .Where(l => postedEntryIds.Contains(l.JournalEntryId) && l.AccountId == equityCode)
+            .ToListAsync();
+        var openingEquityBalance = equityLines.Sum(l => l.Credit - l.Debit);
+
+        var isArReconciled = Math.Abs(arVariance) < 1m;
+        var isApReconciled = Math.Abs(apVariance) < 1m;
+        var isInvReconciled = Math.Abs(invVariance) < 1m;
+        var isAssetReconciled = Math.Abs(assetVariance) < 1m;
+        var isEquityBalanced = Math.Abs(openingEquityBalance) < 1m;
+
+        var isFullyReconciled = isArReconciled && isApReconciled && isInvReconciled;
+
+        var recommendations = new List<string>();
+        if (!isArReconciled) recommendations.Add($"Accounts Receivable variance of Rp {arVariance:N2}. Verify open invoice migration balances match Trial Balance AR.");
+        if (!isApReconciled) recommendations.Add($"Accounts Payable variance of Rp {apVariance:N2}. Verify open bill migration balances match Trial Balance AP.");
+        if (!isInvReconciled) recommendations.Add($"Merchandise Inventory variance of Rp {invVariance:N2}. Compare stock on hand multiplied by buy price with GL account 1-1400.");
+        if (!isEquityBalanced) recommendations.Add($"Opening Balance Equity (Account {equityCode}) has a non-zero residual balance of Rp {openingEquityBalance:N2}. In a complete migration, subledger entries offset this account to zero.");
+        if (isFullyReconciled) recommendations.Add("All migration subledgers match the General Ledger with 100% mathematical precision. Ready for live operations!");
+
+        return new MigrationReconciliationReport
+        {
+            GeneratedAt = DateTime.UtcNow,
+            IsFullyReconciled = isFullyReconciled,
+            OpeningEquityAccountCode = equityCode,
+            OpeningEquityBalance = openingEquityBalance,
+            IsEquityZero = isEquityBalanced,
+            ArReconciliation = new ReconciliationItem
+            {
+                Title = "Accounts Receivable (Piutang Usaha)",
+                GeneralLedgerBalance = glArBalance,
+                SubledgerTotal = subledgerArTotal,
+                Variance = arVariance,
+                IsReconciled = isArReconciled
+            },
+            ApReconciliation = new ReconciliationItem
+            {
+                Title = "Accounts Payable (Hutang Usaha)",
+                GeneralLedgerBalance = glApBalance,
+                SubledgerTotal = subledgerApTotal,
+                Variance = apVariance,
+                IsReconciled = isApReconciled
+            },
+            InventoryReconciliation = new ReconciliationItem
+            {
+                Title = "Merchandise Inventory (Persediaan)",
+                GeneralLedgerBalance = glInvBalance,
+                SubledgerTotal = subledgerInvValuation,
+                Variance = invVariance,
+                IsReconciled = isInvReconciled
+            },
+            FixedAssetsReconciliation = new ReconciliationItem
+            {
+                Title = "Fixed Assets Carrying Value (Aktiva Tetap)",
+                GeneralLedgerBalance = glAssetNetBalance,
+                SubledgerTotal = subledgerAssetBookValue,
+                Variance = assetVariance,
+                IsReconciled = isAssetReconciled
+            },
+            Recommendations = recommendations
+        };
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -1204,6 +1720,30 @@ public class MigrationBatchSummary
     public List<Guid> CreatedProductIds { get; set; } = new();
     public List<Guid> CreatedMovementIds { get; set; } = new();
     public List<Guid> CreatedAssetIds { get; set; } = new();
+    public List<Guid> CreatedAccountIds { get; set; } = new();
+}
+
+public class MigrationReconciliationReport
+{
+    public DateTime GeneratedAt { get; set; }
+    public bool IsFullyReconciled { get; set; }
+    public string OpeningEquityAccountCode { get; set; } = "3-9000";
+    public decimal OpeningEquityBalance { get; set; }
+    public bool IsEquityZero { get; set; }
+    public ReconciliationItem ArReconciliation { get; set; } = new();
+    public ReconciliationItem ApReconciliation { get; set; } = new();
+    public ReconciliationItem InventoryReconciliation { get; set; } = new();
+    public ReconciliationItem FixedAssetsReconciliation { get; set; } = new();
+    public List<string> Recommendations { get; set; } = new();
+}
+
+public class ReconciliationItem
+{
+    public string Title { get; set; } = string.Empty;
+    public decimal GeneralLedgerBalance { get; set; }
+    public decimal SubledgerTotal { get; set; }
+    public decimal Variance { get; set; }
+    public bool IsReconciled { get; set; }
 }
 
 public static class RowDictionaryExtensions

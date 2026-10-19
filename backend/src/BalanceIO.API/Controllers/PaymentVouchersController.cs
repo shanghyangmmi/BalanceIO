@@ -199,7 +199,8 @@ public class PaymentVouchersController : ControllerBase
                 if (bill != null && bill.Status != BillStatus.Void)
                 {
                     bill.AmountPaid += line.Amount;
-                    bill.AmountDue = Math.Max(0, bill.Total - bill.AmountPaid);
+                    var netPayable = bill.Total - bill.WithholdingTaxAmount;
+                    bill.AmountDue = Math.Max(0, netPayable - bill.AmountPaid);
 
                     if (bill.AmountDue <= 0)
                         bill.Status = BillStatus.Paid;
@@ -270,9 +271,10 @@ public class PaymentVouchersController : ControllerBase
                     if (bill != null)
                     {
                         bill.AmountPaid = Math.Max(0, bill.AmountPaid - line.Amount);
-                        bill.AmountDue = bill.Total - bill.AmountPaid;
+                        var netPayable = bill.Total - bill.WithholdingTaxAmount;
+                        bill.AmountDue = Math.Max(0, netPayable - bill.AmountPaid);
 
-                        if (bill.AmountDue >= bill.Total)
+                        if (bill.AmountDue >= netPayable)
                             bill.Status = BillStatus.Posted;
                         else
                             bill.Status = BillStatus.PartiallyPaid;

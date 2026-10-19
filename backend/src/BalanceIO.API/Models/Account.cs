@@ -44,6 +44,13 @@ public class Account
     [MaxLength(10)]
     public string NormalBalance { get; set; } = "Debit";
 
+    /// <summary>
+    /// The account's name in Bahasa Indonesia, for bilingual statements.
+    /// <see cref="Name"/> is the English name. Null falls back to Name.
+    /// </summary>
+    [MaxLength(100)]
+    public string? NameId { get; set; }
+
     [MaxLength(500)]
     public string? Description { get; set; }
 
@@ -96,7 +103,73 @@ public class Account
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// Cost centre dimension rule: 0 Optional, 1 Required, 2 Forbidden.
+    /// If Required, lines posting to this account must carry a CostCenterId.
+    /// If Forbidden, lines posting to this account cannot carry a CostCenterId.
+    /// </summary>
+    public DimensionRule DimensionRule { get; set; } = DimensionRule.Optional;
+
+    /// <summary>
+    /// PSAK 118 / IFRS 18 presentation category: Operating, Investing, Financing, IncomeTax.
+    /// Governs classification on the statement of profit or loss and cash flows.
+    /// </summary>
+    public Psak118Category Psak118Category { get; set; } = Psak118Category.Operating;
+
     // Audit
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+}
+
+public enum DimensionRule
+{
+    Optional = 0,
+    Required = 1,
+    Forbidden = 2
+}
+
+public enum Psak118Category
+{
+    Operating = 0,
+    Investing = 1,
+    Financing = 2,
+    IncomeTax = 3
+}
+
+public static class Psak118CategoryHelper
+{
+    public static Psak118Category GetDefaultCategory(string code, string? name = null)
+    {
+        var trimmed = code.Trim();
+        if (trimmed.StartsWith("7-1000") || trimmed.StartsWith("7-2000"))
+        {
+            return Psak118Category.Investing;
+        }
+        if (trimmed.StartsWith("7-3000") || trimmed.StartsWith("8-4000"))
+        {
+            return Psak118Category.Operating;
+        }
+        if (trimmed.StartsWith("8-1000") || trimmed.StartsWith("8-2000"))
+        {
+            return Psak118Category.Financing;
+        }
+        if (trimmed.StartsWith("8-5000") || trimmed.StartsWith("8-5"))
+        {
+            return Psak118Category.IncomeTax;
+        }
+        if (trimmed.StartsWith("4-") || trimmed.StartsWith("5-") || trimmed.StartsWith("6-"))
+        {
+            return Psak118Category.Operating;
+        }
+
+        if (!string.IsNullOrEmpty(name))
+        {
+            var lower = name.ToLowerInvariant();
+            if (lower.Contains("tax") || lower.Contains("pajak")) return Psak118Category.IncomeTax;
+            if (lower.Contains("interest expense") || lower.Contains("beban bunga") || lower.Contains("bank charge") || lower.Contains("biaya bank") || lower.Contains("pinjaman") || lower.Contains("finance cost")) return Psak118Category.Financing;
+            if (lower.Contains("interest income") || lower.Contains("pendapatan bunga") || lower.Contains("dividend") || lower.Contains("dividen") || lower.Contains("investasi") || lower.Contains("investment")) return Psak118Category.Investing;
+        }
+
+        return Psak118Category.Operating;
+    }
 }

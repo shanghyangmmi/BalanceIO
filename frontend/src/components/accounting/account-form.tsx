@@ -33,15 +33,31 @@ const accountFormSchema = z.object({
     }),
     type: z.enum(["Asset", "Liability", "Equity", "Sales", "CostOfSales", "Expense", "OtherIncomeExpense"]),
     parentId: z.string().optional(),
+    nameId: z.string().max(100).optional(),
     description: z.string().optional(),
 })
 
 type AccountFormValues = z.infer<typeof accountFormSchema>
 
+/** The shape POST and PUT /api/Accounts accept. */
+export interface AccountPayload {
+    code: string
+    name: string
+    nameId: string | null
+    type: string
+    accountGroup: AccountFormValues["type"]
+    level: number
+    isHeader: boolean
+    normalBalance: string
+    description: string | null
+    parentAccountId: string | null
+    isActive: boolean
+}
+
 interface AccountFormProps {
     accounts: Account[];
     defaultValues?: Partial<AccountFormValues>
-    onSubmit: (data: any) => void
+    onSubmit: (data: AccountPayload) => void
     onCancel?: () => void
 }
 
@@ -51,6 +67,7 @@ export function AccountForm({ accounts, defaultValues, onSubmit, onCancel }: Acc
         defaultValues: defaultValues || {
             code: "",
             name: "",
+            nameId: "",
             type: "Asset",
             description: "",
             parentId: "none",
@@ -80,7 +97,7 @@ export function AccountForm({ accounts, defaultValues, onSubmit, onCancel }: Acc
         const parent = parentId ? accounts.find((a) => a.id === parentId) : undefined;
 
         // Map to backend model
-        const payload: any = {
+        const payload: AccountPayload = {
             code: data.code,
             name: data.name,
             type: getBackendType(data.type),
@@ -88,6 +105,7 @@ export function AccountForm({ accounts, defaultValues, onSubmit, onCancel }: Acc
             level: parent ? parent.level + 1 : 1,
             isHeader: false,
             normalBalance: getNormalBalance(data.type),
+            nameId: data.nameId?.trim() || null,
             description: data.description || null,
             parentAccountId: parentId || null,
             isActive: true,
@@ -117,10 +135,26 @@ export function AccountForm({ accounts, defaultValues, onSubmit, onCancel }: Acc
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Account Name</FormLabel>
+                            <FormLabel>Account name (English)</FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g. Kas Besar" {...field} />
+                                <Input placeholder="e.g. Cash on Hand" {...field} />
                             </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="nameId"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Nama akun (Bahasa Indonesia)</FormLabel>
+                            <FormControl>
+                                <Input placeholder="mis. Kas Besar" {...field} />
+                            </FormControl>
+                            <FormDescription>
+                                Printed beside the English name on bilingual statements. Blank prints the English name in both.
+                            </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}

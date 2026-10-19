@@ -4,17 +4,38 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace BalanceIO.API.Models;
 
 /// <summary>
-/// Payment - Records payment transactions (Midtrans integration)
+/// One attempt to pay for a plan, through whichever gateway is configured.
+/// Created Pending when checkout starts; a verified gateway notification or
+/// an admin confirmation moves it to Success and activates the plan.
 /// </summary>
 public class Payment
 {
     public Guid Id { get; set; }
 
-    [Required]
-    public Guid SubscriptionId { get; set; }
+    /// <summary>The subscription the payment activated; set once it succeeds.</summary>
+    public Guid? SubscriptionId { get; set; }
 
     [ForeignKey("SubscriptionId")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public Subscription? Subscription { get; set; }
+
+    /// <summary>The company paying.</summary>
+    public Guid? CompanyId { get; set; }
+
+    /// <summary>The plan being bought.</summary>
+    public Guid? PlanId { get; set; }
+
+    /// <summary>monthly or yearly.</summary>
+    [MaxLength(10)]
+    public string? BillingCycle { get; set; }
+
+    /// <summary>The gateway that handles it: manual, midtrans, ...</summary>
+    [MaxLength(30)]
+    public string? Provider { get; set; }
+
+    /// <summary>Where the payer completes payment, when the gateway hosts a page.</summary>
+    [MaxLength(500)]
+    public string? CheckoutUrl { get; set; }
 
     [Required]
     [Column(TypeName = "decimal(19,4)")]

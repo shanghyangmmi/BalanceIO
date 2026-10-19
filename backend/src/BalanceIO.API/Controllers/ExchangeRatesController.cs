@@ -3,6 +3,7 @@ using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using BalanceIO.API.Services;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,6 +55,7 @@ public class ExchangeRatesController : ControllerBase
     /// Get all exchange rates, optionally filtered by date, currency, and rate type
     /// </summary>
     [HttpGet]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<ExchangeRate>>> GetRates(
         [FromQuery] DateOnly? date = null,
         [FromQuery] string? currency = null,
@@ -97,6 +99,7 @@ public class ExchangeRatesController : ControllerBase
     /// Get exchange rate for specific date, currency, and optional rate type
     /// </summary>
     [HttpGet("{date}/{currency}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<ExchangeRate>> GetRate(DateOnly date, string currency, [FromQuery] ExchangeRateType? rateType = null)
     {
         var rate = await _exchangeRateService.GetRateAsync(date, currency, "IDR", rateType);
@@ -110,6 +113,7 @@ public class ExchangeRatesController : ControllerBase
     /// Dual rate lookup: returns both Kurs BI (JISDOR) and Kurs Pajak (KMK) in one payload
     /// </summary>
     [HttpGet("dual/{date}/{currency}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<DualExchangeRateDto>> GetDualRates(DateOnly date, string currency)
     {
         var dual = await _exchangeRateService.GetDualRatesAsync(date, currency);
@@ -120,6 +124,7 @@ public class ExchangeRatesController : ControllerBase
     /// List historical KMK weekly decrees
     /// </summary>
     [HttpGet("kmk-decrees")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<List<KmkDecreeDto>>> GetKmkDecrees()
     {
         var decrees = await _exchangeRateService.GetKmkDecreesAsync();
@@ -130,6 +135,7 @@ public class ExchangeRatesController : ControllerBase
     /// Get middle rate for accounting calculations
     /// </summary>
     [HttpGet("middle/{date}/{currency}")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<decimal>> GetMiddleRate(DateOnly date, string currency)
     {
         try
@@ -147,6 +153,7 @@ public class ExchangeRatesController : ControllerBase
     /// Sync official Bank Indonesia rates (JISDOR / Middle Series)
     /// </summary>
     [HttpPost("sync/bi")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult<SyncResult>> SyncBIRates([FromQuery] DateOnly? date = null)
     {
         var result = await _exchangeRateService.SyncRatesFromBIAsync(date);
@@ -161,6 +168,7 @@ public class ExchangeRatesController : ControllerBase
     /// Sync weekly Kurs Pajak from Kemenkeu (KMK)
     /// </summary>
     [HttpPost("sync/kmk")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult<SyncResult>> SyncKMKRates([FromQuery] DateOnly? date = null)
     {
         var result = await _exchangeRateService.SyncRatesFromKMKAsync(date);
@@ -175,6 +183,7 @@ public class ExchangeRatesController : ControllerBase
     /// Sync all exchange rates (both BI and KMK)
     /// </summary>
     [HttpPost("sync")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult> SyncAllRates([FromQuery] DateOnly? date = null)
     {
         var biResult = await _exchangeRateService.SyncRatesFromBIAsync(date);
@@ -191,7 +200,9 @@ public class ExchangeRatesController : ControllerBase
     /// Manually create or update an exchange rate with provenance
     /// </summary>
     [HttpPost]
+    [RequiresPermission(Permissions.FinanceEdit)]
     [HttpPost("manual")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult<ExchangeRate>> CreateManualRate([FromBody] ExchangeRateDto dto)
     {
         var user = GetCurrentUserEmail();
@@ -224,6 +235,7 @@ public class ExchangeRatesController : ControllerBase
     /// Update an existing exchange rate manually
     /// </summary>
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult<ExchangeRate>> UpdateRate(Guid id, [FromBody] ExchangeRateDto dto)
     {
         var existing = await _context.ExchangeRates.FindAsync(id);
@@ -254,6 +266,7 @@ public class ExchangeRatesController : ControllerBase
     /// Delete an exchange rate
     /// </summary>
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.FinanceEdit)]
     public async Task<ActionResult> DeleteRate(Guid id)
     {
         var rate = await _context.ExchangeRates.FindAsync(id);
@@ -275,6 +288,7 @@ public class ExchangeRatesController : ControllerBase
     /// Previews PSAK 221 period-end monetary balance retranslation
     /// </summary>
     [HttpPost("retranslate/preview")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<RetranslationPreviewDto>> PreviewRetranslation([FromBody] RetranslationPreviewRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -288,6 +302,7 @@ public class ExchangeRatesController : ControllerBase
     /// Posts PSAK 221 period-end revaluation journal entry to General Ledger
     /// </summary>
     [HttpPost("retranslate/post")]
+    [RequiresPermission(Permissions.FinanceCreate)]
     public async Task<ActionResult<RetranslationPostResult>> PostRetranslation([FromBody] RetranslationPostRequest request)
     {
         var companyId = GetCurrentCompanyId();
@@ -315,6 +330,7 @@ public class ExchangeRatesController : ControllerBase
     /// Get supported currencies
     /// </summary>
     [HttpGet("currencies")]
+    [RequiresPermission(Permissions.FinanceView)]
     public async Task<ActionResult<IEnumerable<Currency>>> GetCurrencies()
     {
         var currencies = await _context.Currencies

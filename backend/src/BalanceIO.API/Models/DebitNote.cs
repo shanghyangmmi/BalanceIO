@@ -11,6 +11,13 @@ public class DebitNote
     public Guid Id { get; set; }
 
     [Required]
+    public Guid CompanyId { get; set; }
+
+    [ForeignKey("CompanyId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Company? Company { get; set; }
+
+    [Required]
     [MaxLength(50)]
     public string DebitNoteNumber { get; set; } = string.Empty;
 
@@ -24,6 +31,12 @@ public class DebitNote
     // Link to original Purchase Bill
     public Guid? PurchaseBillId { get; set; }
     public PurchaseBill? PurchaseBill { get; set; }
+
+    public Guid? WarehouseId { get; set; }
+    [ForeignKey("WarehouseId")]
+    public Warehouse? Warehouse { get; set; }
+
+    public bool ReturnToInventory { get; set; }
 
     [MaxLength(100)]
     public string? Reason { get; set; }
@@ -58,11 +71,20 @@ public class DebitNote
     // Navigation
     public List<DebitNoteLine> Lines { get; set; } = new();
 
-    // Audit
+    // Audit & Segregation of Duties
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? PostedAt { get; set; }
     public DateTime? VoidedAt { get; set; }
+
+    public Guid? CreatedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? CreatedBy { get; set; }
+
+    public Guid? ApprovedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
 }
 
 public class DebitNoteLine
@@ -71,6 +93,7 @@ public class DebitNoteLine
 
     [Required]
     public Guid DebitNoteId { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore]
     public DebitNote? DebitNote { get; set; }
 
     public int LineNumber { get; set; }
@@ -104,6 +127,10 @@ public class DebitNoteLine
 
     public Guid? AccountId { get; set; }
     public Account? Account { get; set; }
+
+    public Guid? CostCenterId { get; set; }
+    [ForeignKey("CostCenterId")]
+    public CostCenter? CostCenter { get; set; }
 }
 
 public enum DebitNoteStatus

@@ -11,6 +11,13 @@ public class GoodsReceipt
     public Guid Id { get; set; }
 
     [Required]
+    public Guid CompanyId { get; set; }
+
+    [ForeignKey("CompanyId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Company? Company { get; set; }
+
+    [Required]
     [MaxLength(50)]
     public string ReceiptNumber { get; set; } = string.Empty;
 
@@ -25,6 +32,10 @@ public class GoodsReceipt
     public Guid? PurchaseOrderId { get; set; }
     public PurchaseOrder? PurchaseOrder { get; set; }
 
+    public Guid? WarehouseId { get; set; }
+    [ForeignKey("WarehouseId")]
+    public Warehouse? Warehouse { get; set; }
+
     [MaxLength(100)]
     public string? VendorDeliveryNote { get; set; }
 
@@ -35,10 +46,19 @@ public class GoodsReceipt
     // Navigation
     public List<GoodsReceiptLine> Lines { get; set; } = new();
 
-    // Audit
+    // Audit & Segregation of Duties
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? PostedAt { get; set; }
+
+    public Guid? CreatedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? CreatedBy { get; set; }
+
+    public Guid? ApprovedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
 }
 
 public class GoodsReceiptLine

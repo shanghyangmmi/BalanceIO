@@ -16,7 +16,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export const getProductColumns = (onAdjustStock: (product: Product) => void): ColumnDef<Product>[] => [
+/** Pass `onAdjustStock` and `canEdit` only for users allowed those actions; otherwise the menu omits them. */
+export const getProductColumns = (onAdjustStock?: (product: Product) => void, canEdit = false): ColumnDef<Product>[] => [
     {
         accessorKey: "code",
         header: "Code",
@@ -75,10 +76,10 @@ export const getProductColumns = (onAdjustStock: (product: Product) => void): Co
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => window.location.href = `/dashboard/inventory/${product.id}`}>
+                        {canEdit && <DropdownMenuItem onClick={() => window.location.href = `/dashboard/inventory/${product.id}`}>
                             <Edit className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        {product.trackInventory && (
+                        </DropdownMenuItem>}
+                        {product.trackInventory && onAdjustStock && (
                             <DropdownMenuItem onClick={() => onAdjustStock(product)}>
                                 <Edit className="mr-2 h-4 w-4" /> Adjust Stock
                             </DropdownMenuItem>

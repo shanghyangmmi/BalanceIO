@@ -12,8 +12,11 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { SalesInvoice } from "@/lib/types/sales";
 import { toast } from "sonner";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function SalesPage() {
+    const can = useCan();
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -58,12 +61,12 @@ export default function SalesPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight text-gradient">Sales</h2>
         <div className="flex items-center space-x-2">
-          <Link href="/dashboard/sales/invoices/new">
+          {can(PERMISSIONS.SalesCreate) && <Link href="/dashboard/sales/invoices/new">
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
               New Invoice
             </Button>
-          </Link>
+          </Link>}
         </div>
       </div>
 

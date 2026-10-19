@@ -11,8 +11,11 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { Expense } from "@/lib/types/expense";
 import { toast } from "sonner";
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 export default function ExpensesPage() {
+    const can = useCan();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -53,12 +56,12 @@ export default function ExpensesPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight text-gradient">Expenses</h2>
         <div className="flex items-center space-x-2">
-          <Link href="/dashboard/expenses/new">
+          {can(PERMISSIONS.FinanceCreate) && <Link href="/dashboard/expenses/new">
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
               New Expense
             </Button>
-          </Link>
+          </Link>}
         </div>
       </div>
 

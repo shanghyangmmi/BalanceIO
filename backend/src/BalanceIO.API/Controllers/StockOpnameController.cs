@@ -14,10 +14,13 @@ namespace BalanceIO.API.Controllers;
 public class StockOpnameController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly PeriodLockService _periodLockService;
+    private readonly IPeriodLockService _periodLockService;
 
-    public StockOpnameController(ApplicationDbContext context, PeriodLockService periodLockService)
+    private readonly BalanceIO.API.Services.InventoryLedger _inventory;
+
+    public StockOpnameController(ApplicationDbContext context, IPeriodLockService periodLockService, BalanceIO.API.Services.InventoryLedger inventory)
     {
+        _inventory = inventory;
         _context = context;
         _periodLockService = periodLockService;
     }
@@ -94,17 +97,25 @@ public class StockOpnameController : ControllerBase
             .Where(p => p.TrackInventory && p.IsActive)
             .ToListAsync();
 
+        // A count of one warehouse compares against that warehouse's stock;
+        // a count with no warehouse compares against the company total.
         foreach (var p in products)
         {
-            opname.Lines.Add(new StockOpnameLine
+            var system = await SystemQuantityAsync(opname, p);
+            // Added to the set, not through the navigation: a new line with
+            // its Id already set, attached through a tracked parent, is taken
+            // for an existing row and saved as an UPDATE of nothing. EF puts
+            // it in opname.Lines itself.
+            var line = new StockOpnameLine
             {
                 Id = Guid.NewGuid(),
                 StockOpnameId = opname.Id,
                 ProductId = p.Id,
-                SystemQty = p.StockOnHand,
-                PhysicalQty = p.StockOnHand, // Default to matching
+                SystemQty = system,
+                PhysicalQty = system, // Default to matching
                 Difference = 0
-            });
+            };
+            _context.StockOpnameLines.Add(line);
         }
 
         await _context.SaveChangesAsync();
@@ -147,6 +158,11 @@ public class StockOpnameController : ControllerBase
         return NoContent();
     }
 
+    private async Task<decimal> SystemQuantityAsync(StockOpname opname, Product product) =>
+        opname.WarehouseId.HasValue
+            ? await _inventory.QuantityAsync(product.CompanyId, product.Id, await _inventory.ResolveAsync(product.CompanyId, opname.WarehouseId))
+            : product.StockOnHand;
+
     [HttpPost("{id}/process")]
     [RequiresPermission(Permissions.InventoryOpname)]
     public async Task<IActionResult> Process(Guid id)
@@ -181,7 +197,11 @@ public class StockOpnameController : ControllerBase
         // Apply adjustments and calculate journal lines
         foreach (var line in opname.Lines)
         {
-            // Re-calculate difference to be safe
+            // Stock may have moved since the sheet was printed. The variance
+            // is against what the system holds now, so the count lands
+            // exactly on the physical quantity.
+            var counted = line.Product ?? await _context.Products.FindAsync(line.ProductId);
+            if (counted != null) line.SystemQty = await SystemQuantityAsync(opname, counted);
             line.Difference = line.PhysicalQty - line.SystemQty;
 
             if (line.Difference != 0)
@@ -189,9 +209,8 @@ public class StockOpnameController : ControllerBase
                 var product = line.Product ?? await _context.Products.FindAsync(line.ProductId);
                 if (product != null)
                 {
-                    product.StockOnHand = line.PhysicalQty;
-                    var unitCost = product.BuyPrice;
-                    var varianceAmount = Math.Abs(line.Difference) * unitCost;
+                    // Surplus and shortage both at the moving average.
+                    var varianceAmount = Math.Abs(InventoryLedger.AtAverage(product, line.Difference));
 
                     var invAccountCode = product.InventoryAccountId.HasValue 
                         ? (await _context.Accounts.FindAsync(product.InventoryAccountId.Value))?.Code ?? defaultInventoryCode
@@ -248,20 +267,9 @@ public class StockOpnameController : ControllerBase
                     }
 
                     // Record Inventory Movement
-                    _context.InventoryMovements.Add(new InventoryMovement
-                    {
-                        Id = Guid.NewGuid(),
-                        CompanyId = _context.CurrentCompanyId.Value,
-                        ProductId = product.Id,
-                        MovementDate = opname.OpnameDate,
-                        Type = InventoryMovementType.OpnameAdjustment,
-                        Quantity = line.Difference,
-                        UnitCost = unitCost,
-                        TotalCost = line.Difference * unitCost,
-                        ReferenceNumber = opname.OpnameNumber,
-                        JournalEntryId = varianceAmount > 0 ? journalEntryId : null,
-                        Notes = $"Stock Opname {opname.OpnameNumber} adjustment"
-                    });
+                    await _inventory.MoveAsync(product, opname.WarehouseId, line.Difference, InventoryMovementType.OpnameAdjustment,
+                        opname.OpnameDate, line.Difference > 0 ? varianceAmount : -varianceAmount, opname.OpnameNumber, varianceAmount > 0 ? journalEntryId : null,
+                        $"Stock Opname {opname.OpnameNumber} adjustment");
                 }
             }
         }

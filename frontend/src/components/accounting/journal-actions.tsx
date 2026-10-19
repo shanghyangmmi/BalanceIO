@@ -25,12 +25,15 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { JournalEntry } from "@/lib/types/accounting"
+import { useCan } from "@/components/auth/rbac-guard";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 interface JournalActionsProps {
     entry: JournalEntry
 }
 
 export function JournalActions({ entry }: JournalActionsProps) {
+    const can = useCan();
     const [isDeleting, setIsDeleting] = useState(false)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
@@ -58,14 +61,14 @@ export function JournalActions({ entry }: JournalActionsProps) {
                         <Eye className="h-4 w-4" />
                     </Button>
                 </Link>
-                <Button
+                {can(PERMISSIONS.FinanceDelete) && <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-zinc-500 hover:text-red-600"
                     onClick={() => setShowDeleteDialog(true)}
                 >
                     <Trash2 className="h-4 w-4" />
-                </Button>
+                </Button>}
             </div>
 
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

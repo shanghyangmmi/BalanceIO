@@ -1,6 +1,7 @@
 using BalanceIO.API.Data;
 using BalanceIO.API.Models;
 using Microsoft.AspNetCore.Authorization;
+using BalanceIO.API.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,7 @@ public class ProductUnitsController : ControllerBase
     }
 
     [HttpGet]
+    [RequiresPermission(Permissions.InventoryView)]
     public async Task<ActionResult<IEnumerable<ProductUnit>>> GetAll()
     {
         return await _context.ProductUnits
@@ -35,6 +37,7 @@ public class ProductUnitsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [RequiresPermission(Permissions.InventoryView)]
     public async Task<ActionResult<ProductUnit>> GetById(Guid id)
     {
         var unit = await _context.ProductUnits.FindAsync(id);
@@ -43,6 +46,7 @@ public class ProductUnitsController : ControllerBase
     }
 
     [HttpPost]
+    [RequiresPermission(Permissions.InventoryManage)]
     public async Task<ActionResult<ProductUnit>> Create(ProductUnit unit)
     {
         if (unit.Id == Guid.Empty) unit.Id = Guid.NewGuid();
@@ -57,6 +61,7 @@ public class ProductUnitsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [RequiresPermission(Permissions.InventoryManage)]
     public async Task<IActionResult> Update(Guid id, ProductUnit unit)
     {
         if (id != unit.Id) return BadRequest();
@@ -74,6 +79,7 @@ public class ProductUnitsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [RequiresPermission(Permissions.InventoryManage)]
     public async Task<IActionResult> Delete(Guid id)
     {
         var unit = await _context.ProductUnits.FindAsync(id);
