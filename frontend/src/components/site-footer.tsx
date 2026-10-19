@@ -2,138 +2,83 @@
 
 import Link from "next/link"
 import { siteConfig } from "@/config/site"
-import { motion } from "framer-motion"
 
 /**
- * Footer as a closing ledger page.
+ * Footer as the signature line of a report: one ruled band, nothing that
+ * asks to be read twice.
  *
- * The structure is borrowed from the last page of a statutory report:
- * ruled columns and a signature line. The motion is restrained on
- * purpose — this is where a reader lands after the argument is made,
- * not another exhibit.
+ * It used to be a masthead column, a heading over a ruled link row and a
+ * separate legal row, 286px tall at desktop width, with three social
+ * icons that all linked to "#". It is now two lines: identity and
+ * navigation, then the legal line. Social links come back when the
+ * accounts behind them are live.
  */
 
-const COLUMNS: { heading: string; links: { label: string; href: string }[] }[] = [
-    {
-        heading: "Product",
-        links: [
-            { label: "Features", href: "/features" },
-            { label: "Pricing", href: "/pricing" },
-            { label: "Sign in", href: "/login" },
-            { label: "Create account", href: "/register" },
-        ],
-    },
+const LINKS = [
+    { label: "Features", href: "/features" },
+    { label: "Pricing", href: "/pricing" },
+    { label: "Sign in", href: "/login" },
+]
+
+const LEGAL = [
+    { label: "Terms", href: "/terms" },
+    { label: "Privacy", href: "/privacy" },
 ]
 
 export function SiteFooter() {
     return (
-        <footer className="relative w-full overflow-hidden border-t border-foreground/10 bg-muted/30">
-            {/* Ledger rules — vertical column guides, the way a ruled page
-                is printed before anything is written on it. */}
-            <div
-                aria-hidden
-                className="absolute inset-0 pointer-events-none opacity-60 dark:opacity-40 [background-image:linear-gradient(to_right,rgba(120,130,140,0.10)_1px,transparent_1px)] [background-size:56px_100%]"
-            />
-            <div
-                aria-hidden
-                className="absolute -top-24 right-0 w-[420px] h-[220px] rounded-full bg-emerald-500/[0.05] dark:bg-emerald-400/[0.07] blur-[100px] pointer-events-none"
-            />
-
-            <motion.div
-                initial={{ opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-                className="relative z-10 mx-auto max-w-6xl px-6 py-9"
-            >
-                <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-                    {/* ── Masthead ── */}
-                    <div>
-                        <Link href="/" className="group inline-flex items-center gap-2.5">
-                            <div className="h-8 w-8 overflow-hidden rounded-md">
-                                <img
-                                    src="/images/logo-icon.svg"
-                                    alt={siteConfig.name}
-                                    className="h-full w-full object-cover"
-                                />
-                            </div>
-                            <span className="font-display text-xl font-bold tracking-tight text-foreground">
+        <footer className="w-full border-t border-foreground/10 bg-background">
+            <div className="mx-auto max-w-6xl px-6">
+                <div className="flex flex-col gap-5 py-6 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-baseline sm:gap-4">
+                        <Link href="/" className="inline-flex items-center gap-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element -- static export */}
+                            <img src="/images/logo-icon.svg" alt="" className="h-6 w-6 rounded" />
+                            <span className="font-display text-base font-bold tracking-tight text-foreground">
                                 {siteConfig.name}
-                                <span className="text-emerald-600 dark:text-emerald-400">.</span>
                             </span>
                         </Link>
-
-                        <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-                            Accounting software for Indonesian companies. One
-                            general ledger, one trail back to the entry behind
-                            every figure.
-                        </p>
-
-                        {/* Three social icons used to sit here, all linking to
-                            "#". A dead link on a trust product reads worse than
-                            no link; add them back once the accounts are live. */}
-                        <a
-                            href={`mailto:${siteConfig.contacts.email}`}
-                            className="mt-5 inline-block font-mono text-[11px] tracking-[0.06em] text-muted-foreground underline decoration-foreground/20 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
-                        >
-                            {siteConfig.contacts.email}
-                        </a>
+                        <span className="text-[13px] text-muted-foreground">
+                            Accounting software for Indonesian companies.
+                        </span>
                     </div>
 
-                    {/* ── Links ──
-                        A single group does not need a stacked column. Four
-                        links were taking 158px of vertical space and made the
-                        footer 41% of the viewport; laid out in a row they take
-                        one line and the footer reads as a footer. */}
-                    <div className="lg:justify-self-end lg:text-right">
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                            {COLUMNS[0].heading}
-                        </div>
-                        <div className="mt-2.5 mb-3 h-px w-full bg-foreground/10" />
-                        <ul className="flex flex-wrap gap-x-6 gap-y-2 lg:justify-end">
-                            {COLUMNS[0].links.map((l) => (
-                                <li key={l.label}>
-                                    <Link
-                                        href={l.href}
-                                        className="group inline-flex items-center gap-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
-                                    >
-                                        <span className="relative">
-                                            {l.label}
-                                            <span className="absolute -bottom-0.5 left-0 h-px w-full origin-left scale-x-0 bg-emerald-600/60 transition-transform duration-300 ease-out group-hover:scale-x-100 dark:bg-emerald-400/60" />
-                                        </span>
-                                    </Link>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-
-                {/* ── Signature line ── */}
-                <div className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-foreground/[0.06] pt-5 sm:flex-row">
-                    <span className="font-mono text-[11px] text-muted-foreground/70">
-                        © {new Date().getFullYear()} {siteConfig.brand.companyName}. All rights reserved.
-                    </span>
-                    {/* Terms was only ever reachable from the Compliance column
-                        and Privacy from nowhere at all, though both pages exist
-                        and ship. Removing that column would have orphaned them,
-                        so they take the slot the signature mark vacated - which
-                        is where legal links belong anyway. */}
-                    <div className="flex items-center gap-5">
-                        {[
-                            { label: "Terms", href: "/terms" },
-                            { label: "Privacy", href: "/privacy" },
-                        ].map((l) => (
+                    <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                        {LINKS.map((l) => (
                             <Link
                                 key={l.href}
                                 href={l.href}
-                                className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground/70 transition-colors hover:text-foreground"
+                                className="text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                                {l.label}
+                            </Link>
+                        ))}
+                        <a
+                            href={`mailto:${siteConfig.contacts.email}`}
+                            className="text-[13px] text-foreground underline decoration-foreground/20 underline-offset-4 transition-colors hover:decoration-foreground"
+                        >
+                            {siteConfig.contacts.email}
+                        </a>
+                    </nav>
+                </div>
+
+                <div className="flex flex-col gap-2 border-t border-foreground/[0.06] py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/80">
+                        © {new Date().getFullYear()} {siteConfig.brand.companyName}
+                    </span>
+                    <div className="flex items-center gap-5">
+                        {LEGAL.map((l) => (
+                            <Link
+                                key={l.href}
+                                href={l.href}
+                                className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/80 transition-colors hover:text-foreground"
                             >
                                 {l.label}
                             </Link>
                         ))}
                     </div>
                 </div>
-            </motion.div>
+            </div>
         </footer>
     )
 }

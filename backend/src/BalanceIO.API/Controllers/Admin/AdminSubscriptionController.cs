@@ -1,5 +1,7 @@
 using BalanceIO.API.Data;
+using System.Text.Json;
 using BalanceIO.API.Models;
+using BalanceIO.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -176,6 +178,57 @@ public class AdminSubscriptionController : ControllerBase
         var plan = await _context.Plans.FindAsync(id);
         if (plan == null) return NotFound();
 
+        if (update.PriceMonthly < 0 || update.PriceYearly < 0)
+            return BadRequest(new { code = "PLAN_PRICE_INVALID", message = "Prices cannot be negative." });
+
+        // A promotion needs both halves, a price below the normal one, and an
+        // end date that has not passed. Half a promotion is cleared rather
+        // than stored, so the pricing page and checkout cannot disagree
+        // about whether one is running.
+        if (update.PromoPriceMonthly is not null || update.PromoEndsAt is not null)
+        {
+            if (update.PromoPriceMonthly is null || update.PromoEndsAt is null)
+                return BadRequest(new { code = "PROMO_INCOMPLETE", message = "A promotion needs both a price and an end date." });
+            if (update.PromoPriceMonthly <= 0 || update.PromoPriceMonthly >= update.PriceMonthly)
+                return BadRequest(new { code = "PROMO_PRICE_INVALID", message = "The promotional price must be above zero and below the normal monthly price." });
+            if (update.PromoEndsAt.Value.ToUniversalTime() <= DateTime.UtcNow)
+                return BadRequest(new { code = "PROMO_ENDED", message = "The promotion's end date has already passed." });
+        }
+
+        // Which doors the plan opens. Accounting is the core module and is in
+        // every plan; unknown keys are refused rather than silently stored,
+        // because ModuleEntitlementService would ignore them and the admin
+        // would believe a module was sold that is not.
+        List<string>? modules = null;
+        if (update.Modules is not null)
+        {
+            try
+            {
+                modules = JsonSerializer.Deserialize<List<string>>(update.Modules) ?? new();
+            }
+            catch (JsonException)
+            {
+                return BadRequest(new { code = "PLAN_MODULES_INVALID", message = "Modules must be a JSON array of module keys." });
+            }
+            var unknown = modules.Except(ModuleEntitlementService.AllModules).ToList();
+            if (unknown.Count > 0)
+                return BadRequest(new { code = "PLAN_MODULES_INVALID", message = $"Unknown module(s): {string.Join(", ", unknown)}." });
+            if (!modules.Contains(ModuleEntitlementService.CoreModule))
+                modules.Insert(0, ModuleEntitlementService.CoreModule);
+        }
+
+        if (update.Features is not null)
+        {
+            try
+            {
+                JsonSerializer.Deserialize<List<string>>(update.Features);
+            }
+            catch (JsonException)
+            {
+                return BadRequest(new { code = "PLAN_FEATURES_INVALID", message = "Highlights must be a JSON array of strings." });
+            }
+        }
+
         plan.Name = update.Name;
         plan.Description = update.Description;
         plan.PriceMonthly = update.PriceMonthly;
@@ -185,6 +238,10 @@ public class AdminSubscriptionController : ControllerBase
         plan.MaxStorageMB = update.MaxStorageMB;
         plan.MaxJournalEntries = update.MaxJournalEntries;
         plan.Features = update.Features; // JSON string
+        if (modules is not null)
+            plan.Modules = JsonSerializer.Serialize(modules);
+        plan.PromoPriceMonthly = update.PromoPriceMonthly;
+        plan.PromoEndsAt = update.PromoEndsAt?.ToUniversalTime();
         plan.IsActive = update.IsActive;
         plan.IsPopular = update.IsPopular;
         

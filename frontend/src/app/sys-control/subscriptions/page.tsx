@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { adminApiClient } from "@/lib/api-client";
 import { PendingPayments } from "@/components/admin/pending-payments";
+import { PlanEditor, type AdminPlanRow } from "@/components/admin/plan-editor";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 
@@ -48,20 +49,7 @@ interface AuditLog {
     details: string;
 }
 
-interface Plan {
-    id: string;
-    name: string;
-    description: string;
-    priceMonthly: number;
-    priceYearly: number;
-    maxUsers: number;
-    maxCompanies: number;
-    maxStorageMB: number;
-    maxJournalEntries: number;
-    features: string; // JSON string
-    isActive: boolean;
-    isPopular: boolean;
-}
+type Plan = AdminPlanRow;
 
 interface SystemSetting {
     key: string;
@@ -152,68 +140,6 @@ function LogViewer({ logs }: { logs: AuditLog[] }) {
     );
 }
 
-function PlanEditor({ plan, onSave }: { plan: Plan; onSave: (p: Plan) => void }) {
-    const [edited, setEdited] = useState(plan);
-    const [isDirty, setIsDirty] = useState(false);
-
-    const handleChange = (field: keyof Plan, value: any) => {
-        setEdited({ ...edited, [field]: value });
-        setIsDirty(true);
-    };
-
-    const handleSave = () => {
-        onSave(edited);
-        setIsDirty(false);
-    };
-
-    return (
-        <Card className="relative overflow-hidden">
-            {plan.isPopular && <div className="absolute top-0 right-0 px-3 py-1 bg-amber-500 text-white text-xs font-bold rounded-bl-lg">POPULAR</div>}
-            <CardHeader>
-                <CardTitle>{plan.name}</CardTitle>
-                <CardDescription>{plan.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label>Monthly ($)</Label>
-                        <Input type="number" value={edited.priceMonthly} onChange={(e) => handleChange('priceMonthly', parseFloat(e.target.value))} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Yearly ($)</Label>
-                        <Input type="number" value={edited.priceYearly} onChange={(e) => handleChange('priceYearly', parseFloat(e.target.value))} />
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><Users className="h-4 w-4" /> Max Users</Label>
-                    <Input type="number" value={edited.maxUsers} onChange={(e) => handleChange('maxUsers', parseInt(e.target.value))} />
-                </div>
-
-                <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><Database className="h-4 w-4" /> Max Storage (MB)</Label>
-                    <Input type="number" value={edited.maxStorageMB} onChange={(e) => handleChange('maxStorageMB', parseInt(e.target.value))} />
-                </div>
-
-                <div className="space-y-2">
-                    <Label className="flex items-center gap-2"><FileText className="h-4 w-4" /> Max Journal Entries</Label>
-                    <Input type="number" value={edited.maxJournalEntries} onChange={(e) => handleChange('maxJournalEntries', parseInt(e.target.value))} />
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                    <Label>Active Plan</Label>
-                    <Switch checked={edited.isActive} onCheckedChange={(c) => handleChange('isActive', c)} />
-                </div>
-            </CardContent>
-            <CardFooter>
-                <Button onClick={handleSave} disabled={!isDirty} className="w-full" variant={isDirty ? "default" : "outline"}>
-                    <Save className="h-4 w-4 mr-2" /> {isDirty ? "Save Changes" : "Saved"}
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
 function SettingsEditor({ settings, onUpdate }: { settings: SystemSetting[], onUpdate: (k: string, v: string) => void }) {
     return (
         <Card>
@@ -284,13 +210,15 @@ export default function AdminSubscriptionsPage() {
             .finally(() => fetchData());
     }, []);
 
-    const handleUpdatePlan = async (updated: Plan) => {
+    const handleUpdatePlan = async (updated: Plan): Promise<boolean> => {
         try {
-            await adminApiClient.put(`/admin/plans/${updated.id}`, updated);
-            toast.success("Plan updated");
-            setPlans(plans.map(p => p.id === updated.id ? updated : p));
+            const saved = await adminApiClient.put<Plan>(`/admin/plans/${updated.id}`, updated);
+            toast.success(`${updated.name} saved`, { description: "The pricing page shows it on the next load." });
+            setPlans(plans.map(p => p.id === updated.id ? (saved ?? updated) : p));
+            return true;
         } catch (error) {
-            toast.error("Failed to update plan");
+            toast.error("The plan was not saved", { description: error instanceof Error ? error.message : undefined });
+            return false;
         }
     };
 
@@ -383,7 +311,7 @@ export default function AdminSubscriptionsPage() {
                 </TabsContent>
 
                 <TabsContent value="plans">
-                    <div className="grid gap-6 md:grid-cols-3">
+                    <div className="grid gap-6 xl:grid-cols-2">
                         {plans.map(plan => (
                             <PlanEditor key={plan.id} plan={plan} onSave={handleUpdatePlan} />
                         ))}
