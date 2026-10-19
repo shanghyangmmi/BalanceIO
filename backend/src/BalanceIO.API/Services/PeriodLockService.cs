@@ -32,4 +32,30 @@ public class PeriodLockService : IPeriodLockService
     {
         await ValidateTransactionDate(companyId, DateOnly.FromDateTime(transactionDate));
     }
+
+    public async Task<DateOnly?> GetLockDateAsync(Guid companyId)
+    {
+        var company = await _context.Companies.FindAsync(companyId);
+        return company?.LockDate;
+    }
+
+    public async Task LockPeriod(Guid companyId, DateOnly lockDate)
+    {
+        var company = await _context.Companies.FindAsync(companyId);
+        if (company != null)
+        {
+            company.LockDate = lockDate;
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    public async Task UnlockPeriod(Guid companyId)
+    {
+        var company = await _context.Companies.FindAsync(companyId);
+        if (company != null)
+        {
+            company.LockDate = null;
+            await _context.SaveChangesAsync();
+        }
+    }
 }

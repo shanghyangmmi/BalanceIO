@@ -10,6 +10,7 @@ import {
   Folder,
   Layers,
   LayoutDashboard,
+  Lock,
   PieChart,
   Receipt,
   Repeat2,
@@ -109,6 +110,7 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "Chart of Accounts", href: "/dashboard/accounting/coa", icon: Folder, permission: PERMISSIONS.FinanceView },
           { label: "Batch Posting", href: "/dashboard/accounting/posting", icon: CalendarClock, permission: PERMISSIONS.FinanceView },
           { label: "Recurring", href: "/dashboard/accounting/recurring", icon: Repeat2, permission: PERMISSIONS.FinanceView },
+          { label: "Period Close", href: "/dashboard/accounting/period-close", icon: Lock, permission: PERMISSIONS.FinanceCreate },
         ],
       },
       {

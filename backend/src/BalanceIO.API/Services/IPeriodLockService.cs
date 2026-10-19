@@ -17,4 +17,20 @@ public interface IPeriodLockService
     /// Overload for DateTime (converts to DateOnly).
     /// </summary>
     Task ValidateTransactionDate(Guid companyId, DateTime transactionDate);
+
+    /// <summary>
+    /// Gets the current locked through date for the company, or null if unlocked.
+    /// </summary>
+    Task<DateOnly?> GetLockDateAsync(Guid companyId);
+
+    /// <summary>
+    /// Sets a hard period lock up to and including lockDate.
+    /// </summary>
+    Task LockPeriod(Guid companyId, DateOnly lockDate);
+
+    /// <summary>
+    /// Removes the period lock for the company.
+    /// </summary>
+    Task UnlockPeriod(Guid companyId);
 }
+

@@ -1105,6 +1105,29 @@ export const apiClient = {
     },
     deleteSalesOrder: async (id: string): Promise<void> => {
         return apiClient.delete<void>(`/SalesOrders/${id}`);
+    },
+
+    // --- PHASE 7: PERIOD CLOSING & MIGRATION WIZARD ---
+    getPeriodClosePreview: async (fiscalYear: number): Promise<PeriodClosePreview> => {
+        return apiClient.get<PeriodClosePreview>(`/accounting/period-close/preview?fiscalYear=${fiscalYear}`);
+    },
+    executeYearEndClose: async (data: PeriodCloseYearEndRequest): Promise<PeriodCloseYearEndResult> => {
+        return apiClient.post<PeriodCloseYearEndResult>("/accounting/period-close/year-end", data);
+    },
+    getPeriodCloseHistory: async (): Promise<any[]> => {
+        return apiClient.get<any[]>("/accounting/period-close/history");
+    },
+    lockPeriod: async (lockDate: string): Promise<{ lockDate: string; message: string }> => {
+        return apiClient.post<{ lockDate: string; message: string }>("/accounting/period-close/lock", { lockDate });
+    },
+    unlockPeriod: async (): Promise<{ message: string }> => {
+        return apiClient.post<{ message: string }>("/accounting/period-close/unlock", {});
+    },
+    getMigrationWizardStatus: async (): Promise<MigrationWizardStatus> => {
+        return apiClient.get<MigrationWizardStatus>("/migration/wizard/status");
+    },
+    getMigrationWizardReconciliation: async (): Promise<MigrationWizardReconciliation> => {
+        return apiClient.get<MigrationWizardReconciliation>("/migration/wizard/reconciliation");
     }
 }
 
@@ -1404,5 +1427,85 @@ export interface SalesOrder {
     createdAt: string;
     updatedAt: string;
     lines: SalesOrderLine[];
+}
+
+export interface PeriodClosePreviewAccount {
+    accountId: string;
+    accountCode: string;
+    accountName: string;
+    accountType: string;
+    classification: string;
+    balance: number;
+    closingDebit: number;
+    closingCredit: number;
+}
+
+export interface PeriodClosePreview {
+    fiscalYear: number;
+    closingDate: string;
+    retainedEarningsAccountId: string;
+    totalRevenue: number;
+    totalExpense: number;
+    netIncome: number;
+    retainedEarningsAdjustmentDebit: number;
+    retainedEarningsAdjustmentCredit: number;
+    isBalanced: boolean;
+    nominalAccounts: PeriodClosePreviewAccount[];
+}
+
+export interface PeriodCloseYearEndRequest {
+    fiscalYear: number;
+    closingDate?: string;
+    retainedEarningsAccountId?: string;
+    notes?: string;
+    lockPeriod?: boolean;
+}
+
+export interface PeriodCloseYearEndResult {
+    journalEntryId: string;
+    referenceNumber: string;
+    closingDate: string;
+    fiscalYear: number;
+    netIncome: number;
+    linesCount: number;
+    periodLockedUntil?: string | null;
+    message: string;
+}
+
+export interface MigrationMilestone {
+    step: number;
+    title: string;
+    key: string;
+    status: "completed" | "in_progress" | "pending";
+    count: number;
+    detail: string;
+}
+
+export interface MigrationWizardStatus {
+    companyId: string;
+    companyName: string;
+    lockDate?: string | null;
+    overallProgressPercent: number;
+    milestones: MigrationMilestone[];
+}
+
+export interface MigrationVarianceItem {
+    name: string;
+    glAccountCode: string;
+    glAccountName: string;
+    glBalance: number;
+    subledgerTotal: number;
+    variance: number;
+    isBalanced: boolean;
+    recommendation: string;
+}
+
+export interface MigrationWizardReconciliation {
+    companyId: string;
+    checkedAt: string;
+    openingBalanceEquityBalance: number;
+    isEquityCleared: boolean;
+    isFullyReconciled: boolean;
+    items: MigrationVarianceItem[];
 }
 

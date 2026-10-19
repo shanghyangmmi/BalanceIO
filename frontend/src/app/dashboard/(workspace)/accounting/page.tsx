@@ -7,6 +7,7 @@ import {
   CalendarClock,
   FileSpreadsheet,
   Layers,
+  Lock,
   Repeat2,
   ShieldCheck,
 } from "lucide-react"
@@ -73,6 +74,12 @@ const DOORS: Door[] = [
     description: "Scheduled entries. They generate nothing until they are run.",
     href: "/dashboard/accounting/recurring",
     icon: Repeat2,
+  },
+  {
+    label: "Period Close & Lock",
+    description: "Close nominal accounts into Retained Earnings and enforce hard period locks.",
+    href: "/dashboard/accounting/period-close",
+    icon: Lock,
   },
 ]
 
