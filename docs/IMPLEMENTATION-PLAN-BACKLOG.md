@@ -411,18 +411,24 @@ graph TD
 
 ---
 
-### Phase 6: Model-Only Entities & Trade Flow Completion
+### Phase 6: Model-Only Entities & Trade Flow Completion [COMPLETED]
 
-#### 6.1 Credit Notes, Debit Notes & Order Workflows
+#### 6.1 Credit Notes, Debit Notes & Order Workflows [COMPLETED]
 * **Scope Evaluation against Scope Rule:**
-  * `CreditNote`: **Qualifies**. Posts Dr `4-1000 Revenue` / Dr `2-1420 PPN Keluaran` / Cr `1-1130 Accounts Receivable` and reverses inventory movement if goods were returned.
-  * `DebitNote`: **Qualifies**. Posts Dr `2-1100 Trade Payables` / Cr `5-1000 Inventory` / Cr `1-1700 PPN Masukan`.
-  * `FundTransfer`: **Qualifies**. Posts Dr `1-1120 Bank B` / Cr `1-1110 Bank A`.
-  * `DeliveryOrder` & `GoodsReceipt`: Keep as operational milestones linked to Inventory Ledger.
-* **Implementation:**
-  * Add controllers with `[RequiresPermission]` and Global Query Filters in `ApplicationDbContext.cs`.
-  * Build UI screens adhering to `frontend/DESIGN-SYSTEM.md`.
-* **Size:** Large.
+  * `CreditNote`: **Completed**. Full multi-tenant isolation, period locking, segregation of duties. Posts Dr `4-1000 Sales Revenue` / Dr `2-1420 PPN Keluaran` / Cr `1-1130 Accounts Receivable`. Optionally returns inventory via `InventoryLedger.MoveAsync` at moving-average cost. Adjusts linked `SalesInvoice.AmountPaid` and `AmountDue`.
+  * `DebitNote`: **Completed**. Full multi-tenant isolation, period locking, segregation of duties. Posts Dr `2-1100 Trade Payables` / Cr `1-1700 PPN Masukan` / Cr `5-1000 Inventory-Expense`. Optionally reduces warehouse stock via `InventoryLedger.MoveAsync`. Adjusts linked `PurchaseBill.AmountPaid` and `AmountDue`.
+  * `FundTransfer`: **Completed**. Inter-account cash & bank transfers with bank fee support. Posts Dr `ToAccount` (inclusive of transfer), Cr `FromAccount` (inclusive of amount + bank fee), Dr `Bank Charges Expense` (`6-1600`).
+  * `DeliveryOrder` & `GoodsReceipt`: **Completed**. Multi-tenant operational milestones linked to `InventoryLedger.MoveAsync`. Shipping a Delivery Order deducts stock; receiving a Goods Receipt adds stock and updates moving average cost. Links to `SalesOrder` and `PurchaseOrder`.
+  * `SalesOrder`: **Completed**. Full sales order quotation and order workflow before invoicing or shipment, with multi-line discounting, tax calculation, approval lifecycle, and audit timeline tracking.
+* **Backend Implementation:**
+  * Added `CompanyId` multi-tenancy and global query filters `HasQueryFilter(e => e.CompanyId == CurrentCompanyId)` with unique indexes `(CompanyId, Number)` across all 6 models.
+  * Added controllers with `[RequiresPermission]`, tenant scope validation, segregation of duties, period lock verification, and audit event recording in `CreditNotesController`, `DebitNotesController`, `FundTransfersController`, `DeliveryOrdersController`, `GoodsReceiptsController`, and `SalesOrdersController`.
+  * Created PostgreSQL migration `20261019032028_AddTradeFlowsEntities.cs` with 0 drift in `MigrationDriftTests`.
+* **Frontend Implementation:**
+  * Updated `frontend/src/lib/api-client.ts` with comprehensive API helper methods and TypeScript interfaces for `CreditNote`, `DebitNote`, `FundTransfer`, `DeliveryOrder`, `GoodsReceipt`, and `SalesOrder`.
+* **Automated Tests:**
+  * Added `TradeFlowsTests.cs` covering balanced ledger postings, inventory ledger movements, segregation of duties, cross-tenant isolation, and complete sales order lifecycle. All 164 test cases passing.
+* **Size:** Large. [COMPLETED]
 
 ---
 

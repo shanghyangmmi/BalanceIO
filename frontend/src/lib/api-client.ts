@@ -963,6 +963,148 @@ export const apiClient = {
 
     closeSupportTicket: async (id: string): Promise<void> => {
         return apiClient.post<void>(`/support/tickets/${id}/close`, {});
+    },
+
+    // --- PHASE 6: TRADE FLOWS & COMMERCIAL OPERATIONS ---
+    // Credit Notes (Sales returns / adjustments)
+    getCreditNotes: async (status?: string): Promise<CreditNote[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<CreditNote[]>(`/CreditNotes${query}`);
+    },
+    getCreditNote: async (id: string): Promise<CreditNote> => {
+        return apiClient.get<CreditNote>(`/CreditNotes/${id}`);
+    },
+    createCreditNote: async (data: Partial<CreditNote>): Promise<CreditNote> => {
+        return apiClient.post<CreditNote>("/CreditNotes", data);
+    },
+    updateCreditNote: async (id: string, data: Partial<CreditNote>): Promise<CreditNote> => {
+        return apiClient.put<CreditNote>(`/CreditNotes/${id}`, data);
+    },
+    approveCreditNote: async (id: string): Promise<CreditNote> => {
+        return apiClient.post<CreditNote>(`/CreditNotes/${id}/approve`, {});
+    },
+    voidCreditNote: async (id: string, reason?: string): Promise<CreditNote> => {
+        return apiClient.post<CreditNote>(`/CreditNotes/${id}/void`, { reason });
+    },
+    deleteCreditNote: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/CreditNotes/${id}`);
+    },
+
+    // Debit Notes (Purchase returns / adjustments)
+    getDebitNotes: async (status?: string): Promise<DebitNote[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<DebitNote[]>(`/DebitNotes${query}`);
+    },
+    getDebitNote: async (id: string): Promise<DebitNote> => {
+        return apiClient.get<DebitNote>(`/DebitNotes/${id}`);
+    },
+    createDebitNote: async (data: Partial<DebitNote>): Promise<DebitNote> => {
+        return apiClient.post<DebitNote>("/DebitNotes", data);
+    },
+    updateDebitNote: async (id: string, data: Partial<DebitNote>): Promise<DebitNote> => {
+        return apiClient.put<DebitNote>(`/DebitNotes/${id}`, data);
+    },
+    approveDebitNote: async (id: string): Promise<DebitNote> => {
+        return apiClient.post<DebitNote>(`/DebitNotes/${id}/approve`, {});
+    },
+    voidDebitNote: async (id: string, reason?: string): Promise<DebitNote> => {
+        return apiClient.post<DebitNote>(`/DebitNotes/${id}/void`, { reason });
+    },
+    deleteDebitNote: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/DebitNotes/${id}`);
+    },
+
+    // Fund Transfers (Cash & Bank inter-account transfers)
+    getFundTransfers: async (status?: string): Promise<FundTransfer[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<FundTransfer[]>(`/FundTransfers${query}`);
+    },
+    getFundTransfer: async (id: string): Promise<FundTransfer> => {
+        return apiClient.get<FundTransfer>(`/FundTransfers/${id}`);
+    },
+    createFundTransfer: async (data: Partial<FundTransfer>): Promise<FundTransfer> => {
+        return apiClient.post<FundTransfer>("/FundTransfers", data);
+    },
+    updateFundTransfer: async (id: string, data: Partial<FundTransfer>): Promise<FundTransfer> => {
+        return apiClient.put<FundTransfer>(`/FundTransfers/${id}`, data);
+    },
+    postFundTransfer: async (id: string): Promise<FundTransfer> => {
+        return apiClient.post<FundTransfer>(`/FundTransfers/${id}/post`, {});
+    },
+    voidFundTransfer: async (id: string, reason?: string): Promise<FundTransfer> => {
+        return apiClient.post<FundTransfer>(`/FundTransfers/${id}/void`, { reason });
+    },
+    deleteFundTransfer: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/FundTransfers/${id}`);
+    },
+
+    // Delivery Orders (Customer Shipments)
+    getDeliveryOrders: async (status?: string): Promise<DeliveryOrder[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<DeliveryOrder[]>(`/DeliveryOrders${query}`);
+    },
+    getDeliveryOrder: async (id: string): Promise<DeliveryOrder> => {
+        return apiClient.get<DeliveryOrder>(`/DeliveryOrders/${id}`);
+    },
+    createDeliveryOrder: async (data: Partial<DeliveryOrder>): Promise<DeliveryOrder> => {
+        return apiClient.post<DeliveryOrder>("/DeliveryOrders", data);
+    },
+    updateDeliveryOrder: async (id: string, data: Partial<DeliveryOrder>): Promise<DeliveryOrder> => {
+        return apiClient.put<DeliveryOrder>(`/DeliveryOrders/${id}`, data);
+    },
+    shipDeliveryOrder: async (id: string): Promise<DeliveryOrder> => {
+        return apiClient.post<DeliveryOrder>(`/DeliveryOrders/${id}/ship`, {});
+    },
+    deliverDeliveryOrder: async (id: string): Promise<DeliveryOrder> => {
+        return apiClient.post<DeliveryOrder>(`/DeliveryOrders/${id}/deliver`, {});
+    },
+    deleteDeliveryOrder: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/DeliveryOrders/${id}`);
+    },
+
+    // Goods Receipts (Vendor Receipts)
+    getGoodsReceipts: async (status?: string): Promise<GoodsReceipt[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<GoodsReceipt[]>(`/GoodsReceipts${query}`);
+    },
+    getGoodsReceipt: async (id: string): Promise<GoodsReceipt> => {
+        return apiClient.get<GoodsReceipt>(`/GoodsReceipts/${id}`);
+    },
+    createGoodsReceipt: async (data: Partial<GoodsReceipt>): Promise<GoodsReceipt> => {
+        return apiClient.post<GoodsReceipt>("/GoodsReceipts", data);
+    },
+    updateGoodsReceipt: async (id: string, data: Partial<GoodsReceipt>): Promise<GoodsReceipt> => {
+        return apiClient.put<GoodsReceipt>(`/GoodsReceipts/${id}`, data);
+    },
+    receiveGoodsReceipt: async (id: string): Promise<GoodsReceipt> => {
+        return apiClient.post<GoodsReceipt>(`/GoodsReceipts/${id}/receive`, {});
+    },
+    deleteGoodsReceipt: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/GoodsReceipts/${id}`);
+    },
+
+    // Sales Orders (Customer Orders)
+    getSalesOrders: async (status?: string): Promise<SalesOrder[]> => {
+        const query = status ? `?status=${encodeURIComponent(status)}` : "";
+        return apiClient.get<SalesOrder[]>(`/SalesOrders${query}`);
+    },
+    getSalesOrder: async (id: string): Promise<SalesOrder> => {
+        return apiClient.get<SalesOrder>(`/SalesOrders/${id}`);
+    },
+    createSalesOrder: async (data: Partial<SalesOrder>): Promise<SalesOrder> => {
+        return apiClient.post<SalesOrder>("/SalesOrders", data);
+    },
+    updateSalesOrder: async (id: string, data: Partial<SalesOrder>): Promise<SalesOrder> => {
+        return apiClient.put<SalesOrder>(`/SalesOrders/${id}`, data);
+    },
+    approveSalesOrder: async (id: string): Promise<SalesOrder> => {
+        return apiClient.post<SalesOrder>(`/SalesOrders/${id}/approve`, {});
+    },
+    cancelSalesOrder: async (id: string): Promise<SalesOrder> => {
+        return apiClient.post<SalesOrder>(`/SalesOrders/${id}/cancel`, {});
+    },
+    deleteSalesOrder: async (id: string): Promise<void> => {
+        return apiClient.delete<void>(`/SalesOrders/${id}`);
     }
 }
 
@@ -1035,3 +1177,232 @@ export const adminApiClient = {
         return request<T>(url, { ...options, method: "DELETE" }, "adminToken")
     }
 }
+
+// --- PHASE 6: TRADE FLOW INTERFACES ---
+
+export interface CreditNoteLine {
+    id?: string;
+    creditNoteId?: string;
+    lineNumber?: number;
+    salesInvoiceLineId?: string | null;
+    productId?: string | null;
+    accountId?: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    costCenterId?: string | null;
+}
+
+export interface CreditNote {
+    id: string;
+    companyId: string;
+    creditNoteNumber: string;
+    date: string;
+    contactId: string;
+    salesInvoiceId?: string | null;
+    warehouseId?: string | null;
+    returnToInventory: boolean;
+    currency: string;
+    exchangeRate: number;
+    subtotal: number;
+    taxAmount: number;
+    totalAmount: number;
+    remainingAmount: number;
+    status: number; // 0=Draft, 1=Approved, 2=Applied, 3=Voided
+    reason?: string | null;
+    notes?: string | null;
+    journalEntryId?: string | null;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    voidedAt?: string | null;
+    voidedByUserId?: string | null;
+    voidReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: CreditNoteLine[];
+}
+
+export interface DebitNoteLine {
+    id?: string;
+    debitNoteId?: string;
+    lineNumber?: number;
+    purchaseBillLineId?: string | null;
+    productId?: string | null;
+    accountId?: string | null;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    costCenterId?: string | null;
+}
+
+export interface DebitNote {
+    id: string;
+    companyId: string;
+    debitNoteNumber: string;
+    date: string;
+    contactId: string;
+    purchaseBillId?: string | null;
+    warehouseId?: string | null;
+    returnToInventory: boolean;
+    currency: string;
+    exchangeRate: number;
+    subtotal: number;
+    taxAmount: number;
+    totalAmount: number;
+    remainingAmount: number;
+    status: number; // 0=Draft, 1=Approved, 2=Applied, 3=Voided
+    reason?: string | null;
+    notes?: string | null;
+    journalEntryId?: string | null;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    voidedAt?: string | null;
+    voidedByUserId?: string | null;
+    voidReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: DebitNoteLine[];
+}
+
+export interface FundTransfer {
+    id: string;
+    companyId: string;
+    transferNumber: string;
+    transferDate: string;
+    fromAccountId: string;
+    toAccountId: string;
+    amount: number;
+    currency: string;
+    exchangeRate: number;
+    bankFee: number;
+    referenceNumber?: string | null;
+    notes?: string | null;
+    status: number; // 0=Draft, 1=Posted, 2=Voided
+    journalEntryId?: string | null;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    voidedAt?: string | null;
+    voidedByUserId?: string | null;
+    voidReason?: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface DeliveryOrderLine {
+    id?: string;
+    deliveryOrderId?: string;
+    lineNumber?: number;
+    salesOrderLineId?: string | null;
+    productId: string;
+    description: string;
+    quantityOrdered: number;
+    quantityShipped: number;
+    unit: string;
+    notes?: string | null;
+}
+
+export interface DeliveryOrder {
+    id: string;
+    companyId: string;
+    deliveryNumber: string;
+    deliveryDate: string;
+    salesOrderId?: string | null;
+    contactId: string;
+    warehouseId?: string | null;
+    shippingAddress?: string | null;
+    trackingNumber?: string | null;
+    driverName?: string | null;
+    vehiclePlateNumber?: string | null;
+    status: number; // 0=Draft, 1=Shipped, 2=Delivered, 3=Cancelled
+    shippedDate?: string | null;
+    deliveredDate?: string | null;
+    notes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: DeliveryOrderLine[];
+}
+
+export interface GoodsReceiptLine {
+    id?: string;
+    goodsReceiptId?: string;
+    lineNumber?: number;
+    purchaseOrderLineId?: string | null;
+    productId: string;
+    description: string;
+    quantityOrdered: number;
+    quantityReceived: number;
+    unit: string;
+    notes?: string | null;
+}
+
+export interface GoodsReceipt {
+    id: string;
+    companyId: string;
+    receiptNumber: string;
+    receiptDate: string;
+    purchaseOrderId?: string | null;
+    contactId: string;
+    warehouseId?: string | null;
+    vendorDeliveryNumber?: string | null;
+    receivedBy?: string | null;
+    status: number; // 0=Draft, 1=Received, 2=Cancelled
+    receivedDate?: string | null;
+    notes?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: GoodsReceiptLine[];
+}
+
+export interface SalesOrderLine {
+    id?: string;
+    salesOrderId?: string;
+    lineNumber?: number;
+    productId?: string | null;
+    description: string;
+    quantity: number;
+    unit: string;
+    unitPrice: number;
+    discountPercent: number;
+    discountAmount: number;
+    isTaxable: boolean;
+    taxRate: number;
+    taxAmount: number;
+    lineTotal: number;
+    notes?: string | null;
+    costCenterId?: string | null;
+}
+
+export interface SalesOrder {
+    id: string;
+    companyId: string;
+    orderNumber: string;
+    orderDate: string;
+    expectedDeliveryDate?: string | null;
+    contactId: string;
+    shippingAddress?: string | null;
+    currency: string;
+    exchangeRate: number;
+    subtotal: number;
+    discountAmount: number;
+    discountPercent: number;
+    taxAmount: number;
+    total: number;
+    status: number; // 0=Draft, 1=Approved, 2=PartiallyDelivered, 3=Delivered, 4=Invoiced, 5=Cancelled
+    referenceNumber?: string | null;
+    notes?: string | null;
+    terms?: string | null;
+    templateName: string;
+    approvedAt?: string | null;
+    approvedByUserId?: string | null;
+    approvedBy?: string | null;
+    cancelledAt?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    lines: SalesOrderLine[];
+}
+

@@ -829,11 +829,31 @@ namespace BalanceIO.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CreditNoteNumber")
                         .IsRequired()
@@ -864,6 +884,9 @@ namespace BalanceIO.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("ReturnToInventory")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("SalesInvoiceId")
                         .HasColumnType("uuid");
 
@@ -890,6 +913,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateTime?>("VoidedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
@@ -897,6 +923,11 @@ namespace BalanceIO.API.Migrations
                     b.HasIndex("JournalEntryId");
 
                     b.HasIndex("SalesInvoiceId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("CompanyId", "CreditNoteNumber")
+                        .IsUnique();
 
                     b.ToTable("CreditNotes");
                 });
@@ -908,6 +939,9 @@ namespace BalanceIO.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("CreditNoteId")
@@ -950,6 +984,8 @@ namespace BalanceIO.API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AccountId");
+
+                    b.HasIndex("CostCenterId");
 
                     b.HasIndex("CreditNoteId");
 
@@ -1002,11 +1038,31 @@ namespace BalanceIO.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Currency")
                         .IsRequired()
@@ -1040,6 +1096,9 @@ namespace BalanceIO.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("ReturnToInventory")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -1063,6 +1122,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateTime?>("VoidedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
@@ -1070,6 +1132,11 @@ namespace BalanceIO.API.Migrations
                     b.HasIndex("JournalEntryId");
 
                     b.HasIndex("PurchaseBillId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("CompanyId", "DebitNoteNumber")
+                        .IsUnique();
 
                     b.ToTable("DebitNotes");
                 });
@@ -1081,6 +1148,9 @@ namespace BalanceIO.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("DebitNoteId")
@@ -1124,6 +1194,8 @@ namespace BalanceIO.API.Migrations
 
                     b.HasIndex("AccountId");
 
+                    b.HasIndex("CostCenterId");
+
                     b.HasIndex("DebitNoteId");
 
                     b.HasIndex("ProductId");
@@ -1137,11 +1209,31 @@ namespace BalanceIO.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime?>("DeliveredAt")
                         .HasColumnType("timestamp with time zone");
@@ -1181,11 +1273,19 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
 
                     b.HasIndex("SalesOrderId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("CompanyId", "DeliveryNumber")
+                        .IsUnique();
 
                     b.ToTable("DeliveryOrders");
                 });
@@ -1902,8 +2002,28 @@ namespace BalanceIO.API.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(19,4)");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
@@ -1949,6 +2069,9 @@ namespace BalanceIO.API.Migrations
 
                     b.HasIndex("ToAccountId");
 
+                    b.HasIndex("CompanyId", "TransferNumber")
+                        .IsUnique();
+
                     b.ToTable("FundTransfers");
                 });
 
@@ -1958,11 +2081,31 @@ namespace BalanceIO.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Notes")
                         .HasColumnType("text");
@@ -1991,11 +2134,19 @@ namespace BalanceIO.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
 
                     b.HasIndex("PurchaseOrderId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("CompanyId", "ReceiptNumber")
+                        .IsUnique();
 
                     b.ToTable("GoodsReceipts");
                 });
@@ -4014,14 +4165,31 @@ namespace BalanceIO.API.Migrations
                     b.Property<DateTime?>("ApprovedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("ContactId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Currency")
                         .IsRequired()
@@ -4087,6 +4255,9 @@ namespace BalanceIO.API.Migrations
 
                     b.HasIndex("ContactId");
 
+                    b.HasIndex("CompanyId", "OrderNumber")
+                        .IsUnique();
+
                     b.ToTable("SalesOrders");
                 });
 
@@ -4097,6 +4268,9 @@ namespace BalanceIO.API.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CostCenterId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Description")
@@ -4145,6 +4319,8 @@ namespace BalanceIO.API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AccountId");
+
+                    b.HasIndex("CostCenterId");
 
                     b.HasIndex("ProductId");
 
@@ -5082,6 +5258,12 @@ namespace BalanceIO.API.Migrations
 
             modelBuilder.Entity("BalanceIO.API.Models.CreditNote", b =>
                 {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BalanceIO.API.Models.Contact", "Contact")
                         .WithMany()
                         .HasForeignKey("ContactId")
@@ -5096,11 +5278,19 @@ namespace BalanceIO.API.Migrations
                         .WithMany()
                         .HasForeignKey("SalesInvoiceId");
 
+                    b.HasOne("BalanceIO.API.Models.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId");
+
+                    b.Navigation("Company");
+
                     b.Navigation("Contact");
 
                     b.Navigation("JournalEntry");
 
                     b.Navigation("SalesInvoice");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.CreditNoteLine", b =>
@@ -5108,6 +5298,10 @@ namespace BalanceIO.API.Migrations
                     b.HasOne("BalanceIO.API.Models.Account", "Account")
                         .WithMany()
                         .HasForeignKey("AccountId");
+
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
 
                     b.HasOne("BalanceIO.API.Models.CreditNote", "CreditNote")
                         .WithMany("Lines")
@@ -5121,6 +5315,8 @@ namespace BalanceIO.API.Migrations
 
                     b.Navigation("Account");
 
+                    b.Navigation("CostCenter");
+
                     b.Navigation("CreditNote");
 
                     b.Navigation("Product");
@@ -5128,6 +5324,12 @@ namespace BalanceIO.API.Migrations
 
             modelBuilder.Entity("BalanceIO.API.Models.DebitNote", b =>
                 {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BalanceIO.API.Models.Contact", "Contact")
                         .WithMany()
                         .HasForeignKey("ContactId")
@@ -5142,11 +5344,19 @@ namespace BalanceIO.API.Migrations
                         .WithMany()
                         .HasForeignKey("PurchaseBillId");
 
+                    b.HasOne("BalanceIO.API.Models.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId");
+
+                    b.Navigation("Company");
+
                     b.Navigation("Contact");
 
                     b.Navigation("JournalEntry");
 
                     b.Navigation("PurchaseBill");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.DebitNoteLine", b =>
@@ -5154,6 +5364,10 @@ namespace BalanceIO.API.Migrations
                     b.HasOne("BalanceIO.API.Models.Account", "Account")
                         .WithMany()
                         .HasForeignKey("AccountId");
+
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
 
                     b.HasOne("BalanceIO.API.Models.DebitNote", "DebitNote")
                         .WithMany("Lines")
@@ -5167,6 +5381,8 @@ namespace BalanceIO.API.Migrations
 
                     b.Navigation("Account");
 
+                    b.Navigation("CostCenter");
+
                     b.Navigation("DebitNote");
 
                     b.Navigation("Product");
@@ -5174,6 +5390,12 @@ namespace BalanceIO.API.Migrations
 
             modelBuilder.Entity("BalanceIO.API.Models.DeliveryOrder", b =>
                 {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BalanceIO.API.Models.Contact", "Contact")
                         .WithMany()
                         .HasForeignKey("ContactId")
@@ -5184,9 +5406,17 @@ namespace BalanceIO.API.Migrations
                         .WithMany()
                         .HasForeignKey("SalesOrderId");
 
+                    b.HasOne("BalanceIO.API.Models.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId");
+
+                    b.Navigation("Company");
+
                     b.Navigation("Contact");
 
                     b.Navigation("SalesOrder");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.DeliveryOrderLine", b =>
@@ -5322,6 +5552,12 @@ namespace BalanceIO.API.Migrations
 
             modelBuilder.Entity("BalanceIO.API.Models.FundTransfer", b =>
                 {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BalanceIO.API.Models.Account", "FromAccount")
                         .WithMany()
                         .HasForeignKey("FromAccountId")
@@ -5338,6 +5574,8 @@ namespace BalanceIO.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Company");
+
                     b.Navigation("FromAccount");
 
                     b.Navigation("JournalEntry");
@@ -5347,6 +5585,12 @@ namespace BalanceIO.API.Migrations
 
             modelBuilder.Entity("BalanceIO.API.Models.GoodsReceipt", b =>
                 {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BalanceIO.API.Models.Contact", "Contact")
                         .WithMany()
                         .HasForeignKey("ContactId")
@@ -5357,9 +5601,17 @@ namespace BalanceIO.API.Migrations
                         .WithMany()
                         .HasForeignKey("PurchaseOrderId");
 
+                    b.HasOne("BalanceIO.API.Models.Warehouse", "Warehouse")
+                        .WithMany()
+                        .HasForeignKey("WarehouseId");
+
+                    b.Navigation("Company");
+
                     b.Navigation("Contact");
 
                     b.Navigation("PurchaseOrder");
+
+                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.GoodsReceiptLine", b =>
@@ -5910,11 +6162,19 @@ namespace BalanceIO.API.Migrations
 
             modelBuilder.Entity("BalanceIO.API.Models.SalesOrder", b =>
                 {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BalanceIO.API.Models.Contact", "Contact")
                         .WithMany()
                         .HasForeignKey("ContactId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Company");
 
                     b.Navigation("Contact");
                 });
@@ -5924,6 +6184,10 @@ namespace BalanceIO.API.Migrations
                     b.HasOne("BalanceIO.API.Models.Account", "Account")
                         .WithMany()
                         .HasForeignKey("AccountId");
+
+                    b.HasOne("BalanceIO.API.Models.CostCenter", "CostCenter")
+                        .WithMany()
+                        .HasForeignKey("CostCenterId");
 
                     b.HasOne("BalanceIO.API.Models.Product", "Product")
                         .WithMany()
@@ -5936,6 +6200,8 @@ namespace BalanceIO.API.Migrations
                         .IsRequired();
 
                     b.Navigation("Account");
+
+                    b.Navigation("CostCenter");
 
                     b.Navigation("Product");
 

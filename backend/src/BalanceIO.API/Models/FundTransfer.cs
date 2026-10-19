@@ -11,6 +11,13 @@ public class FundTransfer
     public Guid Id { get; set; }
 
     [Required]
+    public Guid CompanyId { get; set; }
+
+    [ForeignKey("CompanyId")]
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Company? Company { get; set; }
+
+    [Required]
     [MaxLength(50)]
     public string TransferNumber { get; set; } = string.Empty;
 
@@ -41,11 +48,20 @@ public class FundTransfer
     public Guid? JournalEntryId { get; set; }
     public JournalEntry? JournalEntry { get; set; }
 
-    // Audit
+    // Audit & Segregation of Duties
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public DateTime? PostedAt { get; set; }
     public DateTime? VoidedAt { get; set; }
+
+    public Guid? CreatedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? CreatedBy { get; set; }
+
+    public Guid? ApprovedByUserId { get; set; }
+    [MaxLength(100)]
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
 }
 
 public enum FundTransferStatus

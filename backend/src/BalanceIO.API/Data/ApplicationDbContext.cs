@@ -293,7 +293,22 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<SupportTicketAttachment>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<TaxInvoiceNumberRange>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
 
+        // Trade Flow Entities (Phase 6 Multi-tenancy)
+        modelBuilder.Entity<CreditNote>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<DebitNote>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<FundTransfer>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<DeliveryOrder>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<GoodsReceipt>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<SalesOrder>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+
         // --- Indexes for Performance ---
+        modelBuilder.Entity<CreditNote>().HasIndex(e => new { e.CompanyId, e.CreditNoteNumber }).IsUnique();
+        modelBuilder.Entity<DebitNote>().HasIndex(e => new { e.CompanyId, e.DebitNoteNumber }).IsUnique();
+        modelBuilder.Entity<FundTransfer>().HasIndex(e => new { e.CompanyId, e.TransferNumber }).IsUnique();
+        modelBuilder.Entity<DeliveryOrder>().HasIndex(e => new { e.CompanyId, e.DeliveryNumber }).IsUnique();
+        modelBuilder.Entity<GoodsReceipt>().HasIndex(e => new { e.CompanyId, e.ReceiptNumber }).IsUnique();
+        modelBuilder.Entity<SalesOrder>().HasIndex(e => new { e.CompanyId, e.OrderNumber }).IsUnique();
+
         modelBuilder.Entity<TaxInvoiceNumberRange>().HasIndex(e => new { e.CompanyId, e.Year, e.IsExhausted });
         modelBuilder.Entity<UserSession>().HasIndex(e => e.UserId);
         modelBuilder.Entity<UserSession>().HasIndex(e => e.RefreshTokenHash);
