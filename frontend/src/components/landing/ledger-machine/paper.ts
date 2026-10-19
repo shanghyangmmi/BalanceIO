@@ -35,9 +35,34 @@ export interface Fonts {
 }
 
 /** Resolves `var(--token)` to a concrete rgb() the canvas can use. */
+/**
+ * Resolves a CSS token to an `rgb()` string.
+ *
+ * getComputedStyle returns the token in its own colour space - for OKLCH
+ * tokens Chrome reports `lab(...)` - and THREE.Color cannot parse that.
+ * It fell back to white, so the scene fog was white in dark mode and the
+ * whole upper right of the hero washed out. Painting one pixel and
+ * reading it back converts any colour the browser understands to sRGB.
+ */
+let swatch: CanvasRenderingContext2D | null = null
+
+function toRgb(color: string): string {
+  if (!swatch) {
+    const c = document.createElement("canvas")
+    c.width = c.height = 1
+    swatch = c.getContext("2d", { willReadFrequently: true })
+  }
+  if (!swatch) return color
+  swatch.clearRect(0, 0, 1, 1)
+  swatch.fillStyle = color
+  swatch.fillRect(0, 0, 1, 1)
+  const [r, g, b] = swatch.getImageData(0, 0, 1, 1).data
+  return `rgb(${r}, ${g}, ${b})`
+}
+
 function resolveToken(probe: HTMLElement, token: string): string {
   probe.style.color = `var(${token})`
-  return getComputedStyle(probe).color
+  return toRgb(getComputedStyle(probe).color)
 }
 
 export function readPalette(root: HTMLElement): Palette {

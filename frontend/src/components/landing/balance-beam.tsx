@@ -34,10 +34,10 @@ interface Txn {
 }
 
 const TXNS: Txn[] = [
-    { label: "Cash sale", debit: "Cash", credit: "Sales revenue", amount: "45,000,000", lead: "dr" },
-    { label: "Stock purchase", debit: "Inventory", credit: "Accounts payable", amount: "28,500,000", lead: "cr" },
-    { label: "Monthly payroll", debit: "Salary expense", credit: "Cash", amount: "62,000,000", lead: "dr" },
-    { label: "Customer settles", debit: "Cash", credit: "Accounts receivable", amount: "120,000,000", lead: "cr" },
+    { label: "Cash sale", debit: "Cash", credit: "Sales revenue", amount: "45.000.000", lead: "dr" },
+    { label: "Stock purchase", debit: "Inventory", credit: "Accounts payable", amount: "28.500.000", lead: "cr" },
+    { label: "Monthly payroll", debit: "Salary expense", credit: "Net pay payable", amount: "62.000.000", lead: "dr" },
+    { label: "Customer settles", debit: "Cash", credit: "Accounts receivable", amount: "120.000.000", lead: "cr" },
 ]
 
 const MAX_ANGLE = 0.105 // radians
@@ -403,8 +403,8 @@ export function BalanceBeam() {
             <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col px-6 pt-20 pb-8">
                 <div className="flex items-baseline justify-between gap-6">
                     <div className="flex items-center gap-3">
-                        <span className="h-px w-8 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                        <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-700 dark:text-emerald-400">
+                        <span className="h-px w-8 bg-foreground/30" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
                             Act I — Double entry
                         </span>
                     </div>
@@ -441,7 +441,7 @@ export function BalanceBeam() {
                                     : "text-amber-600 dark:text-amber-400")
                             }
                         >
-                            {(delta / 100).toFixed(2)}
+                            {(delta / 100).toFixed(2).replace(".", ",")}
                         </div>
                         <div
                             className={

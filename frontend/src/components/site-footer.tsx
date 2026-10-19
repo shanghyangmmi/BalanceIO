@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { siteConfig } from "@/config/site"
-import { Instagram, Linkedin, MessageCircle, ArrowUpRight } from "lucide-react"
 import { motion } from "framer-motion"
 
 /**
@@ -20,8 +19,8 @@ const COLUMNS: { heading: string; links: { label: string; href: string }[] }[] =
         links: [
             { label: "Features", href: "/features" },
             { label: "Pricing", href: "/pricing" },
-            { label: "Log In", href: "/login" },
-            { label: "Get Started", href: "/register" },
+            { label: "Sign in", href: "/login" },
+            { label: "Create account", href: "/register" },
         ],
     },
 ]
@@ -51,7 +50,7 @@ export function SiteFooter() {
                     {/* ── Masthead ── */}
                     <div>
                         <Link href="/" className="group inline-flex items-center gap-2.5">
-                            <div className="h-8 w-8 overflow-hidden rounded-md shadow-sm transition-transform duration-300 group-hover:scale-105">
+                            <div className="h-8 w-8 overflow-hidden rounded-md">
                                 <img
                                     src="/images/logo-icon.svg"
                                     alt={siteConfig.name}
@@ -65,24 +64,20 @@ export function SiteFooter() {
                         </Link>
 
                         <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-                            Accounting, inventory, fixed assets and tax records —
-                            one system, one trail back to the entry that made it.
+                            Accounting software for Indonesian companies. One
+                            general ledger, one trail back to the entry behind
+                            every figure.
                         </p>
 
-                        <div className="mt-5 flex gap-2">
-                            {[Instagram, MessageCircle, Linkedin].map((Icon, i) => (
-                                <motion.a
-                                    key={i}
-                                    href="#"
-                                    aria-label="Social link"
-                                    whileHover={{ y: -3 }}
-                                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                                    className="rounded-lg border border-foreground/10 p-2 text-muted-foreground transition-colors hover:border-emerald-600/30 hover:text-emerald-700 dark:hover:border-emerald-500/30 dark:hover:text-emerald-400"
-                                >
-                                    <Icon className="h-3.5 w-3.5" />
-                                </motion.a>
-                            ))}
-                        </div>
+                        {/* Three social icons used to sit here, all linking to
+                            "#". A dead link on a trust product reads worse than
+                            no link; add them back once the accounts are live. */}
+                        <a
+                            href={`mailto:${siteConfig.contacts.email}`}
+                            className="mt-5 inline-block font-mono text-[11px] tracking-[0.06em] text-muted-foreground underline decoration-foreground/20 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
+                        >
+                            {siteConfig.contacts.email}
+                        </a>
                     </div>
 
                     {/* ── Links ──
@@ -91,7 +86,7 @@ export function SiteFooter() {
                         footer 41% of the viewport; laid out in a row they take
                         one line and the footer reads as a footer. */}
                     <div className="lg:justify-self-end lg:text-right">
-                        <div className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-400">
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
                             {COLUMNS[0].heading}
                         </div>
                         <div className="mt-2.5 mb-3 h-px w-full bg-foreground/10" />
@@ -106,7 +101,6 @@ export function SiteFooter() {
                                             {l.label}
                                             <span className="absolute -bottom-0.5 left-0 h-px w-full origin-left scale-x-0 bg-emerald-600/60 transition-transform duration-300 ease-out group-hover:scale-x-100 dark:bg-emerald-400/60" />
                                         </span>
-                                        <ArrowUpRight className="h-3 w-3 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100" />
                                     </Link>
                                 </li>
                             ))}
