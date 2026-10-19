@@ -186,4 +186,119 @@ public class TaxReportsController : ControllerBase
 
         return Ok(result);
     }
+
+    /// <summary>
+    /// Get allocated NSFP ranges for company
+    /// </summary>
+    [HttpGet("nsfp-ranges")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<List<TaxInvoiceNumberRangeDto>>> GetNsfpRanges([FromQuery] int? year = null)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (!companyId.HasValue) return Unauthorized("Company context is required.");
+
+        var ranges = await _taxReportsService.GetNsfpRangesAsync(companyId.Value, year);
+        return Ok(ranges);
+    }
+
+    /// <summary>
+    /// Add allocated NSFP range from DJP Online / e-Nofa
+    /// </summary>
+    [HttpPost("nsfp-ranges")]
+    [RequiresPermission(Permissions.FinanceCreate)]
+    public async Task<ActionResult<TaxInvoiceNumberRangeDto>> CreateNsfpRange([FromBody] CreateTaxInvoiceNumberRangeRequest request)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (!companyId.HasValue) return Unauthorized("Company context is required.");
+
+        try
+        {
+            var range = await _taxReportsService.CreateNsfpRangeAsync(companyId.Value, request);
+            return Ok(range);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Delete NSFP range
+    /// </summary>
+    [HttpDelete("nsfp-ranges/{id}")]
+    [RequiresPermission(Permissions.FinanceDelete)]
+    public async Task<IActionResult> DeleteNsfpRange(Guid id)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (!companyId.HasValue) return Unauthorized("Company context is required.");
+
+        var deleted = await _taxReportsService.DeleteNsfpRangeAsync(companyId.Value, id);
+        if (!deleted) return NotFound();
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Get Coretax XML / CSV export preview
+    /// </summary>
+    [HttpGet("coretax-export")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<ActionResult<CoretaxExportResponse>> GetCoretaxExport(
+        [FromQuery] int? year = null,
+        [FromQuery] int? month = null)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (!companyId.HasValue) return Unauthorized("Company context is required.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var y = year ?? today.Year;
+        var m = month ?? today.Month;
+
+        var result = await _taxReportsService.GenerateCoretaxExportAsync(companyId.Value, y, m);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Download Coretax XML bulk upload file
+    /// </summary>
+    [HttpGet("coretax-export/download-xml")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<IActionResult> DownloadCoretaxXml(
+        [FromQuery] int? year = null,
+        [FromQuery] int? month = null)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (!companyId.HasValue) return Unauthorized("Company context is required.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var y = year ?? today.Year;
+        var m = month ?? today.Month;
+
+        var result = await _taxReportsService.GenerateCoretaxExportAsync(companyId.Value, y, m);
+        var bytes = Encoding.UTF8.GetBytes(result.XmlContent);
+
+        return File(bytes, "application/xml", $"{result.FileName}.xml");
+    }
+
+    /// <summary>
+    /// Download Coretax CSV bulk upload file
+    /// </summary>
+    [HttpGet("coretax-export/download-csv")]
+    [RequiresPermission(Permissions.FinanceReport)]
+    public async Task<IActionResult> DownloadCoretaxCsv(
+        [FromQuery] int? year = null,
+        [FromQuery] int? month = null)
+    {
+        var companyId = GetCurrentCompanyId();
+        if (!companyId.HasValue) return Unauthorized("Company context is required.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var y = year ?? today.Year;
+        var m = month ?? today.Month;
+
+        var result = await _taxReportsService.GenerateCoretaxExportAsync(companyId.Value, y, m);
+        var bytes = Encoding.UTF8.GetBytes(result.CsvContent);
+
+        return File(bytes, "text/csv", $"{result.FileName}.csv");
+    }
 }

@@ -107,6 +107,7 @@ public partial class ApplicationDbContext : DbContext
 
     // Tax & Compliance
     public DbSet<TaxRate> TaxRates { get; set; }
+    public DbSet<TaxInvoiceNumberRange> TaxInvoiceNumberRanges { get; set; }
 
     // Settings
     public DbSet<EmailSettings> EmailSettings { get; set; }
@@ -290,8 +291,10 @@ public partial class ApplicationDbContext : DbContext
         modelBuilder.Entity<SupportTicket>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<SupportTicketMessage>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
         modelBuilder.Entity<SupportTicketAttachment>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
+        modelBuilder.Entity<TaxInvoiceNumberRange>().HasQueryFilter(e => e.CompanyId == CurrentCompanyId);
 
         // --- Indexes for Performance ---
+        modelBuilder.Entity<TaxInvoiceNumberRange>().HasIndex(e => new { e.CompanyId, e.Year, e.IsExhausted });
         modelBuilder.Entity<UserSession>().HasIndex(e => e.UserId);
         modelBuilder.Entity<UserSession>().HasIndex(e => e.RefreshTokenHash);
         modelBuilder.Entity<SupportAccessGrant>().HasIndex(e => new { e.CompanyId, e.ValidUntil });

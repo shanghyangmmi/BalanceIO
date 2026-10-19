@@ -41,7 +41,7 @@ public static class PayrollCalculator
 
     private static readonly Regex PtkpPattern = new(@"^(TK|K)/([0-3])$", RegexOptions.Compiled);
 
-    public static PayrollResult Calculate(PayrollInput input, int month, PayrollYearToDate ytd, PayrollRates rates)
+    public static PayrollResult Calculate(PayrollInput input, int month, PayrollYearToDate ytd, PayrollRates rates, bool isTermination = false)
     {
         var (ptkp, category, ptkpWarning) = ReadPtkp(input.PtkpStatus);
 
@@ -79,10 +79,10 @@ public static class PayrollCalculator
         var earnings = wage + input.OtherEarnings;
         result.TaxableGross = earnings + result.EmployerJkk + result.EmployerJkm + result.EmployerKesehatan;
 
-        if (month == 12)
+        if (month == 12 || isTermination)
         {
-            result.Pph21Method = "Annual";
-            result.Pph21 = DecemberSettlement(result, ptkp, ytd);
+            result.Pph21Method = isTermination && month != 12 ? "LeaverAnnual" : "Annual";
+            result.Pph21 = AnnualSettlement(result, ptkp, ytd);
         }
         else
         {
@@ -95,20 +95,38 @@ public static class PayrollCalculator
         return result;
     }
 
-    /// <summary>Tax due for the year under Pasal 17, less what TER withheld.</summary>
-    private static decimal DecemberSettlement(PayrollResult december, string ptkp, PayrollYearToDate ytd)
+    /// <summary>Tax due for the year or employment period under Pasal 17, less what TER withheld.</summary>
+    public static decimal AnnualSettlement(PayrollResult current, string ptkp, PayrollYearToDate ytd)
     {
-        var annualGross = ytd.TaxableGross + december.TaxableGross;
-        var months = ytd.MonthsPaid + 1;
+        var annualGross = ytd.TaxableGross + current.TaxableGross;
+        var months = Math.Max(1, ytd.MonthsPaid + 1);
 
         var biayaJabatan = Math.Min(Percent(annualGross, BiayaJabatanRate), BiayaJabatanMonthlyCap * months);
-        var pensionContributions = ytd.EmployeePension + december.EmployeeJht + december.EmployeeJp;
+        var pensionContributions = ytd.EmployeePension + current.EmployeeJht + current.EmployeeJp;
 
         var annualNet = annualGross - biayaJabatan - pensionContributions;
         var pkp = Math.Floor((annualNet - PtkpAmount(ptkp)) / 1000m) * 1000m;
         if (pkp < 0m) pkp = 0m;
 
         return Pasal17(pkp) - ytd.Pph21Withheld;
+    }
+
+    /// <summary>
+    /// Computes the PPh 21 attributable to bonus/THR under PP 58/2023 TER method.
+    /// Returns (TotalTax, RegularTax, BonusTax, BonusTerRate).
+    /// </summary>
+    public static (decimal TotalTax, decimal RegularTax, decimal BonusTax, decimal BonusTerRate) CalculateBonusThr(
+        decimal regularGross, decimal bonusGross, string terCategory)
+    {
+        var regularRate = TerRate(terCategory, regularGross);
+        var regularTax = Percent(regularGross, regularRate);
+
+        var totalGross = regularGross + bonusGross;
+        var totalRate = TerRate(terCategory, totalGross);
+        var totalTax = Percent(totalGross, totalRate);
+
+        var bonusTax = totalTax - regularTax;
+        return (totalTax, regularTax, bonusTax, totalRate);
     }
 
     /// <summary>UU HPP brackets.</summary>

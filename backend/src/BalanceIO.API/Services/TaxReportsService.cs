@@ -87,7 +87,7 @@ public class TaxReportsService
                 CounterpartyName = inv.Contact?.Name ?? "Pelanggan Umum",
                 CounterpartyNpwp = inv.Contact?.TaxId,
                 CounterpartyNik = inv.Contact?.Nik,
-                FakturPajakNumber = inv.ReferenceNumber,
+                FakturPajakNumber = inv.FakturPajakNumber ?? inv.ReferenceNumber,
                 DppAmount = invDpp,
                 TaxRate = effectiveRate,
                 PpnAmount = invPpn,
@@ -227,8 +227,123 @@ public class TaxReportsService
         var pph42Lines = new List<WithholdingTaxLineDto>();
         var pph22Lines = new List<WithholdingTaxLineDto>();
 
-        // 1. Fetch Purchase Bills and Contacts with Withholding configurations
+        // 1. Fetch Withholding Liability Accounts (2-1410, 2-1422, 2-1423, 2-1424)
+        var whtAccounts = await _context.Accounts
+            .AsNoTracking()
+            .Where(a => a.CompanyId == companyId && (
+                a.Code == "2-1410" || a.Code == "2-1422" || a.Code == "2-1423" || a.Code == "2-1424" ||
+                a.Code.StartsWith("2-14") || a.Code.StartsWith("214")))
+            .ToListAsync();
+
+        var accountCodes = whtAccounts.Select(a => a.Code).Concat(whtAccounts.Select(a => a.Id.ToString())).ToHashSet();
+        var accountByCodeOrId = whtAccounts.ToDictionary(a => a.Code, a => a);
+        foreach (var acc in whtAccounts)
+        {
+            accountByCodeOrId[acc.Id.ToString()] = acc;
+        }
+
+        // 2. Query posted General Ledger lines hitting withholding accounts
+        var glLines = await _context.JournalLines
+            .AsNoTracking()
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry!.CompanyId == companyId
+                     && l.JournalEntry.Status == JournalEntryStatus.Posted
+                     && l.JournalEntry.Date >= startDate
+                     && l.JournalEntry.Date <= endDate
+                     && l.Credit > 0
+                     && accountCodes.Contains(l.AccountId))
+            .ToListAsync();
+
+        var journalEntryIds = glLines.Select(l => l.JournalEntryId).Distinct().ToList();
+
+        // 3. Match against PurchaseBills for invoice metadata
         var bills = await _context.PurchaseBills
+            .AsNoTracking()
+            .Include(b => b.Contact)
+            .Include(b => b.Lines)
+            .Where(b => b.CompanyId == companyId && b.JournalEntryId.HasValue && journalEntryIds.Contains(b.JournalEntryId.Value))
+            .ToDictionaryAsync(b => b.JournalEntryId!.Value);
+
+        var contactIds = glLines
+            .Where(l => !string.IsNullOrEmpty(l.JournalEntry?.ContactId) && Guid.TryParse(l.JournalEntry.ContactId, out _))
+            .Select(l => Guid.Parse(l.JournalEntry!.ContactId!))
+            .Distinct()
+            .ToList();
+
+        var contacts = await _context.Contacts
+            .AsNoTracking()
+            .Where(c => c.CompanyId == companyId && contactIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id);
+
+        foreach (var gl in glLines)
+        {
+            accountByCodeOrId.TryGetValue(gl.AccountId, out var acc);
+            var code = acc?.Code ?? gl.AccountId;
+            var accName = acc?.Name ?? "";
+
+            // If it's a payroll run on 2-1410, Pph21LinesAsync below provides itemized employee lines
+            var isPayrollRun = (gl.JournalEntry?.IdempotencyKey?.StartsWith("payroll:") == true)
+                            || (gl.JournalEntry?.ReferenceNumber?.StartsWith("PAY-") == true);
+            if (isPayrollRun && (code == "2-1410" || accName.Contains("21")))
+            {
+                continue;
+            }
+
+            bills.TryGetValue(gl.JournalEntryId, out var bill);
+            var contact = bill?.Contact ?? (Guid.TryParse(gl.JournalEntry?.ContactId, out var cid) && contacts.TryGetValue(cid, out var c) ? c : null);
+
+            var dpp = bill?.Subtotal > 0 ? bill.Subtotal : (bill != null ? bill.Lines.Sum(l => l.Quantity * l.UnitPrice - l.DiscountAmount) : 0m);
+            var rate = bill?.WithholdingTaxRate > 0 ? bill.WithholdingTaxRate : (dpp > 0 ? Math.Round(gl.Credit / dpp * 100m, 2) : 2m);
+            if (dpp <= 0m && rate > 0m)
+            {
+                dpp = Math.Round(gl.Credit / (rate / 100m), 2);
+            }
+
+            var dto = new WithholdingTaxLineDto
+            {
+                Id = bill?.Id ?? gl.Id,
+                BuktiPotongNumber = null,
+                CounterpartyName = contact?.Name ?? gl.JournalEntry?.Notes ?? "Vendor",
+                CounterpartyNpwp = contact?.TaxId,
+                CounterpartyNik = contact?.Nik,
+                ReferenceDocument = bill?.BillNumber ?? gl.JournalEntry?.ReferenceNumber ?? gl.JournalEntryId.ToString(),
+                TransactionDate = gl.JournalEntry?.Date ?? startDate,
+                GrossDppAmount = dpp,
+                EffectiveTaxRate = rate,
+                TaxWithheldAmount = gl.Credit,
+                HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
+            };
+
+            if (code == "2-1422" || accName.Contains("22"))
+            {
+                dto.TaxType = "PPh 22";
+                dto.KodeObjekPajak = "22-100-01";
+                pph22Lines.Add(dto);
+            }
+            else if (code == "2-1424" || accName.Contains("4(2)") || accName.Contains("42") || accName.Contains("Final"))
+            {
+                dto.TaxType = "PPh 4(2)";
+                dto.KodeObjekPajak = "28-403-02";
+                pph42Lines.Add(dto);
+            }
+            else if (code == "2-1410" || accName.Contains("21"))
+            {
+                dto.TaxType = "PPh 21";
+                dto.KodeObjekPajak = "21-100-01";
+                pph21Lines.Add(dto);
+            }
+            else
+            {
+                // Default: PPh 23
+                dto.TaxType = "PPh 23";
+                dto.KodeObjekPajak = "24-104-01";
+                pph23Lines.Add(dto);
+            }
+        }
+
+        // 3b. Also include any posted purchase bills for this period whose withholding was not yet captured via GL lines
+        var handledBillIds = bills.Values.Select(b => b.Id).ToHashSet();
+        var allPeriodBills = await _context.PurchaseBills
             .AsNoTracking()
             .Include(b => b.Contact)
             .Include(b => b.Lines)
@@ -239,80 +354,59 @@ public class TaxReportsService
                      && b.BillDate <= endDate)
             .ToListAsync();
 
-        foreach (var bill in bills)
+        foreach (var bill in allPeriodBills)
         {
+            if (handledBillIds.Contains(bill.Id)) continue;
+
             var contact = bill.Contact;
-            var withholdingType = contact?.WithholdingType?.ToUpperInvariant();
-            var rate = contact?.WithholdingRate ?? 0m;
+            var withholdingType = (!string.IsNullOrWhiteSpace(bill.WithholdingTaxType)
+                ? bill.WithholdingTaxType
+                : contact?.WithholdingType)?.ToUpperInvariant();
 
-            // Compute DPP
+            if (string.IsNullOrWhiteSpace(withholdingType)) continue;
+
             var dpp = bill.Subtotal > 0 ? bill.Subtotal : bill.Lines.Sum(l => l.Quantity * l.UnitPrice - l.DiscountAmount);
+            var rate = bill.WithholdingTaxRate > 0 ? bill.WithholdingTaxRate : (contact?.WithholdingRate ?? 2m);
+            var taxWithheld = bill.WithholdingTaxAmount > 0 ? bill.WithholdingTaxAmount : Math.Round(dpp * (rate / 100m), 2);
 
-            if (withholdingType == "PPH23" || withholdingType == "PPH 23")
+            if (taxWithheld <= 0) continue;
+
+            var dto = new WithholdingTaxLineDto
             {
-                var effectiveRate = rate > 0 ? rate : 2m; // Default 2% on Jasa/Sewa
-                var taxWithheld = Math.Round(dpp * (effectiveRate / 100m), 2);
-                pph23Lines.Add(new WithholdingTaxLineDto
-                {
-                    Id = bill.Id,
-                    TaxType = "PPh 23",
-                    KodeObjekPajak = "24-104-01", // Jasa Lainnya
-                    CounterpartyName = contact?.Name ?? "Vendor",
-                    CounterpartyNpwp = contact?.TaxId,
-                    CounterpartyNik = contact?.Nik,
-                    ReferenceDocument = bill.BillNumber,
-                    TransactionDate = bill.BillDate,
-                    GrossDppAmount = dpp,
-                    EffectiveTaxRate = effectiveRate,
-                    TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
-                });
+                Id = bill.Id,
+                BuktiPotongNumber = null,
+                CounterpartyName = contact?.Name ?? "Vendor",
+                CounterpartyNpwp = contact?.TaxId,
+                CounterpartyNik = contact?.Nik,
+                ReferenceDocument = bill.BillNumber,
+                TransactionDate = bill.BillDate,
+                GrossDppAmount = dpp,
+                EffectiveTaxRate = rate,
+                TaxWithheldAmount = taxWithheld,
+                HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
+            };
+
+            if (withholdingType.Contains("22"))
+            {
+                dto.TaxType = "PPh 22";
+                dto.KodeObjekPajak = "22-100-01";
+                pph22Lines.Add(dto);
             }
-            else if (withholdingType == "PPH4(2)" || withholdingType == "PPH42" || withholdingType == "PPH 4(2)")
+            else if (withholdingType.Contains("4(2)") || withholdingType.Contains("42") || withholdingType.Contains("FINAL"))
             {
-                var effectiveRate = rate > 0 ? rate : 10m; // Default 10% on Sewa Gedung
-                var taxWithheld = Math.Round(dpp * (effectiveRate / 100m), 2);
-                pph42Lines.Add(new WithholdingTaxLineDto
-                {
-                    Id = bill.Id,
-                    TaxType = "PPh 4(2)",
-                    KodeObjekPajak = "28-403-02", // Sewa Tanah dan/atau Bangunan
-                    CounterpartyName = contact?.Name ?? "Vendor",
-                    CounterpartyNpwp = contact?.TaxId,
-                    CounterpartyNik = contact?.Nik,
-                    ReferenceDocument = bill.BillNumber,
-                    TransactionDate = bill.BillDate,
-                    GrossDppAmount = dpp,
-                    EffectiveTaxRate = effectiveRate,
-                    TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
-                });
+                dto.TaxType = "PPh 4(2)";
+                dto.KodeObjekPajak = "28-403-02";
+                pph42Lines.Add(dto);
             }
-            else if (withholdingType == "PPH22" || withholdingType == "PPH 22")
+            else
             {
-                var effectiveRate = rate > 0 ? rate : 1.5m; // Default 1.5%
-                var taxWithheld = Math.Round(dpp * (effectiveRate / 100m), 2);
-                pph22Lines.Add(new WithholdingTaxLineDto
-                {
-                    Id = bill.Id,
-                    TaxType = "PPh 22",
-                    KodeObjekPajak = "22-100-01",
-                    CounterpartyName = contact?.Name ?? "Vendor",
-                    CounterpartyNpwp = contact?.TaxId,
-                    CounterpartyNik = contact?.Nik,
-                    ReferenceDocument = bill.BillNumber,
-                    TransactionDate = bill.BillDate,
-                    GrossDppAmount = dpp,
-                    EffectiveTaxRate = effectiveRate,
-                    TaxWithheldAmount = taxWithheld,
-                    HasWithholdingExemption = contact?.HasWithholdingExemption ?? false
-                });
+                dto.TaxType = "PPh 23";
+                dto.KodeObjekPajak = "24-104-01";
+                pph23Lines.Add(dto);
             }
         }
 
-        // PPh 21 comes from posted payroll runs and nothing else. It once
-        // emitted a line per employee contact on an invented salary, which
-        // put fabricated withholding into a report destined for e-Bupot.
+        // PPh 21 comes from posted payroll runs
         pph21Lines.AddRange(await _payroll.Pph21LinesAsync(companyId, year, month));
 
         return new WithholdingSummaryResponse
@@ -585,6 +679,157 @@ public class TaxReportsService
             TotalPpnMasukan = spt.TotalPpnMasukanDapatDikreditkan,
             NetSettlementAmount = Math.Abs(netDelta),
             SettlementAccountCode = settlementAccCode
+        };
+    }
+
+    // ── NSFP Range Management ──────────────────────────────────────────
+
+    public async Task<List<TaxInvoiceNumberRangeDto>> GetNsfpRangesAsync(Guid companyId, int? year = null)
+    {
+        var query = _context.TaxInvoiceNumberRanges
+            .AsNoTracking()
+            .Where(r => r.CompanyId == companyId);
+
+        if (year.HasValue)
+        {
+            query = query.Where(r => r.Year == year.Value);
+        }
+
+        var ranges = await query.OrderByDescending(r => r.Year).ThenBy(r => r.StartNumber).ToListAsync();
+
+        return ranges.Select(r =>
+        {
+            var startNorm = NsfpHelper.Normalize(r.StartNumber);
+            var endNorm = NsfpHelper.Normalize(r.EndNumber);
+            var curNorm = string.IsNullOrWhiteSpace(r.CurrentNumber) ? string.Empty : NsfpHelper.Normalize(r.CurrentNumber);
+
+            long startSeq = startNorm.Length >= 16 && long.TryParse(startNorm.Substring(8, 8), out var s) ? s : 0;
+            long endSeq = endNorm.Length >= 16 && long.TryParse(endNorm.Substring(8, 8), out var e) ? e : 0;
+            long curSeq = curNorm.Length >= 16 && long.TryParse(curNorm.Substring(8, 8), out var c) ? c : (startSeq > 0 ? startSeq - 1 : 0);
+
+            var total = Math.Max(0, endSeq - startSeq + 1);
+            var remaining = r.IsExhausted ? 0 : Math.Max(0, endSeq - curSeq);
+
+            return new TaxInvoiceNumberRangeDto
+            {
+                Id = r.Id,
+                StartNumber = NsfpHelper.Format(r.StartNumber),
+                EndNumber = NsfpHelper.Format(r.EndNumber),
+                CurrentNumber = string.IsNullOrWhiteSpace(r.CurrentNumber) ? string.Empty : NsfpHelper.Format(r.CurrentNumber),
+                Year = r.Year,
+                AllocatedDate = r.AllocatedDate,
+                IsExhausted = r.IsExhausted,
+                TotalNumbers = total,
+                RemainingNumbers = remaining,
+                CreatedAt = r.CreatedAt
+            };
+        }).ToList();
+    }
+
+    public async Task<TaxInvoiceNumberRangeDto> CreateNsfpRangeAsync(Guid companyId, CreateTaxInvoiceNumberRangeRequest request)
+    {
+        var startNorm = NsfpHelper.Normalize(request.StartNumber);
+        var endNorm = NsfpHelper.Normalize(request.EndNumber);
+
+        if (startNorm.Length != 16 || endNorm.Length != 16)
+        {
+            throw new ArgumentException("Start and End NSFP must each contain exactly 16 digits.");
+        }
+
+        var year = request.Year ?? (int.TryParse(startNorm.Substring(6, 2), out var y2) ? 2000 + y2 : DateTime.UtcNow.Year);
+        var allocatedDate = request.AllocatedDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var range = new TaxInvoiceNumberRange
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            StartNumber = startNorm,
+            EndNumber = endNorm,
+            CurrentNumber = string.Empty,
+            Year = year,
+            AllocatedDate = allocatedDate,
+            IsExhausted = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.TaxInvoiceNumberRanges.Add(range);
+        await _context.SaveChangesAsync();
+
+        var ranges = await GetNsfpRangesAsync(companyId, year);
+        return ranges.First(r => r.Id == range.Id);
+    }
+
+    public async Task<bool> DeleteNsfpRangeAsync(Guid companyId, Guid rangeId)
+    {
+        var range = await _context.TaxInvoiceNumberRanges
+            .FirstOrDefaultAsync(r => r.CompanyId == companyId && r.Id == rangeId);
+        if (range == null) return false;
+
+        _context.TaxInvoiceNumberRanges.Remove(range);
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    // ── Coretax XML / CSV Export ───────────────────────────────────────
+
+    public async Task<CoretaxExportResponse> GenerateCoretaxExportAsync(Guid companyId, int year, int month)
+    {
+        var spt = await GetSptPpn1111Async(companyId, year, month);
+        var company = await _context.Companies.AsNoTracking().FirstOrDefaultAsync(c => c.Id == companyId);
+
+        var sellerNpwp = (company?.TaxId ?? "0000000000000000").Replace(".", "").Replace("-", "");
+        var sellerName = company?.Name ?? "PKP Seller";
+
+        var xmlSb = new StringBuilder();
+        xmlSb.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+        xmlSb.AppendLine("<TaxInvoiceBulk xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">");
+        xmlSb.AppendLine($"  <Header TaxPeriod=\"{month:D2}\" TaxYear=\"{year}\" TotalRecords=\"{spt.FormA2Lines.Count}\" GeneratedAt=\"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}\"/>");
+        xmlSb.AppendLine($"  <Seller TIN=\"{sellerNpwp}\" Name=\"{System.Security.SecurityElement.Escape(sellerName)}\"/>");
+        xmlSb.AppendLine("  <Invoices>");
+
+        var csvSb = new StringBuilder();
+        csvSb.AppendLine("NOMOR_FAKTUR,TANGGAL_FAKTUR,MASA_PAJAK,TAHUN_PAJAK,NPWP_PENJUAL,NAMA_PENJUAL,NPWP_PEMBELI,NIK_PEMBELI,NAMA_PEMBELI,DPP,PPN,PPNBM,REFERENSI");
+
+        int missingNsfp = 0;
+        decimal totalDpp = 0;
+        decimal totalVat = 0;
+
+        foreach (var inv in spt.FormA2Lines)
+        {
+            totalDpp += inv.DppAmount;
+            totalVat += inv.PpnAmount;
+
+            var nsfpClean = NsfpHelper.Normalize(inv.FakturPajakNumber);
+            if (string.IsNullOrEmpty(nsfpClean)) missingNsfp++;
+
+            var buyerNpwp = (inv.CounterpartyNpwp ?? "0000000000000000").Replace(".", "").Replace("-", "");
+            var buyerNik = (inv.CounterpartyNik ?? "").Replace(".", "").Replace("-", "");
+            var buyerName = inv.CounterpartyName.Replace(",", " ");
+
+            xmlSb.AppendLine("    <Invoice>");
+            xmlSb.AppendLine($"      <InvoiceNumber>{System.Security.SecurityElement.Escape(nsfpClean)}</InvoiceNumber>");
+            xmlSb.AppendLine($"      <InvoiceDate>{inv.DocumentDate:yyyy-MM-dd}</InvoiceDate>");
+            xmlSb.AppendLine($"      <Buyer TIN=\"{buyerNpwp}\" NIK=\"{buyerNik}\" Name=\"{System.Security.SecurityElement.Escape(buyerName)}\"/>");
+            xmlSb.AppendLine($"      <TaxDetails DPP=\"{inv.DppAmount:F0}\" VAT=\"{inv.PpnAmount:F0}\" LuxuryTax=\"{inv.PPnBMAmount:F0}\"/>");
+            xmlSb.AppendLine($"      <ReferenceNumber>{System.Security.SecurityElement.Escape(inv.DocumentNumber)}</ReferenceNumber>");
+            xmlSb.AppendLine("    </Invoice>");
+
+            csvSb.AppendLine($"{nsfpClean},{inv.DocumentDate:dd/MM/yyyy},{month},{year},{sellerNpwp},{sellerName},{buyerNpwp},{buyerNik},{buyerName},{inv.DppAmount:F0},{inv.PpnAmount:F0},{inv.PPnBMAmount:F0},{inv.DocumentNumber}");
+        }
+
+        xmlSb.AppendLine("  </Invoices>");
+        xmlSb.AppendLine("</TaxInvoiceBulk>");
+
+        return new CoretaxExportResponse
+        {
+            Period = $"{year}-{month:D2}",
+            FileName = $"Coretax_FakturPajak_{year}{month:D2}",
+            XmlContent = xmlSb.ToString(),
+            CsvContent = csvSb.ToString(),
+            InvoiceCount = spt.FormA2Lines.Count,
+            TotalDpp = totalDpp,
+            TotalVat = totalVat,
+            MissingNsfpCount = missingNsfp
         };
     }
 }

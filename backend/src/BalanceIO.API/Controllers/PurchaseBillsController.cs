@@ -185,6 +185,9 @@ public class PurchaseBillsController : ControllerBase
         existing.Notes = bill.Notes;
         existing.ReferenceNumber = bill.ReferenceNumber;
         existing.TemplateName = bill.TemplateName;
+        existing.WithholdingTaxType = bill.WithholdingTaxType;
+        existing.WithholdingTaxRate = bill.WithholdingTaxRate;
+        existing.WithholdingTaxAmount = bill.WithholdingTaxAmount;
         existing.UpdatedAt = DateTime.UtcNow;
 
         // Replace lines
@@ -302,7 +305,7 @@ public class PurchaseBillsController : ControllerBase
         bill.ApprovedBy = currentEmail;
         bill.ApprovedAt = DateTime.UtcNow;
         bill.PostedAt = DateTime.UtcNow;
-        bill.AmountDue = bill.Total;
+        bill.AmountDue = Math.Max(0, bill.Total - bill.WithholdingTaxAmount);
 
         // 2. Track Inventory additions and movements.
 
@@ -530,7 +533,13 @@ public class PurchaseBillsController : ControllerBase
         bill.DiscountAmount = billDiscount;
         bill.TaxAmount = totalTax;
         bill.Total = subtotal - billDiscount + totalTax;
-        bill.AmountDue = bill.Total - bill.AmountPaid;
+
+        if (bill.WithholdingTaxRate > 0 && bill.WithholdingTaxAmount == 0)
+        {
+            bill.WithholdingTaxAmount = Math.Round((bill.Subtotal - bill.DiscountAmount) * (bill.WithholdingTaxRate / 100m), 2, MidpointRounding.ToEven);
+        }
+
+        bill.AmountDue = Math.Max(0, (bill.Total - bill.WithholdingTaxAmount) - bill.AmountPaid);
     }
 
     private async Task<string> GenerateBillNumber()
@@ -603,12 +612,16 @@ public class PurchaseBillsController : ControllerBase
             Lines = new List<JournalLine>()
         };
 
-        var apAmount = Math.Round(bill.Total * rate, 2, MidpointRounding.ToEven);
+        var netPayable = bill.Total - bill.WithholdingTaxAmount;
+        var apAmount = Math.Round(netPayable * rate, 2, MidpointRounding.ToEven);
         var discountAmount = bill.DiscountAmount > 0 
             ? Math.Round(bill.DiscountAmount * rate, 2, MidpointRounding.ToEven) 
             : 0m;
+        var whtAmount = bill.WithholdingTaxAmount > 0
+            ? Math.Round(bill.WithholdingTaxAmount * rate, 2, MidpointRounding.ToEven)
+            : 0m;
 
-        // Credit: Trade Payables (full bill total in base currency)
+        // Credit: Trade Payables (net payable to vendor in base currency)
         journalEntry.Lines.Add(new JournalLine
         {
             Id = Guid.NewGuid(),
@@ -618,6 +631,33 @@ public class PurchaseBillsController : ControllerBase
             Debit = 0,
             Credit = apAmount
         });
+
+        // Credit: Withholding Tax Payable (PPh 21/22/23/4(2))
+        if (whtAmount > 0)
+        {
+            var whtType = (bill.WithholdingTaxType ?? "").Trim().ToUpperInvariant();
+            string defaultWhtCode = whtType switch
+            {
+                var s when s.Contains("21") => "2-1410",
+                var s when s.Contains("22") => "2-1422",
+                var s when s.Contains("4(2)") || s.Contains("42") || s.Contains("FINAL") => "2-1424",
+                _ => "2-1423" // Default PPh 23
+            };
+
+            var whtAccount = await _context.Accounts
+                .FirstOrDefaultAsync(a => a.Code == defaultWhtCode);
+            var whtAccountCode = whtAccount?.Code ?? defaultWhtCode;
+
+            journalEntry.Lines.Add(new JournalLine
+            {
+                Id = Guid.NewGuid(),
+                JournalEntryId = journalEntry.Id,
+                AccountId = whtAccountCode,
+                Description = $"{bill.WithholdingTaxType ?? "Withholding Tax"} - Bill {bill.BillNumber}",
+                Debit = 0,
+                Credit = whtAmount
+            });
+        }
 
         // Credit: Purchase Discount if bill carries a discount
         if (discountAmount > 0)
@@ -747,7 +787,7 @@ public class PurchaseBillsController : ControllerBase
         }
 
         // Decimal balance check across FX and rounding:
-        var totalBillCredits = apAmount + discountAmount;
+        var totalBillCredits = apAmount + discountAmount + whtAmount;
         var totalBillDebits = journalEntry.Lines.Where(l => l.Debit > 0).Sum(l => l.Debit);
         var balanceDiff = totalBillCredits - totalBillDebits;
         if (balanceDiff != 0m && debitLines.Count > 0)

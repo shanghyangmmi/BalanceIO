@@ -51,6 +51,9 @@ public static class ReferenceDataSeeder
         (VarianceCode, "Inventory Variance", "Expense", "CostOfSales", 2, "Debit", "Selisih Persediaan", "5-0000"),
         ("2-1150", "Goods Received Not Invoiced", "Liability", "Liability", 3, "Credit", "Barang Diterima Belum Ditagih", "2-1000"),
         ("2-1410", "PPh 21 Payable", "Liability", "Liability", 3, "Credit", "Utang PPh 21", "2-1000"),
+        ("2-1422", "PPh 22 Payable", "Liability", "Liability", 3, "Credit", "Utang PPh 22", "2-1000"),
+        ("2-1423", "PPh 23 Payable", "Liability", "Liability", 3, "Credit", "Utang PPh 23", "2-1000"),
+        ("2-1424", "PPh 4(2) Final Payable", "Liability", "Liability", 3, "Credit", "Utang PPh 4(2)", "2-1000"),
         ("2-1510", "BPJS Payable", "Liability", "Liability", 3, "Credit", "Utang BPJS", "2-1000"),
         ("6-1110", "Employee Benefits (BPJS)", "Expense", "Expense", 3, "Debit", "Beban BPJS", "6-1000"),
     };

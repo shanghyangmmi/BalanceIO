@@ -241,3 +241,64 @@ export function usePayrollRunAction(id: string) {
     }),
   }
 }
+
+export interface YearlyWht21Slip {
+  slipNumber: string
+  taxYear: number
+  formCode: string // "1721-A1 / BPA1"
+  formTitle: string // "Yearly WHT 21 Slip (1721-A1 / BPA1)"
+  formTitleId: string // "Bukti Pemotongan PPh Pasal 21 Formulir 1721-A1 / BPA1"
+  periodStartMonth: number
+  periodEndMonth: number
+  periodLabel: string
+  companyId: string
+  withholderName: string
+  withholderNpwp?: string
+  withholderNitku?: string
+  contactId: string
+  employeeName: string
+  employeeNik?: string
+  employeeNpwp?: string
+  employeeAddress?: string
+  ptkpStatus: string
+  terCategory: string
+  joinDate?: string
+  terminationDate?: string
+  baseSalary: number
+  fixedAllowance: number
+  otherEarnings: number
+  employerBpjsInsurance: number
+  bonusThrTantiem: number
+  totalGrossIncome: number
+  biayaJabatan: number
+  employeePensionContributions: number
+  totalDeductions: number
+  netIncome: number
+  annualizedNetIncome: number
+  ptkpAmount: number
+  taxableIncomePkp: number
+  annualTaxPasal17: number
+  taxWithheldPriorMonths: number
+  finalMonthTaxDueOrRefund: number
+  totalAnnualTaxWithheld: number
+}
+
+export function useYearlyWht21Slip(employeeId: string | null, year: number) {
+  const scope = useScope()
+  return useQuery({
+    queryKey: [...KEY, scope.id, "yearly-wht21-slip", employeeId, year],
+    queryFn: () => apiClient.get<YearlyWht21Slip>(`/Payroll/employees/${employeeId}/yearly-wht21-slip?year=${year}`),
+    enabled: scope.ready && !!employeeId && !!year,
+    retry: retryUnlessClientError,
+  })
+}
+
+export function useYearlyWht21Slips(year: number) {
+  const scope = useScope()
+  return useQuery({
+    queryKey: [...KEY, scope.id, "yearly-wht21-slips", year],
+    queryFn: () => apiClient.get<YearlyWht21Slip[]>(`/Payroll/yearly-wht21-slips?year=${year}`),
+    enabled: scope.ready && !!year,
+    retry: retryUnlessClientError,
+  })
+}

@@ -362,9 +362,9 @@ graph TD
 
 ---
 
-### Phase 5: Tax Compliance & Payroll Hardening
+### Phase 5: Tax Compliance & Payroll Hardening [COMPLETED]
 
-#### 5.1 Ledger-Sourced Withholding Taxes (PPh 21/22/23/4(2))
+#### 5.1 Ledger-Sourced Withholding Taxes (PPh 21/22/23/4(2)) [COMPLETED]
 * **Goal:** Eliminate report-time estimation from bills and post withholding directly into GL liability accounts.
 * **Account Chart Additions:**
   * `2-1410 PPh 21 Payable` (Utang PPh 21)
@@ -384,7 +384,7 @@ graph TD
   * Withholding summary reports query GL accounts `2-1410` through `2-1424` directly, guaranteeing 100% reconciliation between subledger and financial statements.
 * **Size:** Medium.
 
-#### 5.2 Real NSFP Range Management & Coretax Export
+#### 5.2 Real NSFP Range Management & Coretax Export [COMPLETED]
 * **Goal:** Prevent fabricated NSFP numbers, manage DJP allocation ranges, and prepare for Coretax XML/CSV format.
 * **Data Model:**
   * Table `TaxInvoiceNumberRanges`:
@@ -392,14 +392,21 @@ graph TD
 * **Allocation Rule:**
   * When posting Sales Invoice, system claims next sequential number within valid range.
   * If fewer than 10 numbers remain, trigger low-number notification to accountant.
-  * If no range exists, invoice is saved with `FakturPajakNumber = null` and marked `PENDING_NSFP`. Never invent numbers.
+  * If no range exists or range is exhausted, invoice is saved with `FakturPajakNumber = null` and marked `PENDING_NSFP`. Never invent numbers.
+* **Coretax Export:**
+  * `GET /api/TaxReports/coretax-export?year=&month=`: Exports Coretax XML and CSV files adhering to DJP Coretax schema.
 * **Size:** Medium.
 
-#### 5.3 Payroll Hardening: Leavers Annualisation, THR & 1721-A1
-* **Goal:** Compliant PPh 21 handling under PP 58/2023 and PER-16/PJ/2016 for mid-year terminations and annual bonus/THR.
+#### 5.3 Payroll Hardening: Leavers Annualisation, THR & Yearly WHT 21 Slip (1721-A1 / BPA1) [COMPLETED]
+* **Goal:** Compliant PPh 21 handling under PP 58/2023, PMK 168/2023, and PER-16/PJ/2016 for mid-year terminations and annual bonus/THR.
 * **Features:**
   * Leaver calculation: In the final month of employment, calculate annualised gross, compute Pasal 17 tax, subtract previous TER withholdings, and refund excess tax or withhold balance.
-  * Form 1721-A1 Generator: Generates annual Bukti Potong 1721-A1 PDF and DJP CSV import format.
+  * Bonus/THR TER breakdown: `PayrollCalculator.CalculateBonusThr` computes separate tax attributable to bonus/THR under PP 58/2023.
+  * Flexible Form Naming: Designated as `Yearly WHT 21 Slip (1721-A1 / BPA1)` / `Bukti Pemotongan PPh 21 Tahunan (1721-A1 / BPA1)` supporting both legacy 1721-A1 and DJP Coretax BPA1 naming.
+  * Endpoints:
+    * `GET /api/Payroll/employees/{id}/yearly-wht21-slip?year=`: Individual employee yearly slip.
+    * `GET /api/Payroll/yearly-wht21-slips?year=`: All active employees yearly slips for company.
+    * `GET /api/Payroll/yearly-wht21-slips/export-csv?year=`: DJP import CSV format.
 * **Size:** Large.
 
 ---

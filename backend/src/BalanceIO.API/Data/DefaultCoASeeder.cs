@@ -100,6 +100,9 @@ public static class DefaultCoASeeder
         A("2-1300", "VAT Out", "Liability", "Liability", 3, false, "Credit", "2-1000", "PPN Keluaran");
         A("2-1400", "Income Tax Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "PPh Terutang");
         A("2-1410", "PPh 21 Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang PPh 21");
+        A("2-1422", "PPh 22 Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang PPh 22");
+        A("2-1423", "PPh 23 Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang PPh 23");
+        A("2-1424", "PPh 4(2) Final Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang PPh 4(2)");
         A("2-1500", "Employee Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang Gaji");
         A("2-1510", "BPJS Payable", "Liability", "Liability", 3, false, "Credit", "2-1000", "Utang BPJS");
         A("2-1600", "Unearned Revenue", "Liability", "Liability", 3, false, "Credit", "2-1000", "Pendapatan Diterima di Muka");

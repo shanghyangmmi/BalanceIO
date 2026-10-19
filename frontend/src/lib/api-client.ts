@@ -819,6 +819,24 @@ export const apiClient = {
         return apiClient.post<any>("/taxreports/settle-ppn", data);
     },
 
+    getNsfpRanges: async (year?: number) => {
+        const query = new URLSearchParams();
+        if (year) query.append("year", year.toString());
+        return apiClient.get<any[]>(`/taxreports/nsfp-ranges?${query.toString()}`);
+    },
+
+    createNsfpRange: async (data: { startNumber: string; endNumber: string; year?: number; allocatedDate?: string }) => {
+        return apiClient.post<any>("/taxreports/nsfp-ranges", data);
+    },
+
+    deleteNsfpRange: async (id: string) => {
+        return apiClient.delete<any>(`/taxreports/nsfp-ranges/${id}`);
+    },
+
+    getCoretaxExport: async (year: number, month: number) => {
+        return apiClient.get<any>(`/taxreports/coretax-export?year=${year}&month=${month}`);
+    },
+
     // --- BANK RECONCILIATION ---
     getBankReconciliationAccounts: async () => {
         return apiClient.get<any[]>("/bankreconciliation/accounts");

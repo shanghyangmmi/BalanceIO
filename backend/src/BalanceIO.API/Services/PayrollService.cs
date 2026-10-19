@@ -545,7 +545,7 @@ public class PayrollService
             .AsNoTracking()
             .Where(e => e.CompanyId == companyId && e.IsActive
                      && e.Contact!.IsEmployee && e.Contact.IsActive)
-            .Select(e => new { Comp = e, e.Contact!.Name, e.Contact.Nik, e.Contact.PtkpStatus })
+            .Select(e => new { Comp = e, e.Contact!.Name, e.Contact.Nik, e.Contact.PtkpStatus, e.Contact.TerminationDate })
             .ToListAsync();
 
         // Posted earlier months of the same year, per employee.
@@ -573,8 +573,12 @@ public class PayrollService
                 e.Comp.BaseSalary, e.Comp.FixedAllowance, other, e.PtkpStatus, e.Comp.JkkRate,
                 e.Comp.BpjsKetenagakerjaan, e.Comp.BpjsPension, e.Comp.BpjsKesehatan);
 
+            var isTermination = e.TerminationDate.HasValue
+                && e.TerminationDate.Value.Year == run.Year
+                && e.TerminationDate.Value.Month == run.Month;
+
             var r = PayrollCalculator.Calculate(input, run.Month,
-                ytd.TryGetValue(e.Comp.ContactId, out var y) ? y : PayrollYearToDate.None, _rates);
+                ytd.TryGetValue(e.Comp.ContactId, out var y) ? y : PayrollYearToDate.None, _rates, isTermination);
 
             lines.Add(new PayrollLine
             {
@@ -773,6 +777,142 @@ public class PayrollService
 
     public static string PeriodLabel(int year, int month) =>
         new DateTime(year, month, 1).ToString("MMMM yyyy", Invariant);
+
+    // ── Yearly WHT 21 Slip (1721-A1 / BPA1) ───────────────────────────
+
+    public async Task<YearlyWht21SlipDto?> GetYearlyWht21SlipAsync(Guid companyId, Guid employeeContactId, int year)
+    {
+        var employee = await _context.Contacts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.CompanyId == companyId && c.Id == employeeContactId && c.IsEmployee);
+        if (employee == null) return null;
+
+        var company = await _context.Companies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == companyId);
+
+        var lines = await _context.PayrollLines
+            .AsNoTracking()
+            .Include(l => l.PayrollRun)
+            .Where(l => l.PayrollRun!.CompanyId == companyId
+                     && l.ContactId == employeeContactId
+                     && l.PayrollRun.Year == year
+                     && l.PayrollRun.Status == PayrollRunStatus.Posted)
+            .OrderBy(l => l.PayrollRun!.Month)
+            .ToListAsync();
+
+        if (lines.Count == 0) return null;
+
+        var startMonth = lines.Min(l => l.PayrollRun!.Month);
+        var endMonth = lines.Max(l => l.PayrollRun!.Month);
+        var activeMonths = lines.Count;
+
+        var baseSalary = lines.Sum(l => l.BaseSalary);
+        var fixedAllowance = lines.Sum(l => l.FixedAllowance);
+        var otherEarnings = lines.Sum(l => l.OtherEarnings);
+        var employerBpjs = lines.Sum(l => l.EmployerJkk + l.EmployerJkm + l.EmployerKesehatan);
+        var totalGross = lines.Sum(l => l.TaxableGross);
+
+        var biayaJabatan = Math.Min(Math.Round(totalGross * 0.05m, 0, MidpointRounding.ToEven), 500_000m * activeMonths);
+        var employeePension = lines.Sum(l => l.EmployeeJht + l.EmployeeJp);
+        var totalDeductions = biayaJabatan + employeePension;
+        var netIncome = totalGross - totalDeductions;
+
+        var ptkpStatus = employee.PtkpStatus ?? lines.Last().PtkpStatus ?? "TK/0";
+        var (_, category, _) = PayrollCalculator.ReadPtkp(ptkpStatus);
+        var ptkpAmount = PayrollCalculator.PtkpAmount(ptkpStatus);
+        var pkp = Math.Max(0m, Math.Floor((netIncome - ptkpAmount) / 1000m) * 1000m);
+        var annualTax = PayrollCalculator.Pasal17(pkp);
+        var totalWithheld = lines.Sum(l => l.Pph21);
+        var priorMonthsWithheld = lines.Count > 1 ? lines.Take(lines.Count - 1).Sum(l => l.Pph21) : 0m;
+        var finalMonthTax = lines.Last().Pph21;
+
+        var cleanCode = string.IsNullOrWhiteSpace(employee.Nik) ? (employee.Code ?? "0000001") : employee.Nik;
+        var slipSeq = cleanCode.Length >= 7 ? cleanCode[^7..] : cleanCode.PadLeft(7, '0');
+        var slipNumber = $"1.1-{endMonth:D2}.{year % 100:D2}-{slipSeq}";
+
+        return new YearlyWht21SlipDto
+        {
+            FormCode = "1721-A1 / BPA1",
+            FormTitle = "Yearly WHT 21 Slip (1721-A1 / BPA1)",
+            FormTitleId = "Bukti Pemotongan PPh Pasal 21 Formulir 1721-A1 / BPA1",
+            SlipNumber = slipNumber,
+            TaxYear = year,
+            PeriodStartMonth = startMonth,
+            PeriodEndMonth = endMonth,
+            CompanyId = companyId,
+            WithholderName = company?.Name ?? "Company",
+            WithholderNpwp = company?.TaxId,
+            ContactId = employee.Id,
+            EmployeeName = employee.Name,
+            EmployeeNik = employee.Nik,
+            EmployeeNpwp = employee.TaxId,
+            EmployeeAddress = employee.Address,
+            PtkpStatus = ptkpStatus,
+            TerCategory = category,
+            JoinDate = employee.JoinDate,
+            TerminationDate = employee.TerminationDate,
+            BaseSalary = baseSalary,
+            FixedAllowance = fixedAllowance,
+            OtherEarnings = otherEarnings,
+            EmployerBpjsInsurance = employerBpjs,
+            BonusThrTantiem = 0m,
+            TotalGrossIncome = totalGross,
+            BiayaJabatan = biayaJabatan,
+            EmployeePensionContributions = employeePension,
+            TotalDeductions = totalDeductions,
+            NetIncome = netIncome,
+            AnnualizedNetIncome = netIncome,
+            PtkpAmount = ptkpAmount,
+            TaxableIncomePkp = pkp,
+            AnnualTaxPasal17 = annualTax,
+            TaxWithheldPriorMonths = priorMonthsWithheld,
+            FinalMonthTaxDueOrRefund = finalMonthTax,
+            TotalAnnualTaxWithheld = totalWithheld
+        };
+    }
+
+    public async Task<List<YearlyWht21SlipDto>> GetYearlyWht21SlipsAsync(Guid companyId, int year)
+    {
+        var employeeIds = await _context.PayrollLines
+            .AsNoTracking()
+            .Where(l => l.PayrollRun!.CompanyId == companyId
+                     && l.PayrollRun.Year == year
+                     && l.PayrollRun.Status == PayrollRunStatus.Posted)
+            .Select(l => l.ContactId)
+            .Distinct()
+            .ToListAsync();
+
+        var slips = new List<YearlyWht21SlipDto>();
+        foreach (var empId in employeeIds)
+        {
+            var slip = await GetYearlyWht21SlipAsync(companyId, empId, year);
+            if (slip != null) slips.Add(slip);
+        }
+
+        return slips.OrderBy(s => s.EmployeeName).ToList();
+    }
+
+    public async Task<(string FileName, string CsvContent)> ExportYearlyWht21SlipsCsvAsync(Guid companyId, int year)
+    {
+        var slips = await GetYearlyWht21SlipsAsync(companyId, year);
+        var sb = new System.Text.StringBuilder();
+
+        sb.AppendLine("NOMOR_BUKTI_POTONG,MASA_AWAL,MASA_AKHIR,TAHUN_PAJAK,NPWP_PEMOTONG,NAMA_PEMOTONG,NIK_PEGAWAI,NPWP_PEGAWAI,NAMA_PEGAWAI,STATUS_PTKP,PENGHASILAN_BRUTO,BIAYA_JABATAN,IURAN_PENSIUN,PENGHASILAN_NETO,PTKP,PKP,PPH_PASAL_17,PPH_DIPOTONG");
+
+        foreach (var s in slips)
+        {
+            var withholderNpwp = (s.WithholderNpwp ?? "").Replace(".", "").Replace("-", "");
+            var empNik = (s.EmployeeNik ?? "").Replace(".", "").Replace("-", "");
+            var empNpwp = (s.EmployeeNpwp ?? "").Replace(".", "").Replace("-", "");
+            var empName = s.EmployeeName.Replace(",", " ");
+            var withholderName = s.WithholderName.Replace(",", " ");
+
+            sb.AppendLine($"{s.SlipNumber},{s.PeriodStartMonth:D2},{s.PeriodEndMonth:D2},{s.TaxYear},{withholderNpwp},{withholderName},{empNik},{empNpwp},{empName},{s.PtkpStatus},{s.TotalGrossIncome:F0},{s.BiayaJabatan:F0},{s.EmployeePensionContributions:F0},{s.NetIncome:F0},{s.PtkpAmount:F0},{s.TaxableIncomePkp:F0},{s.AnnualTaxPasal17:F0},{s.TotalAnnualTaxWithheld:F0}");
+        }
+
+        return ($"Yearly_WHT21_Slip_1721A1_BPA1_{year}.csv", sb.ToString());
+    }
 
     private static PayrollRuleException NotFound() =>
         new("RUN_NOT_FOUND", "Payroll run not found.", StatusCodes.Status404NotFound);

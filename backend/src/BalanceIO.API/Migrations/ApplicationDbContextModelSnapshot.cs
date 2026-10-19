@@ -695,6 +695,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<bool>("IsVendor")
                         .HasColumnType("boolean");
 
+                    b.Property<DateOnly?>("JoinDate")
+                        .HasColumnType("date");
+
                     b.Property<string>("Mobile")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
@@ -736,6 +739,9 @@ namespace BalanceIO.API.Migrations
                     b.Property<string>("TaxName")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly?>("TerminationDate")
+                        .HasColumnType("date");
 
                     b.Property<int>("Type")
                         .HasColumnType("integer");
@@ -3309,6 +3315,16 @@ namespace BalanceIO.API.Migrations
                     b.Property<Guid?>("WarehouseId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("WithholdingTaxAmount")
+                        .HasColumnType("decimal(19,4)");
+
+                    b.Property<decimal>("WithholdingTaxRate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("WithholdingTaxType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ContactId");
@@ -3829,6 +3845,10 @@ namespace BalanceIO.API.Migrations
                     b.Property<decimal>("ExchangeRate")
                         .HasColumnType("decimal(19,6)");
 
+                    b.Property<string>("FakturPajakNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
 
@@ -3843,6 +3863,10 @@ namespace BalanceIO.API.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<string>("NsfpStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTime?>("PostedAt")
                         .HasColumnType("timestamp with time zone");
@@ -4610,6 +4634,52 @@ namespace BalanceIO.API.Migrations
                     b.HasKey("Key");
 
                     b.ToTable("SystemSettings");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.TaxInvoiceNumberRange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("AllocatedDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrentNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EndNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("IsExhausted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("StartNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Year", "IsExhausted");
+
+                    b.ToTable("TaxInvoiceNumberRanges");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.TaxRate", b =>
@@ -6048,6 +6118,17 @@ namespace BalanceIO.API.Migrations
                     b.Navigation("SenderUser");
 
                     b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("BalanceIO.API.Models.TaxInvoiceNumberRange", b =>
+                {
+                    b.HasOne("BalanceIO.API.Models.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("BalanceIO.API.Models.TaxRate", b =>

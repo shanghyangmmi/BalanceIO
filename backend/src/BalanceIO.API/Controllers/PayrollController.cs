@@ -189,4 +189,44 @@ public class PayrollController : ControllerBase, IAsyncActionFilter
         await _payroll.DeleteDraftAsync(CompanyId, id);
         return NoContent();
     }
+
+    // ── Yearly WHT 21 Slip (1721-A1 / BPA1) ───────────────────────────
+
+    /// <summary>
+    /// Get individual employee's Yearly WHT 21 Slip (1721-A1 / BPA1)
+    /// </summary>
+    [HttpGet("employees/{id:guid}/yearly-wht21-slip")]
+    [RequiresPermission(Permissions.PayrollView)]
+    public async Task<ActionResult<YearlyWht21SlipDto>> GetEmployeeYearlyWht21Slip(Guid id, [FromQuery] int? year = null)
+    {
+        var targetYear = year ?? DateTime.UtcNow.Year;
+        var slip = await _payroll.GetYearlyWht21SlipAsync(CompanyId, id, targetYear);
+        if (slip is null) return NotFound("No posted payroll records found for this employee in the specified year.");
+        return Ok(slip);
+    }
+
+    /// <summary>
+    /// Get all employees' Yearly WHT 21 Slips (1721-A1 / BPA1) for a tax year
+    /// </summary>
+    [HttpGet("yearly-wht21-slips")]
+    [RequiresPermission(Permissions.PayrollView)]
+    public async Task<ActionResult<List<YearlyWht21SlipDto>>> GetYearlyWht21Slips([FromQuery] int? year = null)
+    {
+        var targetYear = year ?? DateTime.UtcNow.Year;
+        var slips = await _payroll.GetYearlyWht21SlipsAsync(CompanyId, targetYear);
+        return Ok(slips);
+    }
+
+    /// <summary>
+    /// Export DJP Coretax / e-Bupot 21 BPA1 (1721-A1) CSV import file
+    /// </summary>
+    [HttpGet("yearly-wht21-slips/export-csv")]
+    [RequiresPermission(Permissions.PayrollView)]
+    public async Task<IActionResult> ExportYearlyWht21SlipsCsv([FromQuery] int? year = null)
+    {
+        var targetYear = year ?? DateTime.UtcNow.Year;
+        var (fileName, csvContent) = await _payroll.ExportYearlyWht21SlipsCsvAsync(CompanyId, targetYear);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(csvContent);
+        return File(bytes, "text/csv", fileName);
+    }
 }

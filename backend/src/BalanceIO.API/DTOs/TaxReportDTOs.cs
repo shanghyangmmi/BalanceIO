@@ -172,3 +172,43 @@ public class PpnSettlementResult
     public decimal NetSettlementAmount { get; set; }
     public string SettlementAccountCode { get; set; } = string.Empty;
 }
+
+public class TaxInvoiceNumberRangeDto
+{
+    public Guid Id { get; set; }
+    public string StartNumber { get; set; } = string.Empty;
+    public string EndNumber { get; set; } = string.Empty;
+    public string CurrentNumber { get; set; } = string.Empty;
+    public int Year { get; set; }
+    public DateOnly AllocatedDate { get; set; }
+    public bool IsExhausted { get; set; }
+    public long TotalNumbers { get; set; }
+    public long RemainingNumbers { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class CreateTaxInvoiceNumberRangeRequest
+{
+    public string StartNumber { get; set; } = string.Empty;
+    public string EndNumber { get; set; } = string.Empty;
+    public int? Year { get; set; }
+    public DateOnly? AllocatedDate { get; set; }
+}
+
+public class UpdateTaxInvoiceNumberRangeRequest
+{
+    public string? CurrentNumber { get; set; }
+    public bool? IsExhausted { get; set; }
+}
+
+public class CoretaxExportResponse
+{
+    public string Period { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string XmlContent { get; set; } = string.Empty;
+    public string CsvContent { get; set; } = string.Empty;
+    public int InvoiceCount { get; set; }
+    public decimal TotalDpp { get; set; }
+    public decimal TotalVat { get; set; }
+    public int MissingNsfpCount { get; set; }
+}

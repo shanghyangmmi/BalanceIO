@@ -78,6 +78,12 @@ public class SalesInvoice
     [MaxLength(100)]
     public string? ReferenceNumber { get; set; } // Customer PO number
 
+    [MaxLength(50)]
+    public string? FakturPajakNumber { get; set; } // DJP NSFP e-Faktur
+
+    [MaxLength(20)]
+    public string? NsfpStatus { get; set; } // "ALLOCATED", "PENDING_NSFP"
+
     [MaxLength(500)]
     public string? Notes { get; set; }
 

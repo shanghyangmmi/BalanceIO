@@ -165,6 +165,8 @@ public class SalesInvoicesController : ControllerBase
         existing.DiscountPercent = invoice.DiscountPercent;
         existing.DiscountAmount = invoice.DiscountAmount;
         existing.ReferenceNumber = invoice.ReferenceNumber;
+        existing.FakturPajakNumber = invoice.FakturPajakNumber;
+        existing.NsfpStatus = invoice.NsfpStatus;
         existing.Notes = invoice.Notes;
         existing.Terms = invoice.Terms;
         existing.TemplateName = invoice.TemplateName;
@@ -211,8 +213,50 @@ public class SalesInvoicesController : ControllerBase
         // Check Period Lock
         await _periodLockService.ValidateTransactionDate(_context.CurrentCompanyId.Value, invoice.InvoiceDate);
 
-        if (invoice.Status != InvoiceStatus.Draft)
-            return BadRequest("Invoice is already posted");
+        // Allocate NSFP from valid range if invoice is taxable
+        if (invoice.TaxAmount > 0 || invoice.Lines.Any(l => l.TaxAmount > 0))
+        {
+            if (string.IsNullOrEmpty(invoice.FakturPajakNumber))
+            {
+                var invoiceYear = invoice.InvoiceDate.Year;
+                var range = await _context.TaxInvoiceNumberRanges
+                    .Where(r => r.CompanyId == invoice.CompanyId && r.Year == invoiceYear && !r.IsExhausted)
+                    .OrderBy(r => r.StartNumber)
+                    .FirstOrDefaultAsync();
+
+                if (range != null)
+                {
+                    var (allocated, isExhausted, remaining) = NsfpHelper.AllocateNext(range.CurrentNumber, range.StartNumber, range.EndNumber);
+                    range.CurrentNumber = allocated;
+                    range.IsExhausted = isExhausted;
+                    range.UpdatedAt = DateTime.UtcNow;
+
+                    invoice.FakturPajakNumber = NsfpHelper.Format(allocated);
+                    invoice.NsfpStatus = "ALLOCATED";
+
+                    if (remaining < 10)
+                    {
+                        await _notificationService.CreateAsync(
+                            title: "Low NSFP Range Alert",
+                            message: $"Tax invoice number range for {invoiceYear} is running low ({remaining} remaining). Please request additional NSFP from DJP Online.",
+                            type: "warning",
+                            relatedEntityId: range.Id.ToString(),
+                            relatedEntityType: "TaxInvoiceNumberRange"
+                        );
+                    }
+                }
+                else
+                {
+                    // No valid range configured: never fabricate tax numbers!
+                    invoice.FakturPajakNumber = null;
+                    invoice.NsfpStatus = "PENDING_NSFP";
+                }
+            }
+            else
+            {
+                invoice.NsfpStatus = "ALLOCATED";
+            }
+        }
 
         // Create Journal Entry
         var journalEntry = await CreateJournalEntry(invoice);

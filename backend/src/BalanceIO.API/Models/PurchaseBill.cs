@@ -63,6 +63,15 @@ public class PurchaseBill
     [Column(TypeName = "decimal(19,4)")]
     public decimal TaxAmount { get; set; }
 
+    [MaxLength(50)]
+    public string? WithholdingTaxType { get; set; }
+
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal WithholdingTaxRate { get; set; }
+
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal WithholdingTaxAmount { get; set; }
+
     [Column(TypeName = "decimal(19,4)")]
     public decimal Total { get; set; }
 

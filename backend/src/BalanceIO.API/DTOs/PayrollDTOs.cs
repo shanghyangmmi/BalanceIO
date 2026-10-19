@@ -163,3 +163,59 @@ public class PayrollOverviewDto
     public List<PayrollDeadlineDto> Deadlines { get; set; } = new();
     public List<PayrollRunSummaryDto> Runs { get; set; } = new();
 }
+
+/// <summary>
+/// Yearly Withholding Tax 21 Slip (Form 1721-A1 / BPA1).
+/// In DJP Coretax / PER-2/PJ/2024, Form 1721-A1 is designated as BPA1 (Bukti Pemotongan PPh Pasal 21 bagi Pegawai Tetap).
+/// </summary>
+public class YearlyWht21SlipDto
+{
+    public string FormCode { get; set; } = "1721-A1 / BPA1";
+    public string FormTitle { get; set; } = "Yearly WHT 21 Slip (1721-A1 / BPA1)";
+    public string FormTitleId { get; set; } = "Bukti Pemotongan PPh Pasal 21 Formulir 1721-A1 / BPA1";
+    public string SlipNumber { get; set; } = string.Empty; // e.g. "1.1-12.26-0000001"
+    public int TaxYear { get; set; }
+    public int PeriodStartMonth { get; set; } = 1;
+    public int PeriodEndMonth { get; set; } = 12;
+    public string PeriodLabel => $"{PeriodStartMonth:D2} - {PeriodEndMonth:D2}";
+
+    // Pemotong Pajak (Withholding Agent / Company)
+    public Guid CompanyId { get; set; }
+    public string WithholderName { get; set; } = string.Empty;
+    public string? WithholderNpwp { get; set; }
+    public string? WithholderNitku { get; set; }
+
+    // Penerima Penghasilan (Employee)
+    public Guid ContactId { get; set; }
+    public string EmployeeName { get; set; } = string.Empty;
+    public string? EmployeeNik { get; set; }
+    public string? EmployeeNpwp { get; set; }
+    public string? EmployeeAddress { get; set; }
+    public string PtkpStatus { get; set; } = "TK/0";
+    public string TerCategory { get; set; } = "A";
+    public DateOnly? JoinDate { get; set; }
+    public DateOnly? TerminationDate { get; set; }
+
+    // A. Penghasilan Bruto (Gross Income)
+    public decimal BaseSalary { get; set; } // Gaji Pokok
+    public decimal FixedAllowance { get; set; } // Tunjangan Tetap
+    public decimal OtherEarnings { get; set; } // Uang Lembur / Tunjangan Lainnya
+    public decimal EmployerBpjsInsurance { get; set; } // Premi JKK, JKM, Kesehatan ditanggung pemberi kerja
+    public decimal BonusThrTantiem { get; set; } // Tantiem, Bonus, Gratifikasi, THR
+    public decimal TotalGrossIncome { get; set; } // Jumlah Penghasilan Bruto (1..7)
+
+    // B. Pengurangan (Deductions)
+    public decimal BiayaJabatan { get; set; } // Biaya Jabatan (5% max 500k/month x active months)
+    public decimal EmployeePensionContributions { get; set; } // Iuran Pensiun / JHT / JP dibayar pegawai
+    public decimal TotalDeductions { get; set; } // Jumlah Pengurangan (8..10)
+
+    // C. Penghitungan PPh Pasal 21 (Tax Calculation)
+    public decimal NetIncome { get; set; } // Penghasilan Neto
+    public decimal AnnualizedNetIncome { get; set; } // Penghasilan Neto Disetahunkan
+    public decimal PtkpAmount { get; set; } // Nilai PTKP
+    public decimal TaxableIncomePkp { get; set; } // Penghasilan Kena Pajak (PKP)
+    public decimal AnnualTaxPasal17 { get; set; } // PPh Pasal 21 Terutang
+    public decimal TaxWithheldPriorMonths { get; set; } // PPh 21 Telah Dipotong Masa Sebelumnya
+    public decimal FinalMonthTaxDueOrRefund { get; set; } // PPh 21 Kurang / (Lebih) Dipotong Masa Terakhir
+    public decimal TotalAnnualTaxWithheld { get; set; } // Total PPh 21 Dipotong Sepanjang Tahun
+}

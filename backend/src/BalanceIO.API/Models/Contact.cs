@@ -104,6 +104,9 @@ public class Contact
     [MaxLength(100)]
     public string? BankAccountHolder { get; set; }
 
+    public DateOnly? JoinDate { get; set; }
+    public DateOnly? TerminationDate { get; set; }
+
     // Vendor / Withholding Profile Attributes (Unblocks PPh 23 / 4(2) Reconciliations)
     [MaxLength(50)]
     public string? WithholdingType { get; set; } // PPh 23, PPh 4(2), etc.
