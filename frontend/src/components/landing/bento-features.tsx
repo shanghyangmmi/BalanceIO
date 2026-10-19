@@ -140,12 +140,12 @@ const FEATURES: Feature[] = [
     {
         icon: Command,
         title: "⌘K everything",
-        body: "One keystroke to any page, report, or action. Your books at the speed of thought.",
+        body: "One keystroke to any page, report or action.",
         accent: "from-cyan-500/15",
     },
     {
         icon: ShieldCheck,
-        title: "Bank-grade security",
+        title: "Access you can audit",
         body: "Encrypted credentials, MFA, granular RBAC, and append-only audit logs on every mutation.",
         accent: "from-teal-500/15",
     },

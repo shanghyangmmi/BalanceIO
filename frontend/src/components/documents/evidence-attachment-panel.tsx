@@ -162,12 +162,12 @@ export function EvidenceAttachmentPanel({
                 return { label: "Faktur Vendor", variant: "secondary" as const, color: "text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200" };
             case "contract":
             case "kontrak":
-                return { label: "Kontrak / SPK", variant: "outline" as const, color: "text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border-purple-200" };
+                return { label: "Kontrak / SPK", variant: "outline" as const, color: "text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-950/40 border-zinc-200" };
             case "taxslip":
             case "buktipotong":
                 return { label: "Bukti Potong Pajak", variant: "outline" as const, color: "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200" };
             case "bankslip":
-                return { label: "Bukti Transfer Bank", variant: "outline" as const, color: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200" };
+                return { label: "Bukti Transfer Bank", variant: "outline" as const, color: "text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200" };
             default:
                 return { label: "Dokumen Pendukung", variant: "outline" as const, color: "text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800 border-zinc-200" };
         }
@@ -282,7 +282,7 @@ export function EvidenceAttachmentPanel({
                                         ) : att.fileExtension.includes("xls") || att.fileExtension.includes("csv") ? (
                                             <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
                                         ) : (
-                                            <ImageIcon className="h-4 w-4 text-blue-600" />
+                                            <ImageIcon className="h-4 w-4 text-cyan-600" />
                                         )}
                                     </div>
 

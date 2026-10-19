@@ -2,12 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { 
-    ChevronLeft, Play, CheckCircle2, AlertCircle, RefreshCw, 
-    Sparkles, ShieldCheck, FileSpreadsheet, TrendingUp, 
-    Scale, BookOpen, Layers, Check, Loader2, ArrowRight, 
-    Calendar, Building2, DollarSign, Receipt, Lock
-} from "lucide-react";
+import { ChevronLeft, Play, CheckCircle2, AlertCircle, RefreshCw, ShieldCheck, FileSpreadsheet, TrendingUp, Scale, BookOpen, Layers, Check, Loader2, ArrowRight, Calendar, Building2, DollarSign, Receipt, Lock } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/utils/formatter";
 import { Button } from "@/components/ui/button";
@@ -210,8 +205,8 @@ export default function E2EValidationPage() {
                     <Card className="border-border/60 shadow-none bg-card/60 backdrop-blur-sm">
                         <CardHeader className="pb-2">
                             <CardDescription className="text-xs font-mono uppercase tracking-wider">Keseimbangan Buku Besar</CardDescription>
-                            <CardTitle className="text-2xl font-bold font-money text-purple-700 dark:text-purple-400 flex items-center gap-2">
-                                Balanced <Sparkles className="h-4 w-4" />
+                            <CardTitle className="text-2xl font-bold font-money text-zinc-700 dark:text-zinc-400 flex items-center gap-2">
+                                Balanced
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -450,7 +445,7 @@ export default function E2EValidationPage() {
                                     </div>
                                     <div className="flex justify-between border-t pt-2 font-bold text-foreground">
                                         <span>Hutang PPh 23 Terutang ke DJP</span>
-                                        <span className="font-money text-blue-700 dark:text-blue-400">{formatCurrency(result.taxSummary.pph23Withheld)}</span>
+                                        <span className="font-money text-cyan-700 dark:text-cyan-400">{formatCurrency(result.taxSummary.pph23Withheld)}</span>
                                     </div>
                                 </CardContent>
                             </Card>

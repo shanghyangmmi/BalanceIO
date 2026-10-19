@@ -60,11 +60,11 @@ export default function InventoryValuationPage() {
             {data.totalValue.toLocaleString("id-ID", { style: "currency", currency: "IDR" })}
           </p>
         </div>
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+        <div className="p-4 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
+          <p className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">
             Total Items
           </p>
-          <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
+          <p className="text-xl font-bold text-cyan-700 dark:text-cyan-300">
             {data.totalItems}
           </p>
         </div>

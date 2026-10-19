@@ -74,8 +74,8 @@ export default function AdminDashboardPage() {
             title: "Total Users",
             value: stats?.overview.totalUsers || 0,
             icon: Users,
-            color: "text-blue-500",
-            bg: "bg-blue-500/10"
+            color: "text-cyan-500",
+            bg: "bg-cyan-500/10"
         },
         {
             title: "Total Companies",
@@ -88,8 +88,8 @@ export default function AdminDashboardPage() {
             title: "Active Subscriptions",
             value: stats?.overview.activeSubscriptions || 0,
             icon: CreditCard,
-            color: "text-purple-500",
-            bg: "bg-purple-500/10"
+            color: "text-zinc-500",
+            bg: "bg-zinc-500/10"
         },
         {
             title: "Monthly Revenue",
@@ -104,7 +104,7 @@ export default function AdminDashboardPage() {
     return (
         <div className="flex-1 space-y-6 pt-6">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight">Admin Dashboard</h2>
+                <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Admin Dashboard</h2>
                 <p className="text-muted-foreground">System-wide analytics and management</p>
             </div>
 
@@ -169,7 +169,7 @@ export default function AdminDashboardPage() {
                                             payment.status === "Success"
                                                 ? "bg-green-500"
                                                 : payment.status === "Pending"
-                                                    ? "bg-yellow-500"
+                                                    ? "bg-amber-500"
                                                     : "bg-gray-500"
                                         }
                                     >
@@ -186,7 +186,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Total Revenue */}
-            <Card className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border-emerald-200">
+            <Card className="bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border-emerald-200">
                 <CardContent className="flex items-center justify-between py-6">
                     <div>
                         <p className="text-sm text-muted-foreground">Total Revenue (All Time)</p>

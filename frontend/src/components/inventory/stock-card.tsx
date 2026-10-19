@@ -27,8 +27,8 @@ const columns: ColumnDef<StockMovement>[] = [
             const type = row.getValue("type") as string;
             let color = "bg-gray-500";
             if (type === 'IN') color = "bg-emerald-500";
-            if (type === 'OUT') color = "bg-blue-500";
-            if (type === 'ADJUSTMENT') color = "bg-orange-500";
+            if (type === 'OUT') color = "bg-cyan-500";
+            if (type === 'ADJUSTMENT') color = "bg-amber-500";
 
             return <Badge className={color}>{type}</Badge>
         }

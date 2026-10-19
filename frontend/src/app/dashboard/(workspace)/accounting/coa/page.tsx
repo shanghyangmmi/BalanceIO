@@ -3,17 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  PlusCircle,
-  Loader2,
-  ChevronRight,
-  ChevronDown,
-  Search,
-  FolderTree,
-  Sparkles,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { PlusCircle, Loader2, ChevronRight, ChevronDown, Search, FolderTree, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -293,7 +283,7 @@ export default function CoaPage() {
     try {
       setInitializing(true);
       await apiClient.post("/Accounts/initialize", {});
-      toast.success("Default Chart of Accounts created!");
+      toast.success("Standard chart of accounts loaded");
       await fetchAccounts();
     } catch (error: any) {
       toast.error(error?.message || "Failed to initialize CoA");
@@ -364,26 +354,21 @@ export default function CoaPage() {
   if (accounts.length === 0) {
     return (
       <div className="flex-1 space-y-4">
-        <h2 className="text-3xl font-bold tracking-tight text-gradient">
+        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
           Chart of Accounts
         </h2>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
-              <FolderTree className="h-8 w-8 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold">Start Your Chart of Accounts</h3>
-            <p className="text-muted-foreground text-center max-w-md">
-              Get started quickly with a ready-made chart of accounts for your business.
-              You can customize, add, or remove accounts anytime.
+            <FolderTree className="h-5 w-5 text-muted-foreground/70" strokeWidth={1.5} />
+            <h3 className="text-base font-semibold text-foreground">No accounts yet</h3>
+            <p className="max-w-md text-center text-[13px] leading-relaxed text-muted-foreground">
+              Load the standard Indonesian chart, coded 1 assets through 8 other expenses with bilingual
+              names, then rename, add or deactivate accounts to fit the business. Every module posts to
+              these codes.
             </p>
             {can(PERMISSIONS.FinanceCreate) && <Button onClick={handleInitialize} disabled={initializing} size="lg">
-              {initializing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="mr-2 h-4 w-4" />
-              )}
-              Get Started
+              {initializing && <Loader2 className="h-4 w-4 animate-spin" />}
+              Load the standard chart
             </Button>}
           </CardContent>
         </Card>
@@ -396,7 +381,7 @@ export default function CoaPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
             Chart of Accounts
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -488,7 +473,7 @@ export default function CoaPage() {
         const config = accountGroupLabels[group] || {
           label: group,
           labelId: "",
-          color: "#6b7280",
+          color: "var(--color-zinc-500)",
           bgColor: "bg-zinc-500/10",
         };
         const childMap = buildTree(groupAccounts);

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useFieldArray, useForm, useWatch } from "react-hook-form"
 import * as z from "zod"
-import { CalendarIcon, Plus, Trash2, Save, Loader2, Hash, FileText, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react"
+import { CalendarIcon, Plus, Trash2, Loader2, Hash, TrendingUp, AlertCircle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -20,7 +20,6 @@ import { retryUnlessClientError } from "@/lib/query-retry"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import {
     Form,
     FormControl,
@@ -102,7 +101,7 @@ const NumericInput = ({ value, onValueChange, className, disabled, ...props }: N
             onBlur={handleBlur}
             disabled={disabled}
             className={cn(
-                "font-mono text-right tabular-nums bg-transparent border-transparent focus:bg-blue-50/50 focus:border-blue-200 focus:ring-2 focus:ring-blue-100 transition-all",
+                "font-mono text-right tabular-nums bg-transparent border-transparent focus:bg-cyan-50/50 focus:border-cyan-200 focus:ring-2 focus:ring-cyan-100 transition-all",
                 className
             )}
         />
@@ -289,12 +288,6 @@ export function JournalForm({ initialData }: JournalFormProps) {
 
     return (
         <Form {...form}>
-            {/* --- PREMIUM BLUE ATMOSPHERE --- */}
-            <div className="fixed inset-0 -z-10 bg-slate-50" />
-            <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-blue-50/80 to-transparent -z-10" />
-            <div className="fixed top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-400/10 rounded-full blur-[100px] -z-10" />
-            <div className="fixed bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-400/5 rounded-full blur-[120px] -z-10" />
-
             <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-7xl mx-auto space-y-6 pb-20 relative px-4 sm:px-6">
 
                 {/* --- 1. HEADER SECTION --- */}
@@ -306,9 +299,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
                 >
                     {/* LEFT: Meta Data (Date, Contact, etc) */}
                     <motion.div variants={itemVariants} className="lg:col-span-8">
-                        <div className="rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] p-6 relative overflow-hidden">
-                            {/* Blue Accent Line */}
-                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-500 opacity-80" />
+                        <div className="rounded-xl border border-foreground/10 bg-card/60 p-6">
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 {/* Date */}
@@ -317,13 +308,13 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                     name="date"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Transaction Date</FormLabel>
+                                            <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Transaction Date</FormLabel>
                                             <Popover>
                                                 <PopoverTrigger asChild>
                                                     <FormControl>
-                                                        <Button variant="outline" className={cn("w-full h-11 text-left font-normal bg-slate-50/50 border-slate-200 hover:bg-blue-50 hover:border-blue-200 transition-all", !field.value && "text-muted-foreground")}>
+                                                        <Button variant="outline" className={cn("w-full h-11 text-left font-normal transition-colors", !field.value && "text-muted-foreground")}>
                                                             {field.value ? format(new Date(field.value), "PPP") : <span>Pick a date</span>}
-                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50 text-emerald-600" />
+                                                            <CalendarIcon className="ml-auto h-4 w-4 text-muted-foreground" />
                                                         </Button>
                                                     </FormControl>
                                                 </PopoverTrigger>
@@ -346,12 +337,12 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                     name="referenceNumber"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Reference No.</FormLabel>
+                                            <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Reference No.</FormLabel>
                                             <div className="relative">
                                                 <FormControl>
-                                                    <Input className="h-11 pl-9 bg-slate-50/50 border-slate-200 focus:border-blue-300 focus:ring-blue-100 transition-all" placeholder="Auto-generated" {...field} />
+                                                    <Input className="h-11 pl-9 font-mono" placeholder="Auto-generated" {...field} />
                                                 </FormControl>
-                                                <Hash className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                                                <Hash className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                                             </div>
                                         </FormItem>
                                     )}
@@ -363,10 +354,10 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                     name="contactId"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Payee / Entity</FormLabel>
+                                            <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Payee / Entity</FormLabel>
                                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                 <FormControl>
-                                                    <SelectTrigger className="h-11 bg-slate-50/50 border-slate-200 hover:border-blue-300 focus:ring-blue-100">
+                                                    <SelectTrigger className="h-11">
                                                         <SelectValue placeholder="Select Contact" />
                                                     </SelectTrigger>
                                                 </FormControl>
@@ -386,16 +377,16 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                     name="tags"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Project Tags</FormLabel>
+                                            <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Project Tags</FormLabel>
                                             <FormControl>
-                                                <Input className="h-11 bg-slate-50/50 border-slate-200 focus:border-blue-300 focus:ring-blue-100" placeholder="e.g. #Marketing, #Q1" {...field} />
+                                                <Input className="h-11" placeholder="e.g. #Marketing, #Q1" {...field} />
                                             </FormControl>
                                         </FormItem>
                                     )}
                                 />
                             </div>
 
-                            <div className="mt-4 border-t border-slate-100 pt-4">
+                            <div className="mt-4 border-t border-foreground/10 pt-4">
                                 <FormField
                                     control={form.control}
                                     name="isAdjustingEntry"
@@ -406,11 +397,11 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                                 type="checkbox"
                                                 checked={field.value}
                                                 onChange={(e) => field.onChange(e.target.checked)}
-                                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                                className="h-4 w-4 rounded border-foreground/30 accent-[var(--primary)] cursor-pointer"
                                             />
                                             <label
                                                 htmlFor="isAdjustingEntry"
-                                                className="text-xs font-semibold text-slate-600 cursor-pointer select-none"
+                                                className="text-xs font-medium text-muted-foreground cursor-pointer select-none"
                                             >
                                                 Auditor Adjusting Entry (AJE) - Flag this entry for audit adjustments
                                             </label>
@@ -423,27 +414,24 @@ export function JournalForm({ initialData }: JournalFormProps) {
 
                     {/* RIGHT: Currency Card (Glass Effect) */}
                     <motion.div variants={itemVariants} className="lg:col-span-4">
-                        <div className="h-full rounded-2xl border border-white/60 bg-gradient-to-br from-blue-50/80 to-white/60 backdrop-blur-xl p-6 flex flex-col justify-center shadow-sm relative overflow-hidden">
-                            {/* Decor */}
-                            <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl -mr-5 -mt-5" />
-
-                            <div className="space-y-4 relative z-10">
+                        <div className="h-full rounded-xl border border-foreground/10 bg-card/60 p-6 flex flex-col justify-center">
+                            <div className="space-y-4">
                                 <FormField
                                     control={form.control}
                                     name="currency"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] uppercase tracking-widest text-emerald-600/70 font-bold">Currency</FormLabel>
+                                            <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Currency</FormLabel>
                                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                 <FormControl>
-                                                    <SelectTrigger className="h-11 border-blue-100 bg-white/50 text-blue-900 font-medium">
+                                                    <SelectTrigger className="h-11 font-medium">
                                                         <SelectValue placeholder="Currency" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="IDR">🇮🇩 IDR (Rupiah)</SelectItem>
-                                                    <SelectItem value="USD">🇺🇸 USD (Dollar)</SelectItem>
-                                                    <SelectItem value="SGD">🇸🇬 SGD (Dollar)</SelectItem>
+                                                    <SelectItem value="IDR">IDR · Rupiah</SelectItem>
+                                                    <SelectItem value="USD">USD · US dollar</SelectItem>
+                                                    <SelectItem value="SGD">SGD · Singapore dollar</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </FormItem>
@@ -454,15 +442,15 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                     name="exchangeRate"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-[10px] uppercase tracking-widest text-emerald-600/70 font-bold">Exchange Rate</FormLabel>
+                                            <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Exchange Rate</FormLabel>
                                             <FormControl>
                                                 <div className="relative">
                                                     <NumericInput
                                                         value={field.value}
                                                         onValueChange={field.onChange}
-                                                        className="h-11 pl-9 border-blue-100 bg-white/50 text-left"
+                                                        className="font-money h-11 pl-9 text-left"
                                                     />
-                                                    <TrendingUp className="absolute left-3 top-3.5 h-4 w-4 text-blue-400" />
+                                                    <TrendingUp className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                                                 </div>
                                             </FormControl>
                                         </FormItem>
@@ -478,21 +466,21 @@ export function JournalForm({ initialData }: JournalFormProps) {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2, duration: 0.5 }}
-                    className="rounded-2xl border border-slate-200/60 bg-white shadow-xl shadow-slate-200/40 overflow-hidden"
+                    className="rounded-xl border border-foreground/10 bg-card overflow-hidden"
                 >
                     <Table>
                         <TableHeader>
-                            <TableRow className="bg-slate-50/80 border-b border-slate-200 hover:bg-slate-50/80">
-                                <TableHead className="w-[25%] pl-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Account Details</TableHead>
-                                <TableHead className="w-[30%] py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Description</TableHead>
-                                <TableHead className="w-[20%] py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right">Debit</TableHead>
-                                <TableHead className="w-[20%] py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right">Credit</TableHead>
+                            <TableRow className="bg-muted/40 border-b border-foreground/10 hover:bg-muted/40">
+                                <TableHead className="w-[25%] pl-6 py-4 font-mono text-[10px] font-normal text-muted-foreground uppercase tracking-[0.18em]">Account Details</TableHead>
+                                <TableHead className="w-[30%] py-4 font-mono text-[10px] font-normal text-muted-foreground uppercase tracking-[0.18em]">Description</TableHead>
+                                <TableHead className="w-[20%] py-4 font-mono text-[10px] font-normal text-muted-foreground uppercase tracking-[0.18em] text-right">Debit</TableHead>
+                                <TableHead className="w-[20%] py-4 font-mono text-[10px] font-normal text-muted-foreground uppercase tracking-[0.18em] text-right">Credit</TableHead>
                                 <TableHead className="w-[5%]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {fields.map((fieldItem, index) => (
-                                <TableRow key={fieldItem.id} className="group hover:bg-blue-50/30 transition-colors border-slate-100">
+                                <TableRow key={fieldItem.id} className="group transition-colors border-foreground/[0.06] hover:bg-foreground/[0.02]">
                                     {/* Account */}
                                     <TableCell className="pl-6 py-2 align-top">
                                         <FormField
@@ -513,7 +501,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                             name={`lines.${index}.description`}
                                             render={({ field }) => (
                                                 <Input
-                                                    className="h-10 border-transparent bg-transparent group-hover:bg-white group-hover:border-slate-200 focus:border-blue-300 focus:bg-white transition-all text-sm"
+                                                    className="h-10 border-transparent bg-transparent group-hover:border-foreground/10 focus:border-foreground/25 transition-colors text-sm"
                                                     placeholder="Description..."
                                                     {...field}
                                                 />
@@ -532,8 +520,8 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                                     onValueChange={field.onChange}
                                                     disabled={lines[index]?.credit > 0}
                                                     className={cn(
-                                                        "h-10 text-sm font-medium",
-                                                        lines[index]?.credit > 0 ? "opacity-30 cursor-not-allowed" : "text-slate-700"
+                                                        "font-money h-10 text-sm font-medium",
+                                                        lines[index]?.credit > 0 ? "opacity-30 cursor-not-allowed" : "text-emerald-800 dark:text-emerald-300"
                                                     )}
                                                 />
                                             )}
@@ -551,8 +539,8 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                                     onValueChange={field.onChange}
                                                     disabled={lines[index]?.debit > 0}
                                                     className={cn(
-                                                        "h-10 text-sm font-medium",
-                                                        lines[index]?.debit > 0 ? "opacity-30 cursor-not-allowed" : "text-slate-700"
+                                                        "font-money h-10 text-sm font-medium",
+                                                        lines[index]?.debit > 0 ? "opacity-30 cursor-not-allowed" : "text-cyan-800 dark:text-cyan-300"
                                                     )}
                                                 />
                                             )}
@@ -565,7 +553,7 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                             variant="ghost"
                                             size="icon"
                                             type="button"
-                                            className="h-9 w-9 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"
+                                            className="h-9 w-9 text-muted-foreground/60 hover:text-destructive rounded-full opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                                             onClick={() => remove(index)}
                                             disabled={fields.length <= 2}
                                         >
@@ -578,15 +566,15 @@ export function JournalForm({ initialData }: JournalFormProps) {
                     </Table>
 
                     {/* Add Line Footer */}
-                    <div className="p-2 border-t border-slate-200 bg-slate-50/50">
+                    <div className="p-2 border-t border-foreground/10">
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => append({ accountId: "", description: "", debit: 0, credit: 0, tax: [] })}
-                            className="w-full h-10 border border-dashed border-slate-300 text-slate-500 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all"
+                            className="w-full h-10 border border-dashed border-foreground/15 text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                         >
-                            <Plus className="h-4 w-4 mr-2" /> Add Transaction Line
+                            <Plus className="h-4 w-4 mr-2" /> Add line
                         </Button>
                     </div>
                 </motion.div>
@@ -599,26 +587,26 @@ export function JournalForm({ initialData }: JournalFormProps) {
                     className="grid grid-cols-1 lg:grid-cols-12 gap-8"
                 >
                     {/* Notes (Left) */}
-                    <div className="lg:col-span-8 bg-white/60 backdrop-blur-md rounded-2xl border border-white/60 p-6 shadow-sm">
+                    <div className="lg:col-span-8 rounded-xl border border-foreground/10 bg-card/60 p-6">
                         <div className="flex flex-col md:flex-row gap-6 h-full">
                             <div className="flex-1 space-y-2">
-                                <FormLabel className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Internal Notes</FormLabel>
+                                <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Internal Notes</FormLabel>
                                 <FormField
                                     control={form.control}
                                     name="notes"
                                     render={({ field }) => (
                                         <Textarea
                                             placeholder="Add context to this journal entry..."
-                                            className="resize-none bg-slate-50/50 border-slate-200 h-32 focus:ring-blue-100"
+                                            className="resize-none h-32"
                                             {...field}
                                         />
                                     )}
                                 />
                             </div>
-                            <div className="w-px bg-slate-200 hidden md:block" />
+                            <div className="w-px bg-foreground/10 hidden md:block" />
                             <div className="flex-1 space-y-2">
-                                <FormLabel className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Attachments</FormLabel>
-                                <div className="h-32 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/30 hover:bg-blue-50/30 hover:border-blue-200 transition-colors">
+                                <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Attachments</FormLabel>
+                                <div className="h-32 border border-dashed border-foreground/15 rounded-lg hover:border-foreground/30 transition-colors">
                                     <UploadButton onUpload={(f) => { }} className="h-full w-full" />
                                 </div>
                             </div>
@@ -628,40 +616,39 @@ export function JournalForm({ initialData }: JournalFormProps) {
                     {/* Totals & Save (Right) */}
                     <div className="lg:col-span-4">
                         <div className={cn(
-                            "rounded-2xl p-6 shadow-2xl transition-all duration-500 relative overflow-hidden",
+                            "rounded-xl border p-6 transition-colors duration-300",
                             isBalanced
-                                ? "bg-gradient-to-br from-slate-900 to-blue-950 text-white shadow-blue-900/20"
-                                : "bg-white border border-red-100 shadow-red-100"
+                                ? "border-emerald-600/30 bg-emerald-600/[0.04] dark:border-emerald-400/30 dark:bg-emerald-400/[0.05]"
+                                : "border-amber-500/40 bg-amber-500/[0.05]"
                         )}>
-                            {/* Texture for Balanced State */}
-                            {isBalanced && <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-[80px] -mt-10 -mr-10 pointer-events-none" />}
-
-                            <div className="space-y-5 relative z-10">
+                            <div className="space-y-5">
                                 {/* Totals Display */}
                                 <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-sm opacity-80">
-                                        <span>Total Debit</span>
-                                        <span className="font-mono tracking-tight">{formatModuleMoney(totalDebit, "IDR")}</span>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Total debit</span>
+                                        <span className="font-money text-emerald-800 dark:text-emerald-300">{formatModuleMoney(totalDebit, "IDR")}</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm opacity-80">
-                                        <span>Total Credit</span>
-                                        <span className="font-mono tracking-tight">{formatModuleMoney(totalCredit, "IDR")}</span>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Total credit</span>
+                                        <span className="font-money text-cyan-800 dark:text-cyan-300">{formatModuleMoney(totalCredit, "IDR")}</span>
                                     </div>
                                 </div>
 
-                                <div className="h-px bg-current opacity-20" />
+                                <div className="h-px bg-foreground/10" />
 
                                 {/* Balance Status */}
                                 <div className="flex justify-between items-center">
-                                    <span className="text-sm font-medium opacity-90">Balance Status</span>
+                                    <span className="text-sm font-medium text-foreground">Difference</span>
                                     {isBalanced ? (
-                                        <Badge className="bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border-0">
-                                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Balanced
-                                        </Badge>
+                                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                            <span className="font-money">0,00</span> · Balanced
+                                        </span>
                                     ) : (
-                                        <Badge variant="destructive" className="bg-red-500/10 text-red-600 hover:bg-red-500/20 border-0 shadow-none">
-                                            <AlertCircle className="w-3.5 h-3.5 mr-1.5" /> Difference: {formatModuleMoney(difference, "IDR")}
-                                        </Badge>
+                                        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 dark:text-amber-400">
+                                            <AlertCircle className="h-3.5 w-3.5" />
+                                            <span className="font-money">{formatModuleMoney(difference, "IDR")}</span>
+                                        </span>
                                     )}
                                 </div>
 
@@ -672,16 +659,14 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                         onClick={() => form.handleSubmit((data) => processSubmit(data, true))()}
                                         disabled={!isBalanced || isSaving}
                                         className={cn(
-                                            "w-full h-12 text-base font-semibold shadow-lg transition-all",
-                                            isBalanced
-                                                ? "bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-white border-0 shadow-teal-900/40 hover:scale-[1.02]"
-                                                : "bg-slate-100 text-slate-400 hover:bg-slate-100 cursor-not-allowed"
+                                            "w-full h-11 text-[15px] font-medium",
+                                            !isBalanced && "cursor-not-allowed"
                                         )}
                                     >
                                         {isSaving ? (
-                                            <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Processing...</>
+                                            <><Loader2 className="h-4 w-4 animate-spin" /> Posting…</>
                                         ) : (
-                                            <><Save className="w-5 h-5 mr-2" /> {initialData ? "Update & Post" : "Post Entry"}</>
+                                            <>{initialData ? "Update and post" : "Post entry"}</>
                                         )}
                                     </Button>}
 
@@ -690,13 +675,13 @@ export function JournalForm({ initialData }: JournalFormProps) {
                                         onClick={() => form.handleSubmit((data) => processSubmit(data, false))()}
                                         disabled={isSaving}
                                         variant="outline"
-                                        className="w-full h-10 border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600"
+                                        className="w-full h-10"
                                     >
-                                        <FileText className="w-4 h-4 mr-2" /> Save as Draft
+                                        Save as draft
                                     </Button>}
 
                                     <div className="text-center">
-                                        <Button variant="link" type="button" onClick={() => window.history.back()} className={cn("text-xs h-auto p-0 opacity-60 hover:opacity-100", isBalanced ? "text-blue-200" : "text-slate-500")}>
+                                        <Button variant="link" type="button" onClick={() => window.history.back()} className="text-xs h-auto p-0 text-muted-foreground hover:text-foreground">
                                             Cancel and go back
                                         </Button>
                                     </div>

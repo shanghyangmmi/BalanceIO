@@ -83,7 +83,7 @@ export default function LedgerPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between space-y-2">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
             General Ledger
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -94,7 +94,7 @@ export default function LedgerPage() {
 
       <div className="grid gap-4 md:grid-cols-4">
         {/* Account Selector Card */}
-        <Card className="bg-gradient-to-br from-zinc-50 to-white dark:from-zinc-900 dark:to-zinc-900/50 border-emerald-500/20 shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Account Filter</CardTitle>
           </CardHeader>
@@ -155,7 +155,7 @@ export default function LedgerPage() {
       </div>
 
       {/* Virtualized ledger: only visible rows hit the DOM — 60fps at 10,000+ rows */}
-      <div className="rounded-md bg-white dark:bg-zinc-900/50 shadow-sm">
+      <div className="rounded-xl border border-foreground/10 bg-card/60">
         <VirtualDataTable
           data={data}
           columns={ledgerColumns}

@@ -22,21 +22,21 @@ const documentOptions: {
             title: "Sales Invoice",
             description: "Bill your customers for goods or services",
             icon: <Receipt className="h-6 w-6" />,
-            color: "#0B3C3D",
+            color: "var(--color-emerald-800)",
         },
         {
             type: "purchase-order",
             title: "Purchase Order",
             description: "Order goods or services from vendors",
             icon: <ShoppingCart className="h-6 w-6" />,
-            color: "#3b82f6",
+            color: "var(--color-cyan-800)",
         },
         {
             type: "purchase-bill",
             title: "Purchase Bill",
             description: "Record bills received from vendors",
             icon: <FileText className="h-6 w-6" />,
-            color: "#ef4444",
+            color: "var(--color-cyan-800)",
         },
     ]
 
@@ -68,7 +68,7 @@ export default function NewDocumentPage() {
                         <ArrowLeft className="h-5 w-5" />
                     </Link>
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight text-gradient">
+                        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
                             Create Document
                         </h2>
                         <p className="text-muted-foreground">
@@ -82,7 +82,7 @@ export default function NewDocumentPage() {
                         <Card
                             key={option.type}
                             className={cn(
-                                "cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]",
+                                "cursor-pointer transition-colors hover:border-foreground/25",
                                 "border-2 border-transparent hover:border-opacity-50"
                             )}
                             style={
@@ -133,7 +133,7 @@ export default function NewDocumentPage() {
                         {selectedOption.icon}
                     </div>
                     <div>
-                        <h2 className="text-3xl font-bold tracking-tight text-gradient">
+                        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
                             New {selectedOption.title}
                         </h2>
                         <p className="text-muted-foreground">

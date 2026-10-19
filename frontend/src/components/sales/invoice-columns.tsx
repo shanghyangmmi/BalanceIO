@@ -11,9 +11,9 @@ import Link from "next/link"
 const getStatusColor = (status: string) => {
     switch (status?.toUpperCase()) {
         case 'PAID': return 'bg-emerald-500 hover:bg-emerald-600';
-        case 'SENT': return 'bg-blue-500 hover:bg-blue-600';
+        case 'SENT': return 'bg-cyan-500 hover:bg-cyan-600';
         case 'DRAFT': return 'bg-zinc-500 hover:bg-zinc-600';
-        case 'VOID': return 'bg-rose-500 hover:bg-rose-600';
+        case 'VOID': return 'bg-red-500 hover:bg-red-600';
         case 'OVERDUE': return 'bg-red-500 hover:bg-red-600';
         default: return 'bg-gray-500';
     }

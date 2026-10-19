@@ -34,8 +34,8 @@ function getActionMeta(action: string) {
             }
         case "updated":
             return {
-                icon: <FileEdit className="h-4 w-4 text-blue-600 dark:text-blue-400" />,
-                badgeClass: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+                icon: <FileEdit className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />,
+                badgeClass: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800",
                 label: "Updated",
             }
         case "posted":
@@ -47,8 +47,8 @@ function getActionMeta(action: string) {
             }
         case "voided":
             return {
-                icon: <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />,
-                badgeClass: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800",
+                icon: <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />,
+                badgeClass: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
                 label: "Voided",
             }
         case "reversed":
@@ -172,7 +172,7 @@ export function DocumentTimeline({ documentType, documentId, className }: Docume
 
                             return (
                                 <div key={event.id || index} className="relative group">
-                                    <div className="absolute -left-[27px] top-0.5 rounded-full bg-background border p-1 shadow-xs">
+                                    <div className="absolute -left-[27px] top-0.5 rounded-full bg-background border border-foreground/10 p-1">
                                         {meta.icon}
                                     </div>
                                     <div className="space-y-1.5">

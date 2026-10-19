@@ -41,7 +41,7 @@ export default function BillListPage() {
       return <Badge className="bg-emerald-600 text-white font-mono text-xs">Paid</Badge>;
     }
     if (s === "partiallypaid" || s === "partial" || s === "2") {
-      return <Badge className="bg-blue-600 text-white font-mono text-xs">Partial</Badge>;
+      return <Badge className="bg-cyan-600 text-white font-mono text-xs">Partial</Badge>;
     }
     if (s === "overdue" || s === "3") {
       return <Badge className="bg-red-600 text-white font-mono text-xs">Overdue</Badge>;
@@ -81,7 +81,7 @@ export default function BillListPage() {
     >
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Purchase Bills Value</p>
@@ -95,7 +95,7 @@ export default function BillListPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Payments Made</p>
@@ -109,7 +109,7 @@ export default function BillListPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Payables Due</p>
@@ -150,7 +150,7 @@ export default function BillListPage() {
               className={cn(
                 "px-3 py-1.5 rounded-full transition-all",
                 statusFilter === tab.id
-                  ? "bg-white dark:bg-zinc-900 text-foreground shadow-sm font-semibold"
+                  ? "bg-card text-foreground ring-1 ring-foreground/10 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -163,7 +163,7 @@ export default function BillListPage() {
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center items-center h-48 border rounded-2xl bg-white dark:bg-zinc-900">
-          <Loader2 className="w-6 h-6 animate-spin text-orange-600" />
+          <Loader2 className="w-6 h-6 animate-spin text-amber-600" />
           <span className="ml-2 text-sm text-muted-foreground">Loading purchase bill list...</span>
         </div>
       ) : (
@@ -188,7 +188,7 @@ export default function BillListPage() {
 
               return (
                 <tr key={b.id} className="border-b hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 text-sm transition-colors">
-                  <td className="py-3 px-4 font-mono font-semibold text-orange-600 hover:underline">
+                  <td className="py-3 px-4 font-mono font-semibold text-amber-600 hover:underline">
                     <Link href={`/dashboard/purchases/${b.id}`}>
                       {b.billNumber || b.id.substring(0, 8)}
                     </Link>

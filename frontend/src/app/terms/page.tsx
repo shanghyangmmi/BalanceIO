@@ -56,7 +56,7 @@ export default function TermsPage() {
 
             {/* Background Effects */}
             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-0 right-1/4 h-[500px] w-[500px] bg-blue-500/5 dark:bg-blue-600/10 blur-[150px] rounded-full" />
+                <div className="absolute top-0 right-1/4 h-[500px] w-[500px] bg-cyan-500/5 dark:bg-cyan-600/10 blur-[150px] rounded-full" />
                 <div className="absolute bottom-1/4 left-1/4 h-[400px] w-[400px] bg-emerald-500/5 dark:bg-emerald-600/10 blur-[120px] rounded-full" />
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000005_1px,transparent_1px),linear-gradient(to_bottom,#00000005_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:50px_50px]" />
             </div>
@@ -70,9 +70,9 @@ export default function TermsPage() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
                     >
-                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-6">
-                            <FileText className="h-4 w-4 text-blue-500" />
-                            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Legal Document</span>
+                        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/20 mb-6">
+                            <FileText className="h-4 w-4 text-cyan-500" />
+                            <span className="text-sm font-medium text-cyan-600 dark:text-cyan-400">Legal Document</span>
                         </div>
                         <h1 className="text-5xl md:text-6xl font-black text-zinc-900 dark:text-white mb-4 tracking-tight">
                             Terms of Service
@@ -90,12 +90,12 @@ export default function TermsPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: index * 0.08 }}
-                                className="group p-8 rounded-3xl bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 hover:border-blue-500/30 dark:hover:border-blue-500/30 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1"
+                                className="group p-8 rounded-3xl bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 hover:border-cyan-500/30 dark:hover:border-cyan-500/30 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1"
                             >
                                 <div className="flex gap-5">
                                     <div className="shrink-0">
-                                        <div className="h-12 w-12 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500 transition-all duration-300">
-                                            <section.icon className="h-6 w-6 text-blue-500 group-hover:text-white transition-colors" />
+                                        <div className="h-12 w-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500 transition-all duration-300">
+                                            <section.icon className="h-6 w-6 text-cyan-500 group-hover:text-white transition-colors" />
                                         </div>
                                     </div>
                                     <div>
@@ -118,8 +118,8 @@ export default function TermsPage() {
                         transition={{ delay: 0.8 }}
                         className="mt-16 text-center"
                     >
-                        <div className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl bg-gradient-to-r from-blue-500/10 to-emerald-500/10 border border-blue-500/20 backdrop-blur-sm">
-                            <Lock className="h-8 w-8 text-blue-500" />
+                        <div className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-emerald-500/10 border border-cyan-500/20 backdrop-blur-sm">
+                            <Lock className="h-8 w-8 text-cyan-500" />
                             <div className="text-left">
                                 <div className="font-bold text-zinc-900 dark:text-white">Secured Data</div>
                                 <div className="text-sm text-zinc-500">Your data is saved and protected</div>

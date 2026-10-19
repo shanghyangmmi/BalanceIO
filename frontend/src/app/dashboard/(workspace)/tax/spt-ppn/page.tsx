@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ChevronLeft, FileSpreadsheet, FileText, CheckCircle2, AlertTriangle, ArrowUpRight, ArrowDownLeft, ShieldCheck, Download, Loader2, Sparkles, RefreshCw } from "lucide-react"
+import { ChevronLeft, FileSpreadsheet, FileText, CheckCircle2, AlertTriangle, ArrowUpRight, ArrowDownLeft, ShieldCheck, Download, Loader2, RefreshCw } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

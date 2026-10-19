@@ -106,7 +106,6 @@ export const MODULE_NAVS: ModuleNav[] = [
           { label: "General Ledger", href: "/dashboard/accounting/ledger", icon: Layers, permission: PERMISSIONS.FinanceView },
           { label: "Bank Reconciliation", href: "/dashboard/accounting/bank-reconciliation", icon: Scale, permission: PERMISSIONS.FinanceView },
           { label: "Budgets & RKAP", href: "/dashboard/accounting/budgets", icon: Target, permission: PERMISSIONS.FinanceView },
-          { label: "E2E Lifecycle Validation", href: "/dashboard/accounting/e2e-validation", icon: CheckCircle2, permission: PERMISSIONS.AuditView },
           { label: "Chart of Accounts", href: "/dashboard/accounting/coa", icon: Folder, permission: PERMISSIONS.FinanceView },
           { label: "Batch Posting", href: "/dashboard/accounting/posting", icon: CalendarClock, permission: PERMISSIONS.FinanceView },
           { label: "Recurring", href: "/dashboard/accounting/recurring", icon: Repeat2, permission: PERMISSIONS.FinanceView },

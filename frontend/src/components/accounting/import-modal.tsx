@@ -71,7 +71,7 @@ export function ImportAccountsModal() {
                             <h4 className="text-sm font-semibold">Download Template</h4>
                             <p className="text-xs text-muted-foreground">Use this file to format your data.</p>
                         </div>
-                        <Button size="sm" variant="ghost" className="text-blue-500">
+                        <Button size="sm" variant="ghost" className="text-cyan-500">
                             Download
                         </Button>
                     </div>

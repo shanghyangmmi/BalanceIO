@@ -67,7 +67,7 @@ export default function DocumentPreviewPage() {
                                             className={cn(
                                                 "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-all",
                                                 selectedType === type
-                                                    ? "bg-white dark:bg-zinc-800 shadow-sm font-medium"
+                                                    ? "bg-card ring-1 ring-foreground/10 font-medium"
                                                     : "hover:bg-white/50 dark:hover:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400"
                                             )}
                                         >

@@ -23,28 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  UploadCloud,
-  FileSpreadsheet,
-  Download,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  RotateCcw,
-  Loader2,
-  ArrowRight,
-  ShieldCheck,
-  Scale,
-  Users,
-  Boxes,
-  Building2,
-  FileText,
-  History,
-  Info,
-  Folder,
-  Sparkles,
-  Check,
-} from "lucide-react";
+import { UploadCloud, FileSpreadsheet, Download, CheckCircle2, AlertTriangle, XCircle, RotateCcw, Loader2, ArrowRight, ShieldCheck, Scale, Users, Boxes, Building2, FileText, History, Info, Folder, Check } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, MigrationWizardStatus, MigrationWizardReconciliation } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
@@ -263,7 +242,7 @@ export default function MigrationHubPage() {
         mergeContactsByTaxId: true,
       });
 
-      toast.success(res.message || "Migration batch committed successfully!");
+      toast.success(res.message || "Migration batch committed");
       resetState();
       loadBatches();
       loadWizardData();
@@ -340,13 +319,12 @@ export default function MigrationHubPage() {
 
       {/* ── OPENING BALANCE MIGRATION WIZARD STATUS & RECONCILIATION ── */}
       {wizardStatus && (
-        <Card className="border-border/60 bg-card/60 overflow-hidden shadow-sm">
+        <Card className="border-foreground/10 bg-card/60 overflow-hidden">
           <CardHeader className="pb-3 border-b border-border/40 bg-muted/20">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-emerald-500" />
-                  Opening Balance Migration Wizard
+                  Opening balance migration
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Step-by-step progress tracking from Chart of Accounts to Subledger Reconciliation.
@@ -500,16 +478,16 @@ export default function MigrationHubPage() {
             <Scale className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Opening Balances
           </TabsTrigger>
           <TabsTrigger value="contacts" className="text-xs md:text-sm font-medium gap-1.5">
-            <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Contacts & Roles
+            <Users className="h-4 w-4 text-cyan-600 dark:text-cyan-400" /> Contacts & Roles
           </TabsTrigger>
           <TabsTrigger value="open-items" className="text-xs md:text-sm font-medium gap-1.5">
             <FileText className="h-4 w-4 text-amber-600 dark:text-amber-400" /> Open AR & AP
           </TabsTrigger>
           <TabsTrigger value="inventory-assets" className="text-xs md:text-sm font-medium gap-1.5">
-            <Boxes className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Stock & Assets
+            <Boxes className="h-4 w-4 text-cyan-600 dark:text-cyan-400" /> Stock & Assets
           </TabsTrigger>
           <TabsTrigger value="history" className="text-xs md:text-sm font-medium gap-1.5">
-            <History className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Batch History
+            <History className="h-4 w-4 text-zinc-600 dark:text-zinc-400" /> Batch History
           </TabsTrigger>
         </TabsList>
 
@@ -589,7 +567,7 @@ export default function MigrationHubPage() {
                     </div>
                     <div>
                       <span className="text-xs font-mono text-muted-foreground uppercase">Existing Accounts</span>
-                      <p className="text-lg font-bold font-money text-blue-600 dark:text-blue-400">
+                      <p className="text-lg font-bold font-money text-cyan-600 dark:text-cyan-400">
                         {previewData.existingAccountsCount || 0}
                       </p>
                     </div>
@@ -601,7 +579,7 @@ export default function MigrationHubPage() {
                             <CheckCircle2 className="h-3 w-3" /> Ready to Import
                           </Badge>
                         ) : (
-                          <Badge className="bg-rose-500/10 text-rose-600 border-rose-200 dark:border-rose-800 gap-1">
+                          <Badge className="bg-red-500/10 text-red-600 border-red-200 dark:border-red-800 gap-1">
                             <AlertTriangle className="h-3 w-3" /> Errors Found
                           </Badge>
                         )}
@@ -610,7 +588,7 @@ export default function MigrationHubPage() {
                   </div>
 
                   {previewData.errors && previewData.errors.length > 0 && (
-                    <Alert variant="destructive" className="bg-rose-500/5 border-rose-200 dark:border-rose-900/50">
+                    <Alert variant="destructive" className="bg-red-500/5 border-red-200 dark:border-red-900/50">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertTitle className="text-xs font-semibold">Validation Errors</AlertTitle>
                       <AlertDescription className="text-xs space-y-1 mt-1">
@@ -650,7 +628,7 @@ export default function MigrationHubPage() {
                               <td className="p-2">{r.parentCode || "—"}</td>
                               <td className="p-2 font-sans">
                                 {r.isExisting ? (
-                                  <span className="text-blue-500 text-[11px]">Exists (Keep)</span>
+                                  <span className="text-cyan-500 text-[11px]">Exists (Keep)</span>
                                 ) : (
                                   <span className="text-emerald-500 text-[11px]">New</span>
                                 )}
@@ -894,7 +872,7 @@ export default function MigrationHubPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <Users className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
                     Contacts Master (Customers, Vendors, Employees)
                   </CardTitle>
                   <CardDescription className="mt-1">
@@ -924,7 +902,7 @@ export default function MigrationHubPage() {
                   htmlFor={`${fileInputId}-contacts`}
                   className="cursor-pointer flex flex-col items-center justify-center gap-2"
                 >
-                  <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600">
+                  <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-600">
                     <UploadCloud className="h-5 w-5" />
                   </div>
                   <div>
@@ -961,8 +939,8 @@ export default function MigrationHubPage() {
                             <td className="py-1.5 px-3 text-muted-foreground">{r.email || "—"}</td>
                             <td className="py-1.5 px-3 text-center">
                               <div className="flex items-center justify-center gap-1">
-                                {r.isCustomer && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700">C</Badge>}
-                                {r.isVendor && <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">V</Badge>}
+                                {r.isCustomer && <Badge variant="outline" className="text-[10px] bg-cyan-50 text-cyan-700">C</Badge>}
+                                {r.isVendor && <Badge variant="outline" className="text-[10px] bg-zinc-50 text-zinc-700">V</Badge>}
                                 {r.isEmployee && <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700">EMP</Badge>}
                               </div>
                             </td>
@@ -984,7 +962,7 @@ export default function MigrationHubPage() {
                     <Button
                       onClick={handleCommit}
                       disabled={isCommitting}
-                      className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                      className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
                     >
                       {isCommitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       Commit Contacts ({parsedRows.length})
@@ -1046,8 +1024,8 @@ export default function MigrationHubPage() {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              <Alert className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 text-blue-900 dark:text-blue-200 text-xs">
-                <Info className="h-4 w-4 text-blue-600" />
+              <Alert className="border-cyan-200 bg-cyan-50/50 dark:bg-cyan-950/20 text-cyan-900 dark:text-cyan-200 text-xs">
+                <Info className="h-4 w-4 text-cyan-600" />
                 <AlertTitle className="font-semibold text-sm">Ledger Protection Notice</AlertTitle>
                 <AlertDescription className="mt-1">
                   Because summary receivables (1-1200) and payables (2-1100) are already posted in the Opening Balances journal, open items only populate the subledger and aging buckets without double-posting to the General Ledger.
@@ -1141,7 +1119,7 @@ export default function MigrationHubPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <Boxes className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    <Boxes className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
                     Opening Stock & Fixed Assets Register
                   </CardTitle>
                   <CardDescription className="mt-1">
@@ -1157,7 +1135,7 @@ export default function MigrationHubPage() {
                       setInventoryAssetMode("inventory");
                       resetState();
                     }}
-                    className={inventoryAssetMode === "inventory" ? "bg-indigo-600 hover:bg-indigo-700" : ""}
+                    className={inventoryAssetMode === "inventory" ? "bg-cyan-600 hover:bg-cyan-700" : ""}
                   >
                     Opening Stock
                   </Button>
@@ -1168,7 +1146,7 @@ export default function MigrationHubPage() {
                       setInventoryAssetMode("assets");
                       resetState();
                     }}
-                    className={inventoryAssetMode === "assets" ? "bg-indigo-600 hover:bg-indigo-700" : ""}
+                    className={inventoryAssetMode === "assets" ? "bg-cyan-600 hover:bg-cyan-700" : ""}
                   >
                     Asset Register
                   </Button>
@@ -1196,7 +1174,7 @@ export default function MigrationHubPage() {
                   htmlFor={`${fileInputId}-inv-assets`}
                   className="cursor-pointer flex flex-col items-center justify-center gap-2"
                 >
-                  <div className="h-10 w-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-600">
+                  <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-600">
                     <UploadCloud className="h-5 w-5" />
                   </div>
                   <div>
@@ -1272,7 +1250,7 @@ export default function MigrationHubPage() {
                     <Button
                       onClick={handleCommit}
                       disabled={isCommitting}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                      className="bg-cyan-600 hover:bg-cyan-700 text-white gap-1.5"
                     >
                       {isCommitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       Commit {inventoryAssetMode === "inventory" ? "Stock" : "Assets"} ({parsedRows.length})
@@ -1290,7 +1268,7 @@ export default function MigrationHubPage() {
             <CardHeader className="pb-4 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <History className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  <History className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
                   Migration Batches & 1-Click Rollback
                 </CardTitle>
                 <CardDescription className="mt-1">

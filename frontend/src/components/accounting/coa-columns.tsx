@@ -18,8 +18,8 @@ const getTypeColor = (type: string) => {
     switch (type) {
         case 'ASSET': return 'bg-emerald-500 hover:bg-emerald-600';
         case 'LIABILITY': return 'bg-amber-500 hover:bg-amber-600';
-        case 'EQUITY': return 'bg-violet-500 hover:bg-violet-600';
-        case 'INCOME': return 'bg-blue-500 hover:bg-blue-600';
+        case 'EQUITY': return 'bg-zinc-500 hover:bg-zinc-600';
+        case 'INCOME': return 'bg-cyan-500 hover:bg-cyan-600';
         case 'EXPENSE': return 'bg-red-500 hover:bg-red-600';
         default: return 'bg-gray-500';
     }

@@ -61,7 +61,7 @@ const formConfigs: Record<DocFormType, DocFormConfig> = {
         showDueDate: true,
         showDeliveryDate: false,
         submitLabel: "Create Invoice",
-        color: "#0B3C3D",
+        color: "var(--color-emerald-800)",
     },
     "purchase-order": {
         title: "Purchase Order",
@@ -71,7 +71,7 @@ const formConfigs: Record<DocFormType, DocFormConfig> = {
         showDueDate: false,
         showDeliveryDate: true,
         submitLabel: "Create Purchase Order",
-        color: "#3b82f6",
+        color: "var(--color-cyan-800)",
     },
     "purchase-bill": {
         title: "Purchase Bill",
@@ -81,7 +81,7 @@ const formConfigs: Record<DocFormType, DocFormConfig> = {
         showDueDate: true,
         showDeliveryDate: false,
         submitLabel: "Create Purchase Bill",
-        color: "#ef4444",
+        color: "var(--color-cyan-800)",
     },
 }
 

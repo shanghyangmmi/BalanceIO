@@ -1,102 +1,91 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { siteConfig } from "@/config/site";
-import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { BackgroundPattern } from "@/components/ui/background-pattern";
-import { motion } from "framer-motion";
+import Link from "next/link"
+import { Suspense, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Loader2 } from "lucide-react"
 
-import { Suspense } from "react";
+import { siteConfig } from "@/config/site"
+import { AuthShell, AuthNotice } from "@/components/auth/auth-shell"
+
+const linkClass =
+    "font-medium text-foreground underline decoration-foreground/20 underline-offset-4 transition-colors hover:decoration-foreground"
 
 function VerifyContent() {
+    const token = useSearchParams().get("token")
 
-    const searchParams = useSearchParams();
-    const token = searchParams.get("token");
-
-    const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-    const [message, setMessage] = useState("Verifying your email...");
+    const [status, setStatus] = useState<"loading" | "success" | "error">(token ? "loading" : "error")
+    const [message, setMessage] = useState(token ? "" : "The verification link is incomplete.")
 
     useEffect(() => {
-        if (!token) {
-            setStatus("error");
-            setMessage("Invalid verification link.");
-            return;
-        }
+        if (!token) return
 
-        // Prevent double-firing in React Strict Mode
-        let mounted = true;
-
+        // Strict Mode mounts twice; only the live mount may write state.
+        let mounted = true
         const verify = async () => {
             try {
-                const res = await fetch(`${siteConfig.api.baseUrl}/auth/verify_email?token=${token}`);
-                const data = await res.json();
-
-                if (mounted) {
-                    if (res.ok) {
-                        setStatus("success");
-                        setMessage("Email verified successfully! Redirecting to login...");
-                        setTimeout(() => window.location.href = "/login", 3000); // Auto-redirect after 3s
-                    } else {
-                        setStatus("error");
-                        setMessage(data.message || "Failed to verify email.");
-                    }
+                const res = await fetch(
+                    `${siteConfig.api.baseUrl}/auth/verify_email?token=${encodeURIComponent(token)}`,
+                )
+                const data = await res.json()
+                if (!mounted) return
+                if (res.ok) {
+                    setStatus("success")
+                    setTimeout(() => (window.location.href = "/login"), 3000)
+                } else {
+                    setStatus("error")
+                    setMessage(data.message || "The link could not be verified.")
                 }
-            } catch (error) {
-                if (mounted) {
-                    setStatus("error");
-                    setMessage("An error occurred. Please try again.");
-                }
+            } catch {
+                if (!mounted) return
+                setStatus("error")
+                setMessage("The server did not respond. Check your connection and reload this page.")
             }
-        };
+        }
+        verify()
+        return () => {
+            mounted = false
+        }
+    }, [token])
 
-        verify();
+    const footer = (
+        <Link href="/login" className={linkClass}>
+            Go to sign in
+        </Link>
+    )
 
-        return () => { mounted = false; };
-    }, [token]);
+    if (status === "loading") {
+        return (
+            <AuthShell eyebrow="Email verification" title="Verifying your email">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking the link…
+                </div>
+            </AuthShell>
+        )
+    }
+
+    if (status === "success") {
+        return (
+            <AuthShell eyebrow="Email verification" title="Email confirmed" footer={footer}>
+                <AuthNotice tone="success">
+                    Your account is active. Taking you to sign in, where the company setup begins.
+                </AuthNotice>
+            </AuthShell>
+        )
+    }
 
     return (
-        <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center relative overflow-hidden">
-            <BackgroundPattern />
-
-            <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative z-10 w-full max-w-md p-8 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl text-center"
-            >
-                <div className="flex justify-center mb-6">
-                    {status === "loading" && <Loader2 className="h-16 w-16 text-emerald-500 animate-spin" />}
-                    {status === "success" && <CheckCircle2 className="h-16 w-16 text-emerald-500" />}
-                    {status === "error" && <XCircle className="h-16 w-16 text-red-500" />}
-                </div>
-
-                <h1 className="text-2xl font-bold mb-2">
-                    {status === "loading" ? "Verifying..." : status === "success" ? "Verified!" : "Verification Failed"}
-                </h1>
-
-                <p className="text-zinc-600 dark:text-zinc-400 mb-8">
-                    {message}
-                </p>
-
-                {status !== "loading" && (
-                    <Button onClick={() => window.location.href = "/login"} className="w-full bg-[#0B3C3D] hover:bg-[#092f30] text-white">
-                        Go to Login
-                    </Button>
-                )}
-            </motion.div>
-        </div>
-    );
+        <AuthShell eyebrow="Email verification" title="This link did not work" footer={footer}>
+            <AuthNotice tone="error">{message}</AuthNotice>
+        </AuthShell>
+    )
 }
 
 export default function VerifyEmailPage() {
     return (
-        <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-                <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-            </div>
-        }>
+        <Suspense fallback={<div className="min-h-screen bg-background" />}>
             <VerifyContent />
         </Suspense>
-    );
+    )
 }

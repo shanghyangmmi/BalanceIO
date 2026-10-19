@@ -114,7 +114,7 @@ export default function RecurringEntriesPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">Recurring Entries</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Recurring Entries</h2>
           <p className="text-muted-foreground">Automate your regular journal entries.</p>
         </div>
         <Sheet open={isSheetOpen} onOpenChange={(val) => {
@@ -157,7 +157,7 @@ export default function RecurringEntriesPage() {
         {entries.map(entry => (
           <Card key={entry.id} className="overflow-hidden">
             <div className="flex items-center p-4 gap-4">
-              <div className="h-10 w-10 flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600">
+              <div className="h-10 w-10 flex items-center justify-center bg-cyan-50 dark:bg-cyan-900/20 rounded-lg text-cyan-600">
                 <CalendarClock className="h-5 w-5" />
               </div>
               <div className="flex-1">

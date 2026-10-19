@@ -58,7 +58,7 @@ export default function AssetsPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between space-y-2">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
             Assets
           </h2>
         </div>
@@ -96,7 +96,7 @@ export default function AssetsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-amber-600">
               {formatCurrency(summary?.totalAccumulatedDepreciation ?? 0)}
             </div>
             <p className="text-xs text-muted-foreground">

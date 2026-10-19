@@ -2,11 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { 
-    ChevronLeft, Scale, RefreshCw, Upload, Sparkles, CheckCircle2, AlertTriangle, 
-    ArrowUpRight, ArrowDownLeft, ShieldCheck, Download, Loader2, Link2, Unlink, 
-    PlusCircle, FileText, Check, HelpCircle
-} from "lucide-react"
+import { ChevronLeft, Scale, RefreshCw, Upload, CheckCircle2, AlertTriangle, ArrowUpRight, ArrowDownLeft, ShieldCheck, Download, Loader2, Link2, Unlink, PlusCircle, FileText, Check, HelpCircle } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -484,7 +480,7 @@ export default function BankReconciliationPage() {
                                     </Dialog>
                                 ) : can(PERMISSIONS.FinanceEdit) && (
                                     <Button size="sm" variant="outline" onClick={handleAutoMatch} disabled={isAutoMatching} className="h-7 text-xs font-mono gap-1">
-                                        {isAutoMatching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3 text-emerald-600" />}
+                                        {isAutoMatching ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3 text-emerald-600" />}
                                         Auto Match
                                     </Button>
                                 )}
@@ -530,7 +526,7 @@ export default function BankReconciliationPage() {
                                 disabled={isAutoMatching}
                                 className="h-8 text-xs font-mono gap-1.5"
                             >
-                                {isAutoMatching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-emerald-600" />}
+                                {isAutoMatching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5 text-emerald-600" />}
                                 Auto Match Semua
                             </Button>
                         </div>}

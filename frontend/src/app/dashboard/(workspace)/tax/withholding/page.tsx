@@ -160,7 +160,7 @@ export default function WithholdingTaxPage() {
                         <Card className="border-border/60 shadow-none bg-card/60 backdrop-blur-sm">
                             <CardHeader className="pb-2">
                                 <CardDescription className="text-xs font-mono uppercase tracking-wider">PPh 4(2) Final</CardDescription>
-                                <CardTitle className="text-xl font-bold font-money text-purple-700 dark:text-purple-400">
+                                <CardTitle className="text-xl font-bold font-money text-zinc-700 dark:text-zinc-400">
                                     {formatCurrency(data.totalPph42Withheld || 0)}
                                 </CardTitle>
                             </CardHeader>
@@ -339,7 +339,7 @@ export default function WithholdingTaxPage() {
                                                         <TableCell>{row.referenceDocument}</TableCell>
                                                         <TableCell className="text-right font-money">{formatCurrency(row.grossDppAmount)}</TableCell>
                                                         <TableCell className="text-right">{row.effectiveTaxRate}%</TableCell>
-                                                        <TableCell className="text-right font-money font-semibold text-purple-700 dark:text-purple-400">
+                                                        <TableCell className="text-right font-money font-semibold text-zinc-700 dark:text-zinc-400">
                                                             {formatCurrency(row.taxWithheldAmount)}
                                                         </TableCell>
                                                     </TableRow>

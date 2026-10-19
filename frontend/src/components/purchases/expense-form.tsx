@@ -106,7 +106,7 @@ export function ExpenseForm() {
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-2xl bg-white p-6 rounded-lg border shadow-sm">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-2xl bg-card/60 p-6 rounded-xl border border-foreground/10">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                         control={form.control}

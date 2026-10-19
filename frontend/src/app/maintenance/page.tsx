@@ -9,7 +9,7 @@ export default function MaintenancePage() {
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
             {/* Ambient Background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange-500/10 blur-[120px] rounded-full" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/10 blur-[120px] rounded-full" />
             </div>
 
             <motion.div
@@ -21,10 +21,10 @@ export default function MaintenancePage() {
                     <motion.div
                         animate={{ rotate: 360 }}
                         transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                        className="absolute -inset-4 border-2 border-dashed border-orange-500/20 rounded-full"
+                        className="absolute -inset-4 border-2 border-dashed border-amber-500/20 rounded-full"
                     />
-                    <div className="h-24 w-24 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl flex items-center justify-center mx-auto border border-orange-100 dark:border-orange-900/30">
-                        <Wrench className="h-10 w-10 text-orange-500" />
+                    <div className="h-24 w-24 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl flex items-center justify-center mx-auto border border-amber-100 dark:border-amber-900/30">
+                        <Wrench className="h-10 w-10 text-amber-500" />
                     </div>
                 </div>
 
@@ -40,7 +40,7 @@ export default function MaintenancePage() {
 
                 <div className="bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm border rounded-lg p-4 max-w-sm mx-auto">
                     <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4 text-orange-500" />
+                        <Clock className="h-4 w-4 text-amber-500" />
                         <span>Expected duration: ~15 minutes</span>
                     </div>
                 </div>
@@ -48,7 +48,7 @@ export default function MaintenancePage() {
                 <div className="pt-4">
                     <Button
                         size="lg"
-                        className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+                        className="gap-2 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={() => window.location.href = "/"}
                     >
                         <RefreshCw className="h-4 w-4" />

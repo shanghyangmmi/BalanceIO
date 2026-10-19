@@ -43,7 +43,7 @@ export default function DiagnosticsPage() {
     <div className="flex-1 space-y-6 p-8 pt-6">
       <div className="flex justify-between items-center no-print">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">Auditor Diagnostics</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Auditor Diagnostics</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Automated internal audit checks to detect transaction gaps, anomalies, and safety risks.
           </p>
