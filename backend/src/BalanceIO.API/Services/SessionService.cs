@@ -161,7 +161,8 @@ public class SessionService
         }
     }
 
-    public async Task RevokeAllSessionsAsync(Guid userId, Guid? exceptSessionId = null)
+    /// <summary>Revokes the user's active sessions and returns how many there were.</summary>
+    public async Task<int> RevokeAllSessionsAsync(Guid userId, Guid? exceptSessionId = null)
     {
         var sessions = await _context.UserSessions
             .Where(s => s.UserId == userId && !s.IsRevoked && (exceptSessionId == null || s.Id != exceptSessionId))
@@ -174,6 +175,7 @@ public class SessionService
         }
 
         await _context.SaveChangesAsync();
+        return sessions.Count;
     }
 
     public void AttachAuthCookies(HttpResponse response, string accessToken, string refreshToken, bool isAdmin)

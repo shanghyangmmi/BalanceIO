@@ -346,11 +346,17 @@ public class AuthController : ControllerBase
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
-        var success = await _authService.ResetPasswordAsync(request.Token, request.Password);
-        if (!success)
+        var reset = await _authService.ResetPasswordAsync(request.Token, request.Password);
+        if (reset == null)
         {
             return BadRequest(new { message = "Invalid or expired password reset token." });
         }
+
+        var (userId, revokedSessions) = reset.Value;
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var userAgent = Request.Headers["User-Agent"].ToString();
+        await _auditService.LogAsync(userId, "PASSWORD_RESET", userId.ToString(),
+            $"Password reset via emailed link; revoked {revokedSessions} active session(s)", ip, userAgent);
 
         return Ok(new { message = "Password reset successfully. You can now login with your new password." });
     }
