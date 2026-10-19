@@ -66,6 +66,18 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
   tokens (30-day session) are transmitted via `HttpOnly`, `SameSite=Lax` cookies.
   Refresh tokens are stored as SHA-256 hashes in `UserSessions`. Presentation of an
   already-revoked token triggers reuse breach detection and revokes all active sessions.
+  The access lifetime is `Jwt:AccessTokenMinutes` (default 15), read by `JwtService`
+  for both the token and its cookie; validation allows 30 s of clock skew. Access
+  tokens are not checked against `UserSessions`, so revocation (logout, reuse,
+  password reset) ends renewal and a token already issued works until it expires.
+  An `Authorization` header takes precedence over the access cookies.
+  The frontend keeps the access token in localStorage as well (the UI reads its
+  claims with `parseJwt`, which ignores `exp`). `sessionFetch` in `lib/api-client.ts`
+  answers a 401 with `POST /api/Auth/refresh` (refresh cookie, no body token) and
+  repeats the call once; refreshes are serialised across tabs with the Web Locks
+  API because a second use of a rotated token revokes every session. A refused
+  refresh sends the user to `/login` (`/sys-control/login` for the admin client).
+  Login calls must use `credentials: "include"` or the cookies are never stored.
 - Segregation of duties: `Company.EnforceSegregationOfDuties` (default true)
   blocks the creator of an entry from posting it.
 - Discounts & FX Conversion: Sales invoice discounts post to contra-revenue (`4-4000 Sales Discounts`, Dr),
@@ -265,6 +277,8 @@ A new gateway is one class plus a registration in `Program.cs`.
 - Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
   `components/providers/query-provider.tsx`). 25 files use it so far;
   about 70 still call `apiClient` from `useEffect`. New code uses Query.
+- Reach the API through `apiClient` (JSON) or `sessionFetch` (blobs, FormData),
+  never a bare `fetch`: only those renew the 15-minute access token on a 401.
 - No screen may render sample data. `lib/data/*` was deleted; an empty
   result is shown as empty, a failed request as an error.
 - `VirtualDataTable` (`components/ui/virtual-data-table.tsx`) for large lists.

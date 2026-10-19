@@ -48,6 +48,7 @@ export default function LoginPage() {
         try {
             const res = await fetch(`${siteConfig.api.baseUrl}/auth/login`, {
                 method: "POST",
+                credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password })
             })
@@ -99,6 +100,7 @@ export default function LoginPage() {
         try {
             const res = await fetch(`${siteConfig.api.baseUrl}/auth/mfa/verify`, {
                 method: "POST",
+                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${tempToken}`

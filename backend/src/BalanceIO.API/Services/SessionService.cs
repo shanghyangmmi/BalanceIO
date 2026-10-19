@@ -186,7 +186,7 @@ public class SessionService
             Secure = isSecure,
             SameSite = SameSiteMode.Lax,
             Path = "/",
-            Expires = DateTimeOffset.UtcNow.AddDays(7)
+            Expires = DateTimeOffset.UtcNow.Add(_jwtService.AccessTokenLifetime)
         };
 
         var refreshCookieOptions = new CookieOptions

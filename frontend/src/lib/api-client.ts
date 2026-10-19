@@ -46,27 +46,122 @@ type ApiResponse<T> = {
     message?: string
 }
 
-async function request<T>(endpoint: string, apiOptions: ApiOptions = {}, tokenKey: string = "token"): Promise<T> {
-    const { silent, ...options } = apiOptions
-    const url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
+/*
+ * Sessions. The access token lives 15 minutes (Jwt:AccessTokenMinutes on the
+ * API), in the HttpOnly balanceio_token cookie and, for the claims the UI
+ * reads, in localStorage. The HttpOnly refresh cookie lives 30 days. A 401
+ * trades the refresh cookie for a new access token and repeats the call once.
+ */
 
-    const isServer = typeof window === "undefined"
-    const token = !isServer ? localStorage.getItem(tokenKey) : null
+/** Calls that start or end a session: a 401 from them is the answer, not an expired token. */
+const SESSION_ENDPOINT = /^\/(admin\/)?auth\/(login|refresh|logout|mfa\/verify)\b/i
 
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...options.headers as Record<string, string>,
+let pendingRefresh: Promise<boolean> | null = null
+
+/**
+ * Renews the access token. Resolves false when the server refuses (the
+ * session is over) and throws when it cannot be reached.
+ *
+ * One refresh at a time, across tabs too. The server rotates the refresh
+ * token on every use and treats a second presentation of the old one as
+ * theft, revoking every session, so two tabs refreshing at once would sign
+ * the user out. A tab that waited finds a token other than the one its call
+ * carried and only repeats the call.
+ */
+function refreshSession(tokenKey: string, sentToken: string | null): Promise<boolean> {
+    pendingRefresh ??= withRefreshLock(async () => {
+        if (localStorage.getItem(tokenKey) !== sentToken) return true
+
+        const response = await fetch(`${BASE_URL}/Auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+            credentials: "include",
+        })
+        if (response.status === 401) return false
+        if (!response.ok) {
+            throw new ApiError(`ERR_${response.status}: Could not renew the session.`, response.status)
+        }
+
+        const data = await response.json()
+        localStorage.setItem(tokenKey, data.token)
+        return true
+    }).finally(() => { pendingRefresh = null })
+    return pendingRefresh
+}
+
+async function withRefreshLock(task: () => Promise<boolean>): Promise<boolean> {
+    if (typeof navigator !== "undefined" && navigator.locks) {
+        return await navigator.locks.request("balanceio-session-refresh", task)
     }
+    return task()
+}
 
+/** The refresh cookie was refused, so the session is over: back to sign-in. */
+function endSession(tokenKey: string) {
+    localStorage.removeItem(tokenKey)
+    const admin = tokenKey === "adminToken"
+    const area = admin ? "/sys-control" : "/dashboard"
+    const login = admin ? "/sys-control/login" : "/login"
+    const path = window.location.pathname
+    if (path.startsWith(area) && !path.startsWith(login)) {
+        window.location.href = login
+    }
+}
+
+function withSession(given: HeadersInit | undefined, tokenKey: string): Record<string, string> {
+    const headers: Record<string, string> = { ...given as Record<string, string> }
+    if (typeof window === "undefined") return headers
+
+    const token = localStorage.getItem(tokenKey)
     if (token) {
         headers["Authorization"] = `Bearer ${token}`
     }
 
-    if (!isServer && tokenKey === "token") {
+    if (tokenKey === "token") {
         const companyId = localStorage.getItem("selectedCompanyId");
         if (companyId) {
             headers["X-Company-Id"] = companyId;
         }
+    }
+    return headers
+}
+
+/**
+ * fetch against the API with the session attached: cookies, the bearer token
+ * and, for tenant calls, X-Company-Id. A 401 renews the session once and
+ * repeats the call; if the renewal is refused the user is sent to sign in.
+ * The response is returned as is, so callers that want a blob can use it.
+ */
+export async function sessionFetch(endpoint: string, init: RequestInit = {}, tokenKey: string = "token"): Promise<Response> {
+    const path = endpoint.startsWith('/') ? endpoint : '/' + endpoint
+    const send = () => fetch(`${BASE_URL}${path}`, {
+        ...init,
+        headers: withSession(init.headers, tokenKey),
+        credentials: "include",
+    })
+
+    const sentToken = typeof window === "undefined" ? null : localStorage.getItem(tokenKey)
+    const response = await send()
+    if (response.status !== 401 || typeof window === "undefined" || SESSION_ENDPOINT.test(path)) {
+        return response
+    }
+
+    if (await refreshSession(tokenKey, sentToken)) {
+        return send()
+    }
+    endSession(tokenKey)
+    return response
+}
+
+async function request<T>(endpoint: string, apiOptions: ApiOptions = {}, tokenKey: string = "token"): Promise<T> {
+    const { silent, ...options } = apiOptions
+
+    const isServer = typeof window === "undefined"
+
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...options.headers as Record<string, string>,
     }
 
     // Attach automatic Idempotency Key header for mutation operations to prevent duplicate execution
@@ -78,7 +173,7 @@ async function request<T>(endpoint: string, apiOptions: ApiOptions = {}, tokenKe
     }
 
     try {
-        const response = await fetch(url, { ...options, headers, credentials: "include" })
+        const response = await sessionFetch(endpoint, { ...options, headers }, tokenKey)
 
         // Handle 503 Service Unavailable (Maintenance Mode)
         if (response.status === 503) {
@@ -498,22 +593,10 @@ export const apiClient = {
         const formData = new FormData();
         formData.append("file", file);
 
-        // We need to use a custom fetch here because Content-Type header needs to be unset (to let browser set boundary)
-        // or we handle it in request wrapper. 
-        // Our request wrapper sets Content-Type: application/json by default.
-        // Let's use a special overload or just direct fetch for upload inside here, 
-        // OR modify request to accept body as FormData.
-        // Since request sets Content-Type to application/json, we need to override it.
-        // Actually, preventing default Content-Type is tricky if we pass headers object.
-        // Let's implement a specific upload method or use direct fetch.
-
-        const token = localStorage.getItem("token");
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const response = await fetch(`${BASE_URL}/Files/upload`, {
+        // Not through request(): it sets Content-Type to JSON, and FormData
+        // needs the browser to set it with the multipart boundary.
+        const response = await sessionFetch("/Files/upload", {
             method: "POST",
-            headers,
             body: formData
         });
 
@@ -616,14 +699,7 @@ export const apiClient = {
     },
 
     downloadBackup: async () => {
-        const token = localStorage.getItem("token");
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const response = await fetch(`${BASE_URL}/Backup/download`, {
-            method: "GET",
-            headers
-        });
+        const response = await sessionFetch("/Backup/download", { method: "GET" });
 
         if (!response.ok) throw new Error("Backup download failed");
 

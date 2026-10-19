@@ -112,6 +112,9 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
+        // The default five-minute skew would stretch a 15-minute token to 20.
+        // This API signs and checks its own tokens, so its clocks agree.
+        ClockSkew = TimeSpan.FromSeconds(30),
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
@@ -122,7 +125,11 @@ builder.Services.AddAuthentication(options =>
     {
         OnMessageReceived = context =>
         {
-            if (string.IsNullOrEmpty(context.Token))
+            // The cookies serve requests without an Authorization header. A
+            // header is the caller's choice (the MFA step's temporary token,
+            // the tenant or admin token the SPA holds) and must not be
+            // overridden by whatever session cookie the browser still has.
+            if (string.IsNullOrEmpty(context.Token) && !context.Request.Headers.ContainsKey("Authorization"))
             {
                 if (context.Request.Cookies.TryGetValue(SessionService.TenantAccessTokenCookie, out var token) && !string.IsNullOrEmpty(token))
                 {
