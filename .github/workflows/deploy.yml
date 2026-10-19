@@ -1,8 +1,9 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches: [ "main" ]
+  # Temporarily manual trigger only until self-hosted production VPS runner is provisioned
+  # push:
+  #   branches: [ "main" ]
   workflow_dispatch:
 
 # Two deploys must never overlap on the same host.
