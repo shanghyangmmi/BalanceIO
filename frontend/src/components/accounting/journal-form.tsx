@@ -8,8 +8,10 @@ import { CalendarIcon, Plus, Trash2, Loader2, Hash, TrendingUp, AlertCircle, Che
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import { apiClient, ApiError } from "@/lib/api-client"
 import { journalKeys } from "@/hooks/use-journal-entries"
+import { attachmentKeys } from "@/hooks/use-attachments"
 import { balanceOf, isStorableAmount, minorToNumber } from "@/lib/utils/minor-units"
 import { formatModuleMoney } from "@/lib/utils/module-money"
 import { JournalEntry } from "@/lib/types/accounting"
@@ -43,7 +45,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { AccountCombobox } from "@/components/accounting/account-combobox"
-import { UploadButton } from "@/components/attachments/upload-button"
+import { JournalAttachments, JOURNAL_ATTACHMENT_TYPE } from "@/components/accounting/journal-attachments"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
@@ -145,8 +147,16 @@ export function JournalForm({ initialData }: JournalFormProps) {
     // Without either, the form is a read-only view.
     const canSave = initialData ? can(PERMISSIONS.FinanceEdit) : can(PERMISSIONS.FinanceCreate);
     const canPost = canSave && can(PERMISSIONS.FinanceCreate);
+    // Files go up when the entry is saved, through endpoints that want
+    // Finance.Create to upload and Finance.Edit to delete. The API keeps
+    // evidence on a posted entry, so removal is for drafts only.
+    const canAttach = canSave && can(PERMISSIONS.FinanceCreate);
+    const canRemoveAttachments = !!initialData && initialData.status === "DRAFT" && canSave && can(PERMISSIONS.FinanceEdit);
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+    const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const queryClient = useQueryClient();
+    const router = useRouter();
     const { company } = useCompany();
     // The company's own contacts: the id chosen here is stored on the entry.
     const { data: contacts = [] } = useQuery({
@@ -216,9 +226,40 @@ export function JournalForm({ initialData }: JournalFormProps) {
     const isBalanced = balance?.balanced ?? false;
 
     /**
-     * Saves the entry as a Draft, then, if asked, posts it. Posting is a
-     * separate API call because it is where segregation of duties applies: with
-     * SoD on, the author cannot post their own entry and the draft stays saved.
+     * Applies the attachment changes to a saved entry: removals, then
+     * uploads. Returns what did not go through so the caller can keep it.
+     */
+    async function syncAttachments(entryId: string) {
+        const failedRemovals: string[] = [];
+        let reason: string | undefined;
+        for (const attachmentId of removedAttachmentIds) {
+            try {
+                await apiClient.deleteAttachment(attachmentId, { silent: true });
+            } catch (error) {
+                failedRemovals.push(attachmentId);
+                reason ??= error instanceof Error ? error.message : undefined;
+            }
+        }
+        const results = await Promise.allSettled(pendingFiles.map((file) => {
+            const body = new FormData();
+            body.append("file", file);
+            body.append("entityType", JOURNAL_ATTACHMENT_TYPE);
+            body.append("entityId", entryId);
+            return apiClient.uploadAttachment(body, { silent: true });
+        }));
+        const failedUploads = pendingFiles.filter((_, i) => results[i].status === "rejected");
+        for (const r of results) {
+            if (r.status === "rejected") reason ??= r.reason instanceof Error ? r.reason.message : undefined;
+        }
+        return { uploaded: pendingFiles.length - failedUploads.length, failedUploads, failedRemovals, reason };
+    }
+
+    /**
+     * Saves the entry as a Draft, attaches its files, then, if asked, posts
+     * it. Posting is a separate API call because it is where segregation of
+     * duties applies: with SoD on, the author cannot post their own entry and
+     * the draft stays saved. An entry whose files did not all attach is left
+     * as a draft, since evidence on a posted entry can no longer be removed.
      */
     async function processSubmit(data: JournalFormValues, post: boolean) {
         setIsSaving(true);
@@ -242,12 +283,45 @@ export function JournalForm({ initialData }: JournalFormProps) {
             return;
         }
 
+        const entryId = id!;
+        let attachmentsComplete = true;
+        let attachedNote: { description: string } | undefined;
+        if (pendingFiles.length > 0 || removedAttachmentIds.length > 0) {
+            const outcome = await syncAttachments(entryId);
+            // What failed stays on the form, to go up with the next save.
+            setPendingFiles(outcome.failedUploads);
+            setRemovedAttachmentIds(outcome.failedRemovals);
+            attachmentsComplete = outcome.failedUploads.length === 0 && outcome.failedRemovals.length === 0;
+            if (outcome.uploaded > 0) {
+                attachedNote = { description: `${outcome.uploaded} file${outcome.uploaded === 1 ? "" : "s"} attached` };
+            }
+            if (!attachmentsComplete) {
+                const failed = outcome.failedUploads.length + outcome.failedRemovals.length;
+                toast.error(
+                    post
+                        ? `Saved as draft and not posted: ${failed} attachment change${failed === 1 ? "" : "s"} did not go through`
+                        : `Draft saved, but ${failed} attachment change${failed === 1 ? "" : "s"} did not go through`,
+                    {
+                        description: [...outcome.failedUploads.map(f => f.name), outcome.reason].filter(Boolean).join(" · "),
+                        duration: 10_000,
+                        // A new entry's form is cleared below; the draft is where to try again.
+                        action: initialData?.id ? undefined : {
+                            label: "Open draft",
+                            onClick: () => router.push(`/dashboard/accounting/journal/edit?id=${entryId}`),
+                        },
+                    },
+                );
+            }
+        }
+
         try {
-            if (post) {
-                await apiClient.postJournalEntry(id!, { silent: true });
-                toast.success("Journal entry posted to the general ledger");
+            if (!attachmentsComplete) {
+                // Reported above.
+            } else if (post) {
+                await apiClient.postJournalEntry(entryId, { silent: true });
+                toast.success("Journal entry posted to the general ledger", attachedNote);
             } else {
-                toast.success("Journal entry saved as draft");
+                toast.success("Journal entry saved as draft", attachedNote);
             }
         } catch (error) {
             if (error instanceof ApiError && error.code === "SEGREGATION_OF_DUTIES_VIOLATION") {
@@ -256,12 +330,17 @@ export function JournalForm({ initialData }: JournalFormProps) {
                 toast.error(error instanceof Error ? error.message : "The draft was saved but could not be posted");
             }
         } finally {
-            await queryClient.invalidateQueries({ queryKey: journalKeys.all });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: journalKeys.all }),
+                queryClient.invalidateQueries({ queryKey: attachmentKeys.lists() }),
+            ]);
             setIsSaving(false);
         }
 
         if (!initialData?.id) {
             form.reset();
+            setPendingFiles([]);
+            setRemovedAttachmentIds([]);
             submissionKey.current = crypto.randomUUID();
         }
     }
@@ -606,9 +685,16 @@ export function JournalForm({ initialData }: JournalFormProps) {
                             <div className="w-px bg-foreground/10 hidden md:block" />
                             <div className="flex-1 space-y-2">
                                 <FormLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground font-normal">Attachments</FormLabel>
-                                <div className="h-32 border border-dashed border-foreground/15 rounded-lg hover:border-foreground/30 transition-colors">
-                                    <UploadButton onUpload={(f) => { }} className="h-full w-full" />
-                                </div>
+                                <JournalAttachments
+                                    entryId={initialData?.id}
+                                    pending={pendingFiles}
+                                    onPendingChange={setPendingFiles}
+                                    removed={removedAttachmentIds}
+                                    onRemovedChange={setRemovedAttachmentIds}
+                                    canAttach={canAttach}
+                                    canRemove={canRemoveAttachments}
+                                    disabled={isSaving}
+                                />
                             </div>
                         </div>
                     </div>

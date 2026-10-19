@@ -118,6 +118,20 @@ Under UU KUP and tenant isolation safeguards, support staff cannot inspect finan
 without consent: ticket creation allows tenants to check a 24-hour diagnostic consent box,
 which issues a temporary `SupportAccessGrant` scoped strictly to support technicians.
 
+### Evidence attachments
+
+`AttachmentsController` (`/api/attachments`) stores supporting documents
+against any record by `entityType` + `entityId` (`JournalEntry`,
+`PurchaseBill`, ...): list `Finance.View`, upload `Finance.Create`, delete
+`Finance.Edit` (evidence on a Posted journal entry or bill is Admin-only).
+Files go to S3-compatible storage when `AWS:*` is configured; otherwise to
+local disk only in Development or with `Storage:AllowLocalDisk=true`, and
+elsewhere upload is refused (400 `STORAGE_UNAVAILABLE`, not 503, which the
+frontend reads as maintenance). `GET /api/attachments/storage` says which,
+with the size limit and extensions; forms ask it before offering a picker.
+The journal form keeps chosen files and removals until the entry is saved,
+and leaves the entry a draft if any of them fail.
+
 ## Migrations
 
 Production runs `MigrateAsync()` at boot and stops if it fails. Migrations are
@@ -316,6 +330,6 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
 | Midtrans is implemented but untested against the live sandbox; no recurring billing or auto-renew | `MidtransPaymentGateway` |
 | `/pricing` disagrees with the plans the API sells (`PlansController`): names, Pro price, free quota, and fixed assets on Professional | `app/pricing/page.tsx` |
-| Journal form attachments: `UploadButton onUpload` is a no-op, so files dropped there are not saved | `components/accounting/journal-form.tsx` |
+| Evidence attachments outlive the record: deleting a draft leaves its attachment rows and files, and upload does not check that `entityId` exists in the company | `AttachmentsController` |
 | Password reset does not revoke existing sessions | `AuthService.ResetPasswordAsync` |
 | i18n covers navigation labels only | frontend |

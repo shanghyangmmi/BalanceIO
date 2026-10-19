@@ -20,6 +20,10 @@ namespace BalanceIO.API.Controllers;
 [Authorize]
 public class AttachmentsController : ControllerBase
 {
+    // 15 MB per document
+    private const long MaxFileBytes = 15 * 1024 * 1024;
+    private static readonly string[] AllowedExtensions = [".jpg", ".jpeg", ".png", ".pdf", ".xlsx", ".xls", ".csv", ".doc", ".docx"];
+
     private readonly ApplicationDbContext _context;
     private readonly BlobStorageService _blobStorageService;
 
@@ -54,6 +58,18 @@ public class AttachmentsController : ControllerBase
     }
 
     /// <summary>
+    /// Whether this server can keep an upload, and what it accepts. Forms ask
+    /// before offering a file picker, so a file is never chosen only to be
+    /// refused or lost.
+    /// </summary>
+    [HttpGet("storage")]
+    [RequiresPermission(Permissions.FinanceView)]
+    public ActionResult<AttachmentStorageStatus> GetStorageStatus()
+    {
+        return Ok(new AttachmentStorageStatus(_blobStorageService.IsAvailable, MaxFileBytes, AllowedExtensions));
+    }
+
+    /// <summary>
     /// List all evidence attachments for a specific financial document
     /// </summary>
     [HttpGet("{entityType}/{entityId}")]
@@ -85,17 +101,23 @@ public class AttachmentsController : ControllerBase
         var companyId = GetCurrentCompanyId();
         if (!companyId.HasValue) return Unauthorized("Company context is required.");
 
+        // Not 503: the frontend reads that as maintenance mode.
+        if (!_blobStorageService.IsAvailable)
+            return BadRequest(new
+            {
+                code = "STORAGE_UNAVAILABLE",
+                message = "File storage is not configured on this server, so attachments cannot be kept.",
+            });
+
         var file = request.File;
         if (file == null || file.Length == 0)
             return BadRequest("File cannot be empty.");
 
-        // 15 MB limit per document
-        if (file.Length > 15 * 1024 * 1024)
+        if (file.Length > MaxFileBytes)
             return BadRequest("File size exceeds maximum allowed limit of 15MB.");
 
-        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf", ".xlsx", ".xls", ".csv", ".doc", ".docx" };
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (!allowedExtensions.Contains(ext))
+        if (!AllowedExtensions.Contains(ext))
             return BadRequest($"File format {ext} is not supported. Allowed formats: JPG, PNG, PDF, Excel, CSV, Word.");
 
         var currentUserId = GetCurrentUserId();
@@ -279,6 +301,8 @@ public class AttachmentsController : ControllerBase
         return File(fileResult.Value.stream, fileResult.Value.contentType);
     }
 }
+
+public sealed record AttachmentStorageStatus(bool Available, long MaxFileBytes, IReadOnlyList<string> Extensions);
 
 public class UploadAttachmentRequest
 {
