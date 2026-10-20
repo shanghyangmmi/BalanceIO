@@ -45,6 +45,10 @@ export const siteConfig = {
         instagram: "https://instagram.com/balanceIO", // Official Instagram
         linkedin: "https://linkedin.com/company/balanceIO", // Official LinkedIn
         twitter: "https://twitter.com/balanceIO", // Official Twitter/X
+        // Placeholders until the accounts exist. While false the footer shows
+        // the icons but does not link them: the handles above are guesses
+        // and may belong to someone else. Flip to true once they are live.
+        socialLive: false,
     },
 
     // Demo Account Settings

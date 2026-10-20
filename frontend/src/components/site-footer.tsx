@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link"
+import { Instagram, Linkedin, Twitter } from "lucide-react"
 import { siteConfig } from "@/config/site"
 
 /**
@@ -10,8 +11,8 @@ import { siteConfig } from "@/config/site"
  * It used to be a masthead column, a heading over a ruled link row and a
  * separate legal row, 286px tall at desktop width, with three social
  * icons that all linked to "#". It is now two lines: identity and
- * navigation, then the legal line. Social links come back when the
- * accounts behind them are live.
+ * navigation, then the legal line. The social icons are placeholders: shown,
+ * but not links, until siteConfig.contacts.socialLive is switched on.
  */
 
 const LINKS = [
@@ -19,6 +20,12 @@ const LINKS = [
     { label: "Pricing", href: "/pricing" },
     { label: "Contact", href: "/contact" },
     { label: "Sign in", href: "/login" },
+]
+
+const SOCIAL = [
+    { label: "Instagram", href: siteConfig.contacts.instagram, Icon: Instagram },
+    { label: "LinkedIn", href: siteConfig.contacts.linkedin, Icon: Linkedin },
+    { label: "X", href: siteConfig.contacts.twitter, Icon: Twitter },
 ]
 
 const LEGAL = [
@@ -68,6 +75,32 @@ export function SiteFooter() {
                         © {new Date().getFullYear()} {siteConfig.brand.companyName}
                     </span>
                     <div className="flex items-center gap-5">
+                        <div className="flex items-center gap-3">
+                            {SOCIAL.map(({ label, href, Icon }) =>
+                                siteConfig.contacts.socialLive ? (
+                                    <a
+                                        key={label}
+                                        href={href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label={label}
+                                        className="text-muted-foreground/80 transition-colors hover:text-foreground"
+                                    >
+                                        <Icon className="h-3.5 w-3.5" />
+                                    </a>
+                                ) : (
+                                    <span
+                                        key={label}
+                                        title={`${label}: coming soon`}
+                                        aria-label={`${label}, coming soon`}
+                                        className="cursor-default text-muted-foreground/40"
+                                    >
+                                        <Icon className="h-3.5 w-3.5" />
+                                    </span>
+                                ),
+                            )}
+                        </div>
+                        <span className="h-3 w-px bg-foreground/10" aria-hidden />
                         {LEGAL.map((l) => (
                             <Link
                                 key={l.href}
