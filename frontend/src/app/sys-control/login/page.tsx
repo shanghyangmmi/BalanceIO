@@ -35,6 +35,7 @@ export default function AdminLoginPage() {
         try {
             const res = await fetch(`${siteConfig.api.baseUrl}/admin/auth/login`, {
                 method: "POST",
+                credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
@@ -62,6 +63,7 @@ export default function AdminLoginPage() {
         try {
             const res = await fetch(`${siteConfig.api.baseUrl}/auth/mfa/verify`, {
                 method: "POST",
+                credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${tempToken}`

@@ -24,6 +24,33 @@ public class Plan
     public decimal PriceYearly { get; set; } = 0;
 
     /// <summary>
+    /// Promotional monthly price. Charged instead of <see cref="PriceMonthly"/>
+    /// for any monthly checkout started before <see cref="PromoEndsAt"/>;
+    /// after that date everyone pays the normal price again. Yearly billing
+    /// is never discounted by it.
+    ///
+    /// Both fields must be set for the promotion to run, and the promotional
+    /// price must be below the normal one: a "promotion" that costs the same
+    /// or more is a data-entry mistake, not an offer.
+    /// </summary>
+    [Column(TypeName = "decimal(19,4)")]
+    public decimal? PromoPriceMonthly { get; set; }
+
+    /// <summary>UTC instant the promotion stops applying to new checkouts.</summary>
+    public DateTime? PromoEndsAt { get; set; }
+
+    public bool IsPromoActive(DateTime utcNow) =>
+        PromoPriceMonthly is decimal promo
+        && PromoEndsAt is DateTime ends
+        && utcNow < ends
+        && promo > 0
+        && promo < PriceMonthly;
+
+    /// <summary>What a monthly checkout started at <paramref name="utcNow"/> is charged.</summary>
+    public decimal EffectivePriceMonthly(DateTime utcNow) =>
+        IsPromoActive(utcNow) ? PromoPriceMonthly!.Value : PriceMonthly;
+
+    /// <summary>
     /// Feature list as JSON array
     /// </summary>
     [MaxLength(2000)]

@@ -6,6 +6,9 @@
  */
 
 export const queryKeys = {
+  // Public marketing data (no company scope, no sign-in)
+  publicPricing: ["public", "pricing"] as const,
+
   // Company & Workspace
   company: {
     all: ["company"] as const,

@@ -40,7 +40,7 @@ const ROWS: Row[] = [
     },
     {
         module: "Tax",
-        plan: "Pro and above",
+        plan: "Pro",
         dr: "PPN keluaran",
         cr: "PPN masukan · PPN payable",
         detail:
@@ -48,7 +48,7 @@ const ROWS: Row[] = [
     },
     {
         module: "Inventory",
-        plan: "Pro and above",
+        plan: "Pro",
         dr: "Cost of goods sold",
         cr: "Inventory",
         detail:
@@ -56,7 +56,7 @@ const ROWS: Row[] = [
     },
     {
         module: "Fixed assets",
-        plan: "Enterprise",
+        plan: "Pro",
         dr: "Depreciation expense",
         cr: "Accumulated depreciation",
         detail:
@@ -64,7 +64,7 @@ const ROWS: Row[] = [
     },
     {
         module: "Payroll",
-        plan: "Enterprise",
+        plan: "Pro",
         dr: "Salaries · employer BPJS",
         cr: "PPh 21 · BPJS · net pay",
         detail:
@@ -166,7 +166,7 @@ export function ModulesShowcase() {
                 </div>
 
                 <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                    Exhibit 1 · Typical entry per module · Plan availability as currently configured
+                    Exhibit 1 · Typical entry per module · Plans as configured at launch; see Pricing for current availability
                 </p>
             </div>
         </section>

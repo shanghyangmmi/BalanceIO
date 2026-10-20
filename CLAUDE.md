@@ -62,10 +62,22 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
   (`X-Break-Glass-Reason`), both logged to the audit log. Global query filters compare
   `CompanyId == CurrentCompanyId`, so a missing scope returns no rows. Entities
   without a filter must be queried with an explicit `CompanyId` predicate.
-- Sessions and Tokens: JWT tokens (7-day access token, see Known issues) and rotating refresh
+- Sessions and Tokens: JWT tokens (15-minute access token) and rotating refresh
   tokens (30-day session) are transmitted via `HttpOnly`, `SameSite=Lax` cookies.
   Refresh tokens are stored as SHA-256 hashes in `UserSessions`. Presentation of an
   already-revoked token triggers reuse breach detection and revokes all active sessions.
+  The access lifetime is `Jwt:AccessTokenMinutes` (default 15), read by `JwtService`
+  for both the token and its cookie; validation allows 30 s of clock skew. Access
+  tokens are not checked against `UserSessions`, so revocation (logout, reuse,
+  password reset) ends renewal and a token already issued works until it expires.
+  An `Authorization` header takes precedence over the access cookies.
+  The frontend keeps the access token in localStorage as well (the UI reads its
+  claims with `parseJwt`, which ignores `exp`). `sessionFetch` in `lib/api-client.ts`
+  answers a 401 with `POST /api/Auth/refresh` (refresh cookie, no body token) and
+  repeats the call once; refreshes are serialised across tabs with the Web Locks
+  API because a second use of a rotated token revokes every session. A refused
+  refresh sends the user to `/login` (`/sys-control/login` for the admin client).
+  Login calls must use `credentials: "include"` or the cookies are never stored.
   A password reset revokes all of the user's sessions and writes a `PASSWORD_RESET` audit row.
 - Segregation of duties: `Company.EnforceSegregationOfDuties` (default true)
   blocks the creator of an entry from posting it.
@@ -275,11 +287,19 @@ equals the payment). Manual transfers are confirmed by a platform admin
 (`POST /api/admin/payments/{id}/confirm`). Success activates the plan once.
 A new gateway is one class plus a registration in `Program.cs`.
 
+Plans: `/pricing` reads `GET /api/Plans/public` (anonymous): active plans,
+the monthly price checkout would charge now (`Plan.EffectivePriceMonthly`:
+`PromoPriceMonthly` until `PromoEndsAt`, yearly never discounted) and the
+licensing catalogue as the checklist. Prices, promotion, modules, limits and
+card highlights are edited in admin → Subscriptions → Plans.
+
 ## Frontend conventions
 
 - Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
   `components/providers/query-provider.tsx`). 25 files use it so far;
   about 70 still call `apiClient` from `useEffect`. New code uses Query.
+- Reach the API through `apiClient` (JSON) or `sessionFetch` (blobs, FormData),
+  never a bare `fetch`: only those renew the 15-minute access token on a 401.
 - No screen may render sample data. `lib/data/*` was deleted; an empty
   result is shown as empty, a failed request as an error.
 - `VirtualDataTable` (`components/ui/virtual-data-table.tsx`) for large lists.
@@ -330,7 +350,5 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
 | About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
 | Midtrans is implemented but untested against the live sandbox; no recurring billing or auto-renew | `MidtransPaymentGateway` |
-| `/pricing` disagrees with the plans the API sells (`PlansController`): names, Pro price, free quota, and fixed assets on Professional | `app/pricing/page.tsx` |
 | Evidence attachments outlive the record: deleting a draft leaves its attachment rows and files, and upload does not check that `entityId` exists in the company | `AttachmentsController` |
-| Access tokens last 7 days and are not checked against `UserSessions`, and the frontend never calls `/auth/refresh`: revoking sessions (password reset, revoke-all, reuse detection) stops renewal but not an access token already issued | `JwtService.GenerateToken` |
 | i18n covers navigation labels only | frontend |

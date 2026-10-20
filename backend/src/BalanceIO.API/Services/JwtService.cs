@@ -8,12 +8,28 @@ namespace BalanceIO.API.Services;
 
 public class JwtService
 {
+    /// <summary>
+    /// Used when <c>Jwt:AccessTokenMinutes</c> is absent. Revoking a session
+    /// (logout, refresh-token reuse, password reset) stops renewal only; an
+    /// access token already issued stays valid until it expires, so this is
+    /// how long a stolen one keeps working.
+    /// </summary>
+    public const double DefaultAccessTokenMinutes = 15;
+
     private readonly IConfiguration _configuration;
 
     public JwtService(IConfiguration configuration)
     {
         _configuration = configuration;
+
+        var minutes = configuration.GetValue("Jwt:AccessTokenMinutes", DefaultAccessTokenMinutes);
+        if (minutes <= 0)
+            throw new InvalidOperationException($"Jwt:AccessTokenMinutes must be positive (was {minutes}).");
+        AccessTokenLifetime = TimeSpan.FromMinutes(minutes);
     }
+
+    /// <summary>Lifetime of the access token and of the cookie that carries it.</summary>
+    public TimeSpan AccessTokenLifetime { get; }
 
     public string GenerateToken(User user)
     {
@@ -37,7 +53,7 @@ public class JwtService
             issuer: _configuration["Jwt:Issuer"],
             audience: _configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(7), // 7 Days session for mobile/web app
+            expires: DateTime.UtcNow.Add(AccessTokenLifetime), // renewed through POST /api/auth/refresh
             signingCredentials: creds
         );
 
