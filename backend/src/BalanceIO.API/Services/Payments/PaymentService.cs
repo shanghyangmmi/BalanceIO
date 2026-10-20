@@ -54,7 +54,10 @@ public class PaymentService
             ?? throw new PaymentRuleException("PLAN_NOT_FOUND", "Plan not found.", StatusCodes.Status404NotFound);
         var company = await _context.Companies.AsNoTracking().FirstAsync(c => c.Id == companyId, ct);
 
-        var amount = cycle == "yearly" ? plan.PriceYearly : plan.PriceMonthly;
+        // The amount is fixed here and saved on the Payment, so a promotion
+        // that ends while the customer is at the gateway does not change
+        // what they were quoted; the webhook checks against this figure.
+        var amount = cycle == "yearly" ? plan.PriceYearly : plan.EffectivePriceMonthly(DateTime.UtcNow);
         var orderId = $"SUB-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..10].ToUpperInvariant()}";
 
         var payment = new Payment

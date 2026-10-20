@@ -2,620 +2,492 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion, AnimatePresence } from "framer-motion"
-import { Check, Minus, ChevronDown, ArrowRight } from "lucide-react"
+import { motion } from "framer-motion"
+import { ArrowRight, Check, Minus, Plus } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import { EASE_HOUSE } from "@/lib/motion"
+import { siteConfig } from "@/config/site"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { TiltCard } from "@/components/landing/tilt-card"
-import { Magnetic } from "@/components/landing/magnetic"
-import { NumberTicker } from "@/components/ui/number-ticker"
-import { cn } from "@/lib/utils"
-import { SPRING } from "@/lib/motion"
-import { SmoothScrollProvider } from "@/components/landing/scroll-engine"
+import { Skeleton } from "@/components/ui/skeleton"
+import { usePublicPricing, type PublicPlan, type PublicPricing } from "@/hooks/use-public-pricing"
 
-/* ────────────────────────────────────────────────────────────────────────
-   Plans — yearly billing saves 20%
-──────────────────────────────────────────────────────────────────────── */
-const formatIDR = (v: number) =>
-    new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format(v)
+/**
+ * Pricing, as the API charges it.
+ *
+ * This page used to carry its own three plans, prices and comparison
+ * matrix in code. They disagreed with the plans the backend sells (names,
+ * the Pro price, the free quota, which modules each plan opens), and the
+ * "Save 20%" was a discount computed in the browser that checkout never
+ * applied. Everything below now comes from GET /api/Plans/public: prices
+ * and promotions from the admin plan editor, the checklist from the
+ * licensing catalogue the API enforces. If the request fails the page says
+ * so; it never falls back to figures it made up.
+ */
 
-interface Plan {
-    name: string
-    tagline: string
-    monthly: number | null // null = custom
-    features: string[]
-    cta: string
-    href: string
-    popular?: boolean
+const rupiah = new Intl.NumberFormat("id-ID")
+const formatRp = (v: number) => `Rp ${rupiah.format(v)}`
+
+const MODULE_LABEL: Record<string, string> = {
+    accounting: "Accounting",
+    tax: "Tax",
+    inventory: "Inventory",
+    fixedAssets: "Fixed assets",
+    payroll: "Payroll",
+    platform: "Platform",
 }
+const MODULE_ORDER = ["accounting", "tax", "inventory", "fixedAssets", "payroll", "platform"]
 
-const PLANS: Plan[] = [
-    {
-        name: "Starter",
-        tagline: "For freelancers and first books",
-        monthly: 0,
-        features: [
-            "50 journal entries / month",
-            "1 user · 1 company",
-            "Core financial reports",
-            "Invoice templates",
-            "Email support",
-        ],
-        cta: "Get Started",
-        href: "/register",
-    },
-    {
-        name: "Professional",
-        tagline: "For growing businesses",
-        monthly: 299_000,
-        features: [
-            "Unlimited journal entries",
-            "5 users · 3 companies",
-            "All 25 reports with drill-down",
-            "Multi-currency with dated rate table",
-            "PPN / PPh record tracking",
-            "Inventory & fixed assets",
-            "Priority support",
-        ],
-        cta: "Start Free Trial",
-        href: "/register",
-        popular: true,
-    },
-    {
-        name: "Enterprise",
-        tagline: "For groups and firms",
-        monthly: null,
-        features: [
-            "Everything in Professional",
-            "Unlimited users & companies",
-            "Consolidated reporting",
-            "Custom roles & approval flows",
-            "Dedicated account manager",
-            "SLA & onboarding assistance",
-        ],
-        cta: "Contact Sales",
-        href: "/register",
-    },
-]
+const promoEnd = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" })
 
-/* ────────────────────────────────────────────────────────────────────────
-   Comparison matrix (expandable groups)
-──────────────────────────────────────────────────────────────────────── */
-type Cell = boolean | string
+const reveal = (delay = 0) => ({
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    transition: { delay, duration: 0.7, ease: EASE_HOUSE },
+})
 
-const MATRIX: { group: string; rows: { label: string; values: [Cell, Cell, Cell] }[] }[] = [
-    {
-        group: "Accounting",
-        rows: [
-            { label: "Journal entries", values: ["50 / month", "Unlimited", "Unlimited"] },
-            { label: "Chart of Accounts", values: [true, true, true] },
-            { label: "Recurring journals", values: [false, true, true] },
-            { label: "Period locking", values: [false, true, true] },
-            { label: "Void + reversal workflow", values: [true, true, true] },
-        ],
-    },
-    {
-        group: "Operations",
-        rows: [
-            { label: "Sales invoices & payments", values: [true, true, true] },
-            { label: "Purchases & vendor bills", values: [false, true, true] },
-            { label: "Inventory & stock opname", values: [false, true, true] },
-            { label: "Fixed assets & depreciation", values: [false, true, true] },
-            { label: "Projects & cost tracking", values: [false, true, true] },
-        ],
-    },
-    {
-        group: "Reports & Tax",
-        rows: [
-            { label: "Financial reports", values: ["Core 5", "All 16+", "All 16+"] },
-            { label: "Drill-down to source", values: [false, true, true] },
-            { label: "PPN / PPh record tracking", values: [false, true, true] },
-            { label: "Multi-currency", values: [false, true, true] },
-            { label: "Consolidated reporting", values: [false, false, true] },
-        ],
-    },
-    {
-        group: "Security & Support",
-        rows: [
-            { label: "MFA & audit logs", values: [true, true, true] },
-            { label: "Role-based access", values: ["Basic", "Granular", "Custom + approvals"] },
-            { label: "Users", values: ["1", "5", "Unlimited"] },
-            { label: "Support", values: ["Email", "Priority", "Dedicated manager"] },
-            { label: "SLA guarantee", values: [false, false, true] },
-        ],
-    },
-]
+/* ── Plans ────────────────────────────────────────────────────────── */
 
-function CellValue({ value }: { value: Cell }) {
-    if (value === true)
+function PlanPrice({ plan, yearly }: { plan: PublicPlan; yearly: boolean }) {
+    if (plan.priceMonthly === 0 && plan.priceYearly === 0) {
         return (
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600/10 dark:bg-emerald-500/15 mx-auto">
-                <Check className="h-3 w-3 text-emerald-700 dark:text-emerald-400" />
-            </span>
-        )
-    if (value === false) return <Minus className="h-3.5 w-3.5 text-muted-foreground/40 mx-auto" />
-    return <span className="text-xs font-medium text-foreground/80">{value}</span>
-}
-
-function ComparisonMatrix() {
-    const [open, setOpen] = React.useState<string[]>(["Accounting"])
-    const toggle = (g: string) =>
-        setOpen((o) => (o.includes(g) ? o.filter((x) => x !== g) : [...o, g]))
-
-    return (
-        <div className="rounded-3xl border border-foreground/10 bg-card/60 backdrop-blur-xl overflow-hidden">
-            {/* Header row */}
-            <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr] px-6 py-4 border-b border-foreground/[0.06] bg-foreground/[0.02]">
-                <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
-                    Compare
-                </span>
-                {PLANS.map((p) => (
-                    <span
-                        key={p.name}
-                        className={cn(
-                            "text-center text-xs font-bold",
-                            p.popular ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"
-                        )}
-                    >
-                        {p.name}
-                    </span>
-                ))}
+            <div className="flex h-[76px] flex-col justify-end">
+                <span className="font-display text-4xl font-bold tracking-tight">Free</span>
+                <span className="mt-1 text-[12px] text-muted-foreground">No card required</span>
             </div>
+        )
+    }
 
-            {MATRIX.map((section) => {
-                const isOpen = open.includes(section.group)
-                return (
-                    <div key={section.group} className="border-b border-foreground/[0.05] last:border-0">
-                        <button
-                            onClick={() => toggle(section.group)}
-                            className="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-foreground hover:bg-emerald-600/[0.03] dark:hover:bg-emerald-500/[0.05] transition-colors"
-                        >
-                            {section.group}
-                            <motion.span
-                                animate={{ rotate: isOpen ? 180 : 0 }}
-                                transition={{ ...SPRING.snappy }}
-                            >
-                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            </motion.span>
-                        </button>
-                        {/* Collapse by grid-template-rows, not by height.
-                            Animating height forces a reflow of everything below
-                            on every frame, and a *spring* on height is the worst
-                            of both: springs settle slowly, so the reflow runs for
-                            the whole settle. With Lenis driving scroll off the
-                            GSAP ticker, that thrash competes with the scroll loop
-                            directly.
+    if (yearly) {
+        const monthsEquivalent = plan.priceMonthly > 0 ? plan.priceYearly / plan.priceMonthly : 0
+        const freeMonths = Math.floor(12 - monthsEquivalent)
+        return (
+            <div className="flex h-[76px] flex-col justify-end">
+                <span className="font-money text-4xl font-bold tracking-tight">
+                    {formatRp(plan.priceYearly)}
+                    <span className="ml-1 font-sans text-[13px] font-normal text-muted-foreground">/ year</span>
+                </span>
+                <span className="mt-1 text-[12px] text-muted-foreground">
+                    {freeMonths > 0 ? `${freeMonths} months free against monthly billing` : "Billed once a year"}
+                </span>
+            </div>
+        )
+    }
 
-                            0fr to 1fr is a pure CSS transition - no per-frame JS
-                            style writes, no measurement pass, and a deterministic
-                            duration on the house curve instead of an overshoot. */}
-                        <div
-                            className={cn(
-                                "grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                                isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                            )}
-                        >
-                            <div className="overflow-hidden">
-                                    {section.rows.map((row, i) => (
-                                        <div
-                                            key={row.label}
-                                            className={cn(
-                                                "grid grid-cols-[1.4fr_1fr_1fr_1fr] items-center px-6 py-3 text-center",
-                                                i % 2 === 0 && "bg-foreground/[0.015]"
-                                            )}
-                                        >
-                                            <span className="text-[13px] text-muted-foreground text-left">
-                                                {row.label}
-                                            </span>
-                                            {row.values.map((v, j) => (
-                                                <span key={j}>
-                                                    <CellValue value={v} />
-                                                </span>
-                                            ))}
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-                    </div>
-                )
-            })}
+    const promo = plan.promoPriceMonthly !== null && plan.promoEndsAt !== null
+    return (
+        <div className="flex h-[76px] flex-col justify-end">
+            {promo && (
+                <span className="font-money text-[13px] text-muted-foreground line-through decoration-muted-foreground/60">
+                    {formatRp(plan.priceMonthly)}
+                </span>
+            )}
+            <span className="font-money text-4xl font-bold tracking-tight">
+                {formatRp(plan.effectivePriceMonthly)}
+                <span className="ml-1 font-sans text-[13px] font-normal text-muted-foreground">/ month</span>
+            </span>
+            <span className="mt-1 text-[12px] text-muted-foreground">
+                {promo ? `Introductory price for checkouts until ${promoEnd(plan.promoEndsAt!)}` : "Billed monthly"}
+            </span>
         </div>
     )
 }
 
-/* ────────────────────────────────────────────────────────────────────────
-   FAQ accordion
-──────────────────────────────────────────────────────────────────────── */
+function PlanCard({ plan, data, yearly, index }: { plan: PublicPlan; data: PublicPricing; yearly: boolean; index: number }) {
+    const paid = plan.priceMonthly > 0 || plan.priceYearly > 0
+    const promo = !yearly && plan.promoPriceMonthly !== null
+
+    return (
+        <motion.article
+            {...reveal(0.1 + index * 0.06)}
+            className={cn(
+                "relative flex flex-col rounded-xl border bg-card p-7",
+                plan.isPopular ? "border-foreground/40" : "border-foreground/10",
+            )}
+        >
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h2 className="font-display text-2xl font-bold tracking-tight">{plan.name}</h2>
+                    {plan.description && <p className="mt-1 text-[13px] text-muted-foreground">{plan.description}</p>}
+                </div>
+                {promo ? (
+                    <span className="shrink-0 rounded-full border border-emerald-600/30 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-emerald-700 dark:border-emerald-400/30 dark:text-emerald-400">
+                        Promotion
+                    </span>
+                ) : plan.isPopular ? (
+                    <span className="shrink-0 rounded-full border border-foreground/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                        Recommended
+                    </span>
+                ) : null}
+            </div>
+
+            <div className="mt-8">
+                <PlanPrice plan={plan} yearly={yearly} />
+            </div>
+
+            <div className="my-7 h-px bg-foreground/10" />
+
+            <dl className="grid grid-cols-3 gap-3 text-[12px]">
+                <div>
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Users</dt>
+                    <dd className="mt-1 font-money text-foreground">{plan.maxUsers <= 0 ? "Unlimited" : rupiah.format(plan.maxUsers)}</dd>
+                </div>
+                <div>
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Companies</dt>
+                    <dd className="mt-1 font-money text-foreground">{plan.maxCompanies <= 0 ? "Unlimited" : rupiah.format(plan.maxCompanies)}</dd>
+                </div>
+                <div>
+                    <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Journals</dt>
+                    <dd className="mt-1 text-foreground">
+                        {plan.maxJournalEntries <= 0
+                            ? "Unlimited"
+                            : `${rupiah.format(plan.maxJournalEntries)} ${data.journalLimitWindow.toLowerCase() === "total" ? "total" : "/ month"}`}
+                    </dd>
+                </div>
+            </dl>
+
+            <div className="mt-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Modules</p>
+                <p className="mt-1.5 text-[13px] text-foreground">
+                    {MODULE_ORDER.filter((m) => plan.modules.includes(m)).map((m) => MODULE_LABEL[m]).join(" · ") || "Accounting"}
+                </p>
+            </div>
+
+            {plan.highlights.length > 0 && (
+                <ul className="mt-6 space-y-2.5">
+                    {plan.highlights.map((h) => (
+                        <li key={h} className="flex items-start gap-2.5 text-[13px] leading-relaxed text-foreground/85">
+                            <Check className="mt-[3px] h-3.5 w-3.5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                            {h}
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            <div className="mt-auto pt-8">
+                <Link
+                    href="/register"
+                    className={cn(
+                        "group flex h-11 w-full items-center justify-center gap-2 rounded-full text-[15px] font-medium transition-colors",
+                        plan.isPopular || promo
+                            ? "bg-foreground text-background hover:bg-foreground/85"
+                            : "border border-foreground/15 text-foreground hover:border-foreground/40",
+                    )}
+                >
+                    {paid ? `Start with ${plan.name}` : "Create a free account"}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+                {paid && (
+                    <p className="mt-3 text-center text-[11px] text-muted-foreground">
+                        Register free first; upgrade from Settings when you are ready to pay.
+                    </p>
+                )}
+            </div>
+        </motion.article>
+    )
+}
+
+/* ── Checklist ────────────────────────────────────────────────────── */
+
+function Checklist({ data }: { data: PublicPricing }) {
+    const groups = MODULE_ORDER.map((m) => [m, data.features.filter((f) => f.module === m)] as const).filter(
+        ([, list]) => list.length > 0,
+    )
+
+    // Without a catalogue, compare what is certain: which module each plan opens.
+    const rows =
+        groups.length > 0
+            ? null
+            : MODULE_ORDER.filter((m) => m !== "platform").map((m) => ({
+                  key: m,
+                  name: MODULE_LABEL[m],
+                  has: (p: PublicPlan) => p.modules.includes(m),
+              }))
+
+    const cell = (on: boolean) =>
+        on ? (
+            <Check className="mx-auto h-4 w-4 text-emerald-700 dark:text-emerald-400" aria-label="Included" />
+        ) : (
+            <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" aria-label="Not included" />
+        )
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] border-t border-foreground text-[13px]">
+                <thead>
+                    <tr className="border-b border-foreground/10">
+                        <th className="py-3 pr-4 text-left font-mono text-[10px] font-normal uppercase tracking-[0.18em] text-muted-foreground">
+                            Feature
+                        </th>
+                        {data.plans.map((p) => (
+                            <th key={p.id} className="w-32 py-3 text-center font-display text-base font-bold">
+                                {p.name}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows
+                        ? rows.map((r) => (
+                              <tr key={r.key} className="border-b border-foreground/[0.06]">
+                                  <td className="py-3 pr-4 text-foreground">{r.name}</td>
+                                  {data.plans.map((p) => (
+                                      <td key={p.id} className="py-3 text-center">
+                                          {cell(r.has(p))}
+                                      </td>
+                                  ))}
+                              </tr>
+                          ))
+                        : groups.map(([module, list]) => (
+                              <React.Fragment key={module}>
+                                  <tr>
+                                      <td
+                                          colSpan={data.plans.length + 1}
+                                          className="pb-2 pt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground"
+                                      >
+                                          {MODULE_LABEL[module] ?? module}
+                                      </td>
+                                  </tr>
+                                  {list.map((f) => (
+                                      <tr key={f.key} className="border-b border-foreground/[0.06]">
+                                          <td className="py-3 pr-4">
+                                              <span className="text-foreground">{f.name}</span>
+                                              {f.description && (
+                                                  <span className="mt-0.5 block text-[12px] leading-relaxed text-muted-foreground">
+                                                      {f.description}
+                                                  </span>
+                                              )}
+                                          </td>
+                                          {data.plans.map((p) => (
+                                              <td key={p.id} className="py-3 text-center">
+                                                  {cell(f.planIds.includes(p.id))}
+                                              </td>
+                                          ))}
+                                      </tr>
+                                  ))}
+                              </React.Fragment>
+                          ))}
+                </tbody>
+            </table>
+        </div>
+    )
+}
+
+/* ── Questions ────────────────────────────────────────────────────── */
+
+// Each answer states what the code does. No migration service, backup
+// schedule, IFRS claim or Coretax link is promised here, because none of
+// them exists.
 const FAQS = [
     {
-        q: "Can we migrate from our current accounting software?",
-        a: "Yes. Chart of Accounts, contacts, products, and opening balances can be imported from spreadsheet templates. For larger migrations (multi-year ledgers, fixed-asset registers), our team assists Enterprise customers end to end.",
+        q: "Is there a contract or automatic renewal?",
+        a: "No. Each month or year is paid on its own, by bank transfer or on the online payment page where it is enabled. Nothing renews or charges you automatically.",
     },
     {
-        q: "How is our financial data protected?",
-        a: "Credentials are hashed with Argon2id, sessions require MFA when enabled, access is controlled per role down to individual actions, and every mutation lands in an append-only audit log. Backups run automatically.",
+        q: "How does the introductory price work?",
+        a: "While a promotion is shown on this page, a monthly checkout is charged the promotional price. The figure is fixed when you start checkout. After the stated date, new monthly payments are at the normal price.",
     },
     {
-        q: "Does BalanceIO follow PSAK / IFRS?",
-        a: "Posting logic is built around PSAK-aligned treatments with IFRS-compatible structures — double-entry enforcement, period locking, immutable posted entries, and audit-ready trails are standard on every plan.",
+        q: "Can I move my books from another system?",
+        a: "Yes. The standard Indonesian chart of accounts loads in one step, and the migration wizard imports opening balances, so you start from your last closed period rather than re-entering history.",
     },
     {
-        q: "How does Indonesian tax support work?",
-        a: "PPN output and input are tracked per transaction line, PPh withholding is managed per contact, and NPWP / tax-invoice data is structured to be Coretax-ready for your monthly filings.",
+        q: "Can I take my data out?",
+        a: "Settings → Data backup downloads a complete snapshot of the company as JSON, on every plan, whenever you want it.",
     },
     {
-        q: "Can we cancel or change plans anytime?",
-        a: "Anytime. Upgrades apply immediately; downgrades apply at the next billing cycle. Your data remains exportable in standard formats regardless of plan.",
+        q: "Does BalanceIO file my taxes?",
+        a: "No. It records PPN and PPh, prepares the SPT Masa PPN summary, and exports e-Faktur and e-Bupot CSV files. It does not connect to Coretax or file with DJP, and the tax treatment of a transaction stays your accountant's judgement.",
     },
 ]
 
-function FaqAccordion() {
+function Faq() {
     const [open, setOpen] = React.useState<number | null>(0)
     return (
-        <div className="space-y-3">
+        <div className="border-t border-foreground">
             {FAQS.map((f, i) => {
                 const isOpen = open === i
                 return (
-                    <motion.div
-                        key={f.q}
-                        initial={{ opacity: 0, y: 16 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.4 }}
-                        transition={{ delay: i * 0.05 }}
-                        className={cn(
-                            "rounded-2xl border backdrop-blur-xl overflow-hidden transition-colors",
-                            isOpen
-                                ? "border-emerald-600/25 dark:border-emerald-500/25 bg-card/70"
-                                : "border-foreground/10 bg-card/50 hover:border-foreground/20"
-                        )}
-                    >
+                    <div key={f.q} className="border-b border-foreground/10">
                         <button
+                            type="button"
                             onClick={() => setOpen(isOpen ? null : i)}
-                            className="w-full flex items-center justify-between gap-4 px-6 py-4 text-left"
+                            aria-expanded={isOpen}
+                            className="flex w-full items-center justify-between gap-6 py-5 text-left"
                         >
-                            <span className="text-sm font-semibold text-foreground">{f.q}</span>
-                            <motion.span
-                                animate={{ rotate: isOpen ? 180 : 0 }}
-                                transition={{ ...SPRING.snappy }}
-                                className="shrink-0"
-                            >
-                                <ChevronDown
-                                    className={cn(
-                                        "h-4 w-4",
-                                        isOpen ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
-                                    )}
-                                />
-                            </motion.span>
+                            <span className="text-[15px] font-medium text-foreground">{f.q}</span>
+                            <Plus
+                                className={cn(
+                                    "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                                    isOpen && "rotate-45",
+                                )}
+                            />
                         </button>
                         <div
                             className={cn(
-                                "grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                                isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                                "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+                                isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
                             )}
                         >
-                            <div className="overflow-hidden">
-                                <p className="px-6 pb-5 text-sm text-muted-foreground leading-relaxed">
-                                    {f.a}
-                                </p>
-                            </div>
+                            <p className="overflow-hidden pr-10 text-[14px] leading-relaxed text-muted-foreground">
+                                <span className="block pb-5">{f.a}</span>
+                            </p>
                         </div>
-                    </motion.div>
+                    </div>
                 )
             })}
         </div>
     )
 }
 
-/* ────────────────────────────────────────────────────────────────────────
-   Page
-──────────────────────────────────────────────────────────────────────── */
+/* ── Page ─────────────────────────────────────────────────────────── */
+
 export default function PricingPage() {
-    const [yearly, setYearly] = React.useState(true)
+    const { data, isLoading, isError, error, refetch } = usePublicPricing()
+    const [yearly, setYearly] = React.useState(false)
+
+    const anyPaid = data?.plans.some((p) => p.priceYearly > 0) ?? false
+    const promoPlan = data?.plans.find((p) => p.promoPriceMonthly !== null && p.promoEndsAt !== null)
 
     return (
-        <SmoothScrollProvider>
-        <div className="relative flex min-h-screen flex-col bg-background text-foreground antialiased selection:bg-emerald-500/25 overflow-hidden">
+        <div className="flex min-h-screen flex-col bg-background text-foreground antialiased">
             <SiteHeader />
 
-            {/* Ambient stage */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute inset-0 dark:hidden bg-gradient-to-bl from-teal-500/[0.07] via-transparent to-transparent" />
-                <div className="absolute -top-[30%] left-1/2 -translate-x-1/2 w-[100vw] aspect-square rounded-full opacity-[0.10] dark:opacity-20 blur-[110px] bg-[conic-gradient(from_90deg,transparent_0deg,var(--color-emerald-500)_60deg,var(--color-cyan-500)_140deg,transparent_220deg)] animate-[spin_30s_linear_infinite]" />
-                <div className="absolute inset-0 bg-[radial-gradient(rgba(9,60,50,0.10)_1px,transparent_1px)] dark:bg-[radial-gradient(rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:34px_34px] [mask-image:radial-gradient(ellipse_70%_50%_at_50%_0%,black,transparent)]" />
-                <div className="absolute inset-0 bg-noise" />
-            </div>
-
-            <main className="flex-1 relative z-10 pt-40 pb-24">
-                {/* ── Hero ─────────────────────────────────────────────── */}
-                <section className="mx-auto max-w-3xl px-6 text-center mb-14">
-                    <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center justify-center gap-3 mb-7"
-                    >
-                        <span className="h-px w-10 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                        <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-700 dark:text-emerald-400">
-                            Pricing
-                        </span>
-                        <span className="h-px w-10 bg-emerald-600/70 dark:bg-emerald-400/70" />
+            <main className="flex-1 pb-24 pt-36">
+                {/* ── Head ── */}
+                <section className="mx-auto max-w-6xl px-6">
+                    <motion.div {...reveal(0)} className="flex items-center gap-3">
+                        <span className="h-px w-8 bg-foreground/30" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Pricing</span>
                     </motion.div>
-                    <motion.h1
-                        initial={{ opacity: 0, y: 24 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.08, ...SPRING.soft }}
-                        className="font-display text-5xl md:text-6xl font-bold tracking-tight leading-[1.08]"
-                    >
-                        Pricing you can{" "}
-                        <span className="italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-600 dark:from-emerald-400 dark:via-teal-300 dark:to-cyan-400 bg-clip-text text-transparent animate-gradient-flow [background-size:200%_200%]">
-                            audit.
-                        </span>
-                    </motion.h1>
-                    <motion.p
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="mt-5 text-lg text-muted-foreground"
-                    >
-                        Start free, grow when your books do. Change plans anytime.
-                    </motion.p>
+                    <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:items-end">
+                        <motion.h1
+                            {...reveal(0.05)}
+                            className="font-display text-4xl font-bold leading-[1.06] tracking-tight sm:text-5xl lg:text-6xl"
+                        >
+                            Every module,{" "}
+                            <span className="italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 to-cyan-600 bg-clip-text text-transparent dark:from-emerald-400 dark:to-cyan-400">
+                                one price.
+                            </span>
+                        </motion.h1>
+                        <motion.p {...reveal(0.12)} className="max-w-md text-[15px] leading-relaxed text-muted-foreground lg:justify-self-end">
+                            Start on the free plan with your real books. Move to Pro when you need tax, inventory, fixed assets or
+                            payroll. Prices are in rupiah; nothing renews without you.
+                        </motion.p>
+                    </div>
 
-                    {/* Billing toggle */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="mt-9 inline-flex items-center gap-3"
-                    >
-                        <div className="relative inline-flex items-center rounded-full border border-foreground/10 bg-card/65 backdrop-blur-xl p-1.5">
-                            {(["monthly", "yearly"] as const).map((mode) => {
-                                const isActive = yearly === (mode === "yearly")
+                    {promoPlan && !yearly && (
+                        <motion.p
+                            {...reveal(0.18)}
+                            className="mt-8 border-l-2 border-emerald-600 pl-4 text-[14px] text-foreground dark:border-emerald-400"
+                        >
+                            {promoPlan.name} is{" "}
+                            <span className="font-money font-medium">{formatRp(promoPlan.promoPriceMonthly!)}</span> a month for
+                            checkouts until {promoEnd(promoPlan.promoEndsAt!)}, then{" "}
+                            <span className="font-money">{formatRp(promoPlan.priceMonthly)}</span>.
+                        </motion.p>
+                    )}
+
+                    {anyPaid && (
+                        <motion.div {...reveal(0.2)} className="mt-10 inline-flex rounded-full border border-foreground/15 p-1">
+                            {(["Monthly", "Yearly"] as const).map((label) => {
+                                const active = yearly === (label === "Yearly")
                                 return (
                                     <button
-                                        key={mode}
-                                        onClick={() => setYearly(mode === "yearly")}
+                                        key={label}
+                                        type="button"
+                                        onClick={() => setYearly(label === "Yearly")}
+                                        aria-pressed={active}
                                         className={cn(
-                                            "relative rounded-full px-5 py-2 text-sm font-semibold capitalize transition-colors",
-                                            isActive
-                                                ? "text-white dark:text-zinc-950"
-                                                : "text-muted-foreground hover:text-foreground"
+                                            "rounded-full px-5 py-1.5 text-[13px] font-medium transition-colors",
+                                            active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
                                         )}
                                     >
-                                        {isActive && (
-                                            <motion.span
-                                                layoutId="billing-pill"
-                                                transition={{ ...SPRING.snappy }}
-                                                className="absolute inset-0 rounded-full bg-zinc-900 dark:bg-emerald-400 shadow-md"
-                                            />
-                                        )}
-                                        <span className="relative z-10">{mode}</span>
+                                        {label}
                                     </button>
                                 )
                             })}
+                        </motion.div>
+                    )}
+                </section>
+
+                {/* ── Plans ── */}
+                <section className="mx-auto mt-10 max-w-6xl px-6">
+                    {isLoading ? (
+                        <div className="grid gap-6 md:grid-cols-2">
+                            {[0, 1].map((i) => (
+                                <div key={i} className="space-y-4 rounded-xl border border-foreground/10 p-7">
+                                    <Skeleton className="h-7 w-24" />
+                                    <Skeleton className="h-4 w-48" />
+                                    <Skeleton className="mt-8 h-10 w-56" />
+                                    <Skeleton className="mt-8 h-24 w-full" />
+                                </div>
+                            ))}
                         </div>
-                        <AnimatePresence>
-                            {yearly && (
-                                <motion.span
-                                    initial={{ opacity: 0, scale: 0.6, x: -8 }}
-                                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                                    exit={{ opacity: 0, scale: 0.6, x: -8 }}
-                                    transition={{ ...SPRING.snappy }}
-                                    className="inline-flex items-center gap-1 rounded-full border border-emerald-600/25 bg-emerald-600/10 dark:border-emerald-500/30 dark:bg-emerald-500/15 px-3 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400"
-                                >
-                                    Save 20%
-                                </motion.span>
-                            )}
-                        </AnimatePresence>
-                    </motion.div>
-                </section>
-
-                {/* ── Plan cards ───────────────────────────────────────── */}
-                <section className="mx-auto max-w-6xl px-6 mb-24">
-                    <div className="grid md:grid-cols-3 gap-6 items-stretch [perspective:1600px]">
-                        {PLANS.map((plan, i) => {
-                            const price =
-                                plan.monthly === null
-                                    ? null
-                                    : yearly
-                                        ? Math.round(plan.monthly * 0.8)
-                                        : plan.monthly
-                            return (
-                                <motion.div
-                                    key={plan.name}
-                                    initial={{ opacity: 0, y: 32 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.15 + i * 0.1, ...SPRING.soft }}
-                                    className={cn(plan.popular && "md:-mt-3 md:-mb-3")}
-                                >
-                                    <TiltCard max={4} className="h-full rounded-3xl">
-                                        <div
-                                            className={cn(
-                                                "relative h-full flex flex-col rounded-3xl border backdrop-blur-2xl p-7 overflow-hidden",
-                                                plan.popular
-                                                    ? "border-emerald-600/45 bg-card/80 dark:border-emerald-400/40"
-                                                    : "border-foreground/10 bg-card/50"
-                                            )}
-                                        >
-                                            <div className="absolute inset-0 bg-noise pointer-events-none" />
-                                            {plan.popular && (
-                                                <>
-                                                    <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-emerald-500/15 blur-3xl" />
-                                                    <div className="absolute top-4 right-4 rounded-full bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-500 dark:to-teal-400 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white dark:text-zinc-950">
-                                                        Most popular
-                                                    </div>
-                                                </>
-                                            )}
-
-                                            <div className="relative">
-                                                <h3 className="font-display text-xl font-bold mb-1">{plan.name}</h3>
-                                                <p className="text-xs text-muted-foreground mb-6">{plan.tagline}</p>
-
-                                                <div className="mb-1 min-h-[52px] flex items-end">
-                                                    {price === null ? (
-                                                        <span className="font-display text-4xl font-bold">Custom</span>
-                                                    ) : price === 0 ? (
-                                                        <span className="font-display text-4xl font-bold">Free</span>
-                                                    ) : (
-                                                        <div className="flex items-baseline gap-1">
-                                                            <span className="text-4xl font-bold font-money">
-                                                                <NumberTicker
-                                                                    value={price}
-                                                                    format={formatIDR}
-                                                                    stiffness={120}
-                                                                    damping={26}
-                                                                />
-                                                            </span>
-                                                            <span className="text-xs text-muted-foreground">/mo</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="h-4 mb-5 text-[11px] text-muted-foreground">
-                                                    {price !== null && price > 0 && (
-                                                        <AnimatePresence mode="wait">
-                                                            <motion.span
-                                                                key={String(yearly)}
-                                                                initial={{ opacity: 0, y: 4 }}
-                                                                animate={{ opacity: 1, y: 0 }}
-                                                                exit={{ opacity: 0, y: -4 }}
-                                                            >
-                                                                {yearly ? "billed annually" : "billed monthly"}
-                                                            </motion.span>
-                                                        </AnimatePresence>
-                                                    )}
-                                                </div>
-
-                                                <ul className="space-y-2.5 mb-8">
-                                                    {plan.features.map((f) => (
-                                                        <li key={f} className="flex items-start gap-2.5 text-[13px] text-foreground/85">
-                                                            <span className="mt-0.5 inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-emerald-600/10 dark:bg-emerald-500/15 shrink-0">
-                                                                <Check className="h-2.5 w-2.5 text-emerald-700 dark:text-emerald-400" />
-                                                            </span>
-                                                            {f}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-
-                                            <div className="relative mt-auto">
-                                                <Link
-                                                    href={plan.href}
-                                                    className={cn(
-                                                        "group flex items-center justify-center gap-2 w-full rounded-xl h-12 text-sm font-bold transition-all",
-                                                        plan.popular
-                                                            ? "bg-zinc-900 text-white hover:shadow-[0_10px_30px_-8px_rgba(16,185,129,0.5)] dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400"
-                                                            : "border border-foreground/15 bg-card/55 text-foreground hover:bg-foreground/[0.06]"
-                                                    )}
-                                                >
-                                                    {plan.cta}
-                                                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                                                </Link>
-                                            </div>
-                                        </div>
-                                    </TiltCard>
-                                </motion.div>
-                            )
-                        })}
-                    </div>
-                </section>
-
-                {/* ── Comparison matrix ────────────────────────────────── */}
-                <section className="mx-auto max-w-5xl px-6 mb-24">
-                    <motion.div
-                        initial={{ opacity: 0, y: 24 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.4 }}
-                        className="text-center mb-10"
-                    >
-                        <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
-                            Compare every{" "}
-                            <span className="italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 bg-clip-text text-transparent">
-                                detail.
-                            </span>
-                        </h2>
-                    </motion.div>
-                    <motion.div
-                        initial={{ opacity: 0, y: 28 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.2 }}
-                        transition={{ ...SPRING.soft }}
-                    >
-                        <ComparisonMatrix />
-                    </motion.div>
-                </section>
-
-                {/* ── FAQ ──────────────────────────────────────────────── */}
-                <section className="mx-auto max-w-3xl px-6 mb-24">
-                    <motion.div
-                        initial={{ opacity: 0, y: 24 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.5 }}
-                        className="text-center mb-10"
-                    >
-                        <div className="flex items-center justify-center gap-3 mb-5">
-                            <span className="h-px w-10 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                            <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-700 dark:text-emerald-400">
-                                Questions, answered
-                            </span>
-                            <span className="h-px w-10 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                        </div>
-                        <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
-                            Frequently asked
-                        </h2>
-                    </motion.div>
-                    <FaqAccordion />
-                </section>
-
-                {/* ── Glowing final CTA ────────────────────────────────── */}
-                <section className="relative mx-auto max-w-3xl px-6 text-center">
-                    <div className="absolute inset-0 pointer-events-none">
-                        <div className="absolute bottom-[-40%] left-1/2 -translate-x-1/2 w-[120%] h-[120%] bg-emerald-500/[0.07] dark:bg-emerald-500/10 blur-[120px] rounded-full" />
-                    </div>
-                    <motion.h2
-                        initial={{ opacity: 0, y: 24 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.6 }}
-                        className="relative font-display text-3xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-6"
-                    >
-                        Start with the plan that{" "}
-                        <span className="italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-600 dark:from-emerald-400 dark:via-teal-300 dark:to-cyan-400 bg-clip-text text-transparent animate-gradient-flow [background-size:200%_200%]">
-                            fits today.
-                        </span>
-                    </motion.h2>
-                    <motion.p
-                        initial={{ opacity: 0, y: 16 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.6 }}
-                        transition={{ delay: 0.1 }}
-                        className="relative text-muted-foreground mb-10"
-                    >
-                        Free to begin, no credit card required. Your books scale with you.
-                    </motion.p>
-                    <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.6 }}
-                        transition={{ delay: 0.2 }}
-                        className="relative"
-                    >
-                        <Magnetic>
-                            <Link
-                                href="/register"
-                                className="group inline-flex items-center gap-2 rounded-full px-9 py-4 text-sm font-bold bg-zinc-900 text-white hover:shadow-[0_14px_44px_-8px_rgba(16,185,129,0.55)] dark:bg-gradient-to-r dark:from-emerald-500 dark:to-teal-400 dark:text-zinc-950 dark:shadow-[0_0_50px_-10px_rgba(16,185,129,0.8)] transition-shadow"
+                    ) : isError || !data ? (
+                        <div className="rounded-xl border border-destructive/25 bg-destructive/[0.04] px-6 py-8">
+                            <p className="text-sm font-medium text-foreground">Prices could not be loaded.</p>
+                            <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
+                                {error instanceof Error ? error.message : "The request did not complete."} We do not show figures we
+                                cannot confirm. Try again, or ask us at{" "}
+                                <a className="underline underline-offset-4" href={`mailto:${siteConfig.contacts.email}`}>
+                                    {siteConfig.contacts.email}
+                                </a>
+                                .
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => refetch()}
+                                className="mt-5 rounded-full border border-foreground/15 px-4 py-1.5 text-[13px] hover:border-foreground/40"
                             >
-                                Open BalanceIO free
-                                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                                Try again
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={cn("grid gap-6", data.plans.length >= 3 ? "lg:grid-cols-3" : "md:grid-cols-2")}>
+                            {data.plans.map((plan, i) => (
+                                <PlanCard key={plan.id} plan={plan} data={data} yearly={yearly} index={i} />
+                            ))}
+                        </div>
+                    )}
+                </section>
+
+                {/* ── Checklist ── */}
+                {data && data.plans.length > 0 && (
+                    <section className="mx-auto mt-28 max-w-6xl px-6">
+                        <div className="mb-10 grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:items-end">
+                            <h2 className="font-display text-3xl font-bold leading-[1.1] tracking-tight sm:text-4xl">
+                                What each plan includes.
+                            </h2>
+                            <p className="max-w-md text-[13px] leading-relaxed text-muted-foreground lg:justify-self-end">
+                                The same list the application checks before it opens a feature, so this table and your account cannot
+                                disagree.
+                            </p>
+                        </div>
+                        <Checklist data={data} />
+                    </section>
+                )}
+
+                {/* ── Questions ── */}
+                <section className="mx-auto mt-28 grid max-w-6xl gap-10 px-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,2fr)]">
+                    <div>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Questions</p>
+                        <h2 className="font-display mt-4 text-3xl font-bold leading-[1.1] tracking-tight">Before you pay.</h2>
+                        <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+                            Anything else:{" "}
+                            <Link href="/contact" className="text-foreground underline decoration-foreground/25 underline-offset-4">
+                                contact us
                             </Link>
-                        </Magnetic>
-                    </motion.div>
+                            .
+                        </p>
+                    </div>
+                    <Faq />
                 </section>
             </main>
 
             <SiteFooter />
         </div>
-        </SmoothScrollProvider>
     )
 }

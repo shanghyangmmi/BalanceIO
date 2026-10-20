@@ -261,6 +261,12 @@ equals the payment). Manual transfers are confirmed by a platform admin
 (`POST /api/admin/payments/{id}/confirm`). Success activates the plan once.
 A new gateway is one class plus a registration in `Program.cs`.
 
+Plans: `/pricing` reads `GET /api/Plans/public` (anonymous): active plans,
+the monthly price checkout would charge now (`Plan.EffectivePriceMonthly`:
+`PromoPriceMonthly` until `PromoEndsAt`, yearly never discounted) and the
+licensing catalogue as the checklist. Prices, promotion, modules, limits and
+card highlights are edited in admin → Subscriptions → Plans.
+
 ## Frontend conventions
 
 - Server state belongs in TanStack Query (`staleTime` 30 s, `gcTime` 10 min,
@@ -316,7 +322,6 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | `deploy.yml` calls `scripts/deploy.ps1`, which is gitignored | `.github/workflows/deploy.yml` |
 | About 70 files fetch with `useEffect` instead of TanStack Query | frontend |
 | Midtrans is implemented but untested against the live sandbox; no recurring billing or auto-renew | `MidtransPaymentGateway` |
-| `/pricing` disagrees with the plans the API sells (`PlansController`): names, Pro price, free quota, and fixed assets on Professional | `app/pricing/page.tsx` |
 | Journal form attachments: `UploadButton onUpload` is a no-op, so files dropped there are not saved | `components/accounting/journal-form.tsx` |
 | Access tokens last 7 days and are not checked against `UserSessions`, and the frontend never calls `/auth/refresh`: revoking sessions (password reset, revoke-all, reuse detection) stops renewal but not an access token already issued | `JwtService.GenerateToken` |
 | i18n covers navigation labels only | frontend |

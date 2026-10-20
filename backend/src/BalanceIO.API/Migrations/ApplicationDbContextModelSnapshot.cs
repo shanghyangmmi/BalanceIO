@@ -3069,6 +3069,12 @@ namespace BalanceIO.API.Migrations
                     b.Property<decimal>("PriceYearly")
                         .HasColumnType("decimal(19,4)");
 
+                    b.Property<DateTime?>("PromoEndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("PromoPriceMonthly")
+                        .HasColumnType("decimal(19,4)");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
