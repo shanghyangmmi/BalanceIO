@@ -21,7 +21,6 @@ import {
 } from "lucide-react"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { AmbientCursor } from "@/components/landing/ambient-cursor"
 import { TiltCard } from "@/components/landing/tilt-card"
 import { Magnetic } from "@/components/landing/magnetic"
 import { NumberTicker } from "@/components/ui/number-ticker"
@@ -306,7 +305,6 @@ export default function FeaturesPage() {
     return (
         <SmoothScrollProvider>
         <div className="relative flex min-h-screen flex-col bg-background text-foreground antialiased selection:bg-emerald-500/25 overflow-hidden">
-            <AmbientCursor />
             <SiteHeader />
 
             {/* Ambient stage */}
