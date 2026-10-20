@@ -118,6 +118,53 @@ public class SecurityFoundationsTests(ApiFactory factory) : IClassFixture<ApiFac
     }
 
     [Fact]
+    public async Task Password_reset_revokes_existing_refresh_tokens()
+    {
+        var email = $"user-{Guid.NewGuid():N}@test.local";
+        var oldPassword = "Password123!";
+        var newPassword = "NewPassword456!";
+        var user = await SeedUser(email, oldPassword);
+
+        // The session someone else holds
+        var client = factory.CreateClient();
+        var loginRes = await client.PostAsJsonAsync("/api/auth/login", new { email, password = oldPassword });
+        Assert.Equal(HttpStatusCode.OK, loginRes.StatusCode);
+        var oldRefreshToken = (await loginRes.Json()).GetProperty("refreshToken").GetString()!;
+
+        // The token the forgot-password email carries
+        string resetToken;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var auth = scope.ServiceProvider.GetRequiredService<AuthService>();
+            resetToken = (await auth.GeneratePasswordResetTokenAsync(email))!.PasswordResetToken!;
+        }
+
+        var resetRes = await factory.CreateClient().PostAsJsonAsync("/api/auth/reset-password",
+            new { token = resetToken, password = newPassword });
+        Assert.Equal(HttpStatusCode.OK, resetRes.StatusCode);
+
+        // Revoked by the reset itself, before any reuse detection could run
+        var activeSessions = await factory.WithDb(async db =>
+            await db.UserSessions.CountAsync(s => s.UserId == user.Id && !s.IsRevoked));
+        Assert.Equal(0, activeSessions);
+
+        var refreshRes = await client.PostAsJsonAsync("/api/auth/refresh", new { refreshToken = oldRefreshToken });
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshRes.StatusCode);
+        Assert.Equal("INVALID_REFRESH_TOKEN", (await refreshRes.Json()).GetProperty("code").GetString());
+
+        var audit = await factory.WithDb(async db => await db.AuditLogs.IgnoreQueryFilters()
+            .SingleAsync(a => a.UserId == user.Id && a.Action == "PASSWORD_RESET"));
+        Assert.Contains("revoked 1 active session", audit.Details);
+
+        // The password changed along with the revocation
+        var fresh = factory.CreateClient();
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await fresh.PostAsJsonAsync("/api/auth/login", new { email, password = oldPassword })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await fresh.PostAsJsonAsync("/api/auth/login", new { email, password = newPassword })).StatusCode);
+    }
+
+    [Fact]
     public async Task Platform_admin_without_support_grant_is_refused_tenant_scope()
     {
         var tenant = factory.CreateTenant("Target Company");

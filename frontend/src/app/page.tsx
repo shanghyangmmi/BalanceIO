@@ -4,10 +4,8 @@ import { SmoothScrollProvider } from "@/components/landing/scroll-engine"
 import { LedgerMachineHero } from "@/components/landing/ledger-machine-hero"
 import { BalanceBeam } from "@/components/landing/balance-beam"
 import { Pipeline } from "@/components/landing/pipeline"
-import { ReadoutStrip, MachineClose } from "@/components/landing/machine-sections"
-import { ComplianceMarquee } from "@/components/landing/bento-features"
+import { ReadoutStrip, StandardsBand, MachineClose } from "@/components/landing/machine-sections"
 import { ModulesShowcase } from "@/components/landing/modules-showcase"
-import { AmbientCursor } from "@/components/landing/ambient-cursor"
 
 /**
  * BalanceIO Landing — "The Ledger Machine".
@@ -29,15 +27,14 @@ export default function Home() {
   return (
     <SmoothScrollProvider>
       <div className="relative flex min-h-screen flex-col bg-background text-foreground antialiased selection:bg-emerald-500/25">
-        <AmbientCursor />
         <SiteHeader />
         <main className="flex-1">
           <LedgerMachineHero />
           <BalanceBeam />
           <ReadoutStrip />
           <Pipeline />
-          <ComplianceMarquee />
           <ModulesShowcase />
+          <StandardsBand />
           <MachineClose />
         </main>
         <SiteFooter />

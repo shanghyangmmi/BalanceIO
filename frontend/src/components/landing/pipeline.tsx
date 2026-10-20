@@ -4,7 +4,6 @@ import * as React from "react"
 import { gsap } from "gsap"
 import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { registerScrollPlugins, prefersReducedMotion } from "./scroll-engine"
-import { FileSpreadsheet, BookOpen, Scale, PieChart } from "lucide-react"
 
 /**
  * Act II — The Pipeline.
@@ -19,27 +18,23 @@ import { FileSpreadsheet, BookOpen, Scale, PieChart } from "lucide-react"
 const STATIONS = [
     {
         no: "01",
-        icon: FileSpreadsheet,
         title: "The entry",
         blurb: "A transaction is captured once, with both sides declared. It cannot be posted until it balances to the cent.",
     },
     {
         no: "02",
-        icon: BookOpen,
         title: "The ledger",
         blurb: "Every posted line lands in its account and carries a running balance forward. Nothing is retyped, nothing drifts.",
     },
     {
         no: "03",
-        icon: Scale,
         title: "The proof",
         blurb: "Debits and credits are totalled across every account. Equal columns are the arithmetic proof your books hold.",
     },
     {
         no: "04",
-        icon: PieChart,
         title: "The statements",
-        blurb: "Position, performance and cash flow assemble themselves — traceable back to the entry that produced them.",
+        blurb: "Financial position, profit or loss and cash flows are built from the same posted lines, and every figure drills back to its entry.",
     },
 ] as const
 
@@ -87,12 +82,12 @@ function EntryVisual() {
                 </span>
             </div>
             <Row a="Account" b="Debit" c="Credit" dim />
-            <Row a="1-1100 Cash" b="120,000,000" c="—" />
-            <Row a="1-1300 Accounts receivable" b="—" c="120,000,000" />
+            <Row a="1-1100 Cash" b="120.000.000" c="—" />
+            <Row a="1-1300 Accounts receivable" b="—" c="120.000.000" />
             <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-3 border-t border-foreground/15 pt-2 font-semibold text-emerald-700 dark:text-emerald-400">
                 <span>Total</span>
-                <span className="w-24 text-right">120,000,000</span>
-                <span className="w-24 text-right">120,000,000</span>
+                <span className="w-24 text-right">120.000.000</span>
+                <span className="w-24 text-right">120.000.000</span>
             </div>
         </Frame>
     )
@@ -105,10 +100,10 @@ function LedgerVisual() {
                 1-1100 · Cash
             </div>
             <Row a="Date" b="Movement" c="Balance" dim />
-            <Row a="01 Apr  Opening" b="—" c="310,400,000" dim />
-            <Row a="12 Apr  Cash sale" b="+45,000,000" c="355,400,000" />
-            <Row a="21 Apr  Payroll" b="−62,000,000" c="293,400,000" />
-            <Row a="30 Apr  Settlement" b="+120,000,000" c="413,400,000" accent />
+            <Row a="01 Apr  Opening" b="—" c="310.400.000" dim />
+            <Row a="12 Apr  Cash sale" b="+45.000.000" c="355.400.000" />
+            <Row a="21 Apr  Payroll" b="−62.000.000" c="293.400.000" />
+            <Row a="30 Apr  Settlement" b="+120.000.000" c="413.400.000" accent />
         </Frame>
     )
 }
@@ -120,14 +115,14 @@ function TrialVisual() {
                 Trial balance · 30 Apr 2026
             </div>
             <Row a="Account" b="Debit" c="Credit" dim />
-            <Row a="Assets" b="1,842,600,000" c="—" />
-            <Row a="Liabilities" b="—" c="612,300,000" />
-            <Row a="Equity" b="—" c="980,100,000" />
-            <Row a="Income & expense" b="—" c="250,200,000" />
+            <Row a="Assets" b="1.842.600.000" c="—" />
+            <Row a="Liabilities" b="—" c="612.300.000" />
+            <Row a="Equity" b="—" c="980.100.000" />
+            <Row a="Income & expense" b="—" c="250.200.000" />
             <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-3 border-t border-foreground/15 pt-2 font-semibold text-emerald-700 dark:text-emerald-400">
-                <span>Difference 0.00</span>
-                <span className="w-24 text-right">1,842,600,000</span>
-                <span className="w-24 text-right">1,842,600,000</span>
+                <span>Difference 0,00</span>
+                <span className="w-24 text-right">1.842.600.000</span>
+                <span className="w-24 text-right">1.842.600.000</span>
             </div>
         </Frame>
     )
@@ -251,15 +246,15 @@ export function Pipeline() {
             <div className="relative z-10 flex h-full flex-col pt-20 pb-10">
                 <div className="mx-auto w-full max-w-6xl px-6">
                     <div className="flex items-center gap-3">
-                        <span className="h-px w-8 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                        <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-700 dark:text-emerald-400">
+                        <span className="h-px w-8 bg-foreground/30" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
                             Act II — The cycle
                         </span>
                     </div>
                     <h2 className="font-display mt-5 max-w-2xl text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1] text-foreground">
                         One entry, carried all the way to the{" "}
                         <span className="italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 bg-clip-text text-transparent">
-                            audited statement.
+                            financial statements.
                         </span>
                     </h2>
                 </div>
@@ -271,19 +266,15 @@ export function Pipeline() {
                         className="flex h-full items-center gap-6 px-6 will-change-transform lg:gap-10 lg:pl-[max(1.5rem,calc((100vw-72rem)/2))] lg:pr-[max(1.5rem,calc((100vw-72rem)/2))]"
                     >
                         {STATIONS.map((s, i) => {
-                            const Icon = s.icon
                             const Visual = VISUALS[i]
                             return (
                                 <article
                                     key={s.no}
                                     className="group relative w-[86vw] shrink-0 sm:w-[440px]"
                                 >
-                                    <div className="mb-4 flex items-start justify-between">
-                                        <span className="font-display text-4xl font-bold text-foreground/15">
+                                    <div className="mb-4 border-t border-foreground/15 pt-4">
+                                        <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground">
                                             {s.no}
-                                        </span>
-                                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-600/15 bg-emerald-600/[0.06] text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400">
-                                            <Icon className="h-4 w-4" />
                                         </span>
                                     </div>
                                     <h3 className="text-lg font-semibold text-foreground">

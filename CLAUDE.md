@@ -62,10 +62,11 @@ gates modules by plan: `accounting`, `tax`, `inventory`, `fixedAssets`,
   (`X-Break-Glass-Reason`), both logged to the audit log. Global query filters compare
   `CompanyId == CurrentCompanyId`, so a missing scope returns no rows. Entities
   without a filter must be queried with an explicit `CompanyId` predicate.
-- Sessions and Tokens: JWT tokens (15-minute access token) and rotating refresh
+- Sessions and Tokens: JWT tokens (7-day access token, see Known issues) and rotating refresh
   tokens (30-day session) are transmitted via `HttpOnly`, `SameSite=Lax` cookies.
   Refresh tokens are stored as SHA-256 hashes in `UserSessions`. Presentation of an
   already-revoked token triggers reuse breach detection and revokes all active sessions.
+  A password reset revokes all of the user's sessions and writes a `PASSWORD_RESET` audit row.
 - Segregation of duties: `Company.EnforceSegregationOfDuties` (default true)
   blocks the creator of an entry from posting it.
 - Discounts & FX Conversion: Sales invoice discounts post to contra-revenue (`4-4000 Sales Discounts`, Dr),
@@ -331,5 +332,5 @@ Details and evidence: `docs/AUDIT-2026-10.md`.
 | Midtrans is implemented but untested against the live sandbox; no recurring billing or auto-renew | `MidtransPaymentGateway` |
 | `/pricing` disagrees with the plans the API sells (`PlansController`): names, Pro price, free quota, and fixed assets on Professional | `app/pricing/page.tsx` |
 | Evidence attachments outlive the record: deleting a draft leaves its attachment rows and files, and upload does not check that `entityId` exists in the company | `AttachmentsController` |
-| Password reset does not revoke existing sessions | `AuthService.ResetPasswordAsync` |
+| Access tokens last 7 days and are not checked against `UserSessions`, and the frontend never calls `/auth/refresh`: revoking sessions (password reset, revoke-all, reuse detection) stops renewal but not an access token already issued | `JwtService.GenerateToken` |
 | i18n covers navigation labels only | frontend |
