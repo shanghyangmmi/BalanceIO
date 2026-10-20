@@ -86,7 +86,8 @@ function ResetPasswordContent() {
                 }
             >
                 <AuthNotice tone="success">
-                    Your new password is active. Taking you to sign in…
+                    Your new password is active, and your other sessions will have to sign in again
+                    with it. Taking you to sign in…
                 </AuthNotice>
             </AuthShell>
         )

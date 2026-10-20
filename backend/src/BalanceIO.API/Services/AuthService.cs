@@ -26,12 +26,14 @@ public class AuthService
     private readonly ApplicationDbContext _context;
     private readonly Argon2PasswordHasher _passwordHasher;
     private readonly JwtService _jwtService;
+    private readonly SessionService _sessionService;
 
-    public AuthService(ApplicationDbContext context, Argon2PasswordHasher passwordHasher, JwtService jwtService)
+    public AuthService(ApplicationDbContext context, Argon2PasswordHasher passwordHasher, JwtService jwtService, SessionService sessionService)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _jwtService = jwtService;
+        _sessionService = sessionService;
     }
 
     public async Task<User?> RegisterAsync(string name, string email, string password)
@@ -201,21 +203,28 @@ public class AuthService
         return user;
     }
 
-    public async Task<bool> ResetPasswordAsync(string token, string newPassword)
+    /// <summary>
+    /// Sets the new password and revokes every refresh-token session the user
+    /// had, so a stolen session cannot be renewed after the owner resets.
+    /// Returns null when the token is unknown or expired.
+    /// </summary>
+    public async Task<(Guid UserId, int RevokedSessions)?> ResetPasswordAsync(string token, string newPassword)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == token);
-        
+
         if (user == null || user.PasswordResetTokenExpiresAt < DateTime.UtcNow)
         {
-            return false;
+            return null;
         }
 
         user.PasswordHash = _passwordHasher.HashPassword(newPassword);
         user.PasswordResetToken = null; // Consume token
         user.PasswordResetTokenExpiresAt = null;
-        
-        await _context.SaveChangesAsync();
-        return true;
+
+        // Same scoped context: the revocation's save also writes the new
+        // password, so neither lands without the other.
+        var revoked = await _sessionService.RevokeAllSessionsAsync(user.Id);
+        return (user.Id, revoked);
     }
 
     public async Task<User?> GetUserByIdAsync(Guid userId)
