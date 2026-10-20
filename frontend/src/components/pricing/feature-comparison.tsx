@@ -75,7 +75,7 @@ export function FeatureComparison() {
                             <tr className="border-b border-zinc-200 dark:border-white/10">
                                 <th className="py-4 pl-4 w-1/3 min-w-[200px] text-lg font-bold text-zinc-900 dark:text-white bg-white dark:bg-zinc-950 sticky left-0 z-10">Features</th>
                                 <th className="py-4 px-4 text-center text-lg font-semibold text-zinc-900 dark:text-white">Starter</th>
-                                <th className="py-4 px-4 text-center text-lg font-bold text-blue-600 dark:text-blue-400">Professional</th>
+                                <th className="py-4 px-4 text-center text-lg font-bold text-cyan-600 dark:text-cyan-400">Professional</th>
                                 <th className="py-4 px-4 text-center text-lg font-semibold text-zinc-900 dark:text-white">Enterprise</th>
                             </tr>
                         </thead>
@@ -110,7 +110,7 @@ export function FeatureComparison() {
                                             <td className="py-4 px-4 text-center text-sm text-zinc-600 dark:text-zinc-400">
                                                 {renderValue(feature.starter)}
                                             </td>
-                                            <td className="py-4 px-4 text-center text-sm font-medium text-zinc-900 dark:text-white bg-blue-50/30 dark:bg-blue-900/10 border-x border-blue-100 dark:border-blue-900/20">
+                                            <td className="py-4 px-4 text-center text-sm font-medium text-zinc-900 dark:text-white bg-cyan-50/30 dark:bg-cyan-900/10 border-x border-cyan-100 dark:border-cyan-900/20">
                                                 {renderValue(feature.pro)}
                                             </td>
                                             <td className="py-4 px-4 text-center text-sm text-zinc-600 dark:text-zinc-400">
@@ -132,8 +132,8 @@ function renderValue(value: boolean | string) {
     if (typeof value === "boolean") {
         return value ? (
             <div className="flex justify-center">
-                <div className="bg-blue-100 dark:bg-blue-500/20 rounded-full p-1">
-                    <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <div className="bg-cyan-100 dark:bg-cyan-500/20 rounded-full p-1">
+                    <Check className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                 </div>
             </div>
         ) : (

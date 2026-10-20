@@ -2,11 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { 
-    ChevronLeft, Plus, Target, CheckCircle2, AlertTriangle, 
-    TrendingUp, Calendar, ArrowUpRight, Loader2, Trash2, 
-    Edit, Eye, RefreshCw, Layers, ShieldCheck, Check, Sparkles
-} from "lucide-react";
+import { ChevronLeft, Plus, Target, CheckCircle2, AlertTriangle, TrendingUp, Calendar, ArrowUpRight, Loader2, Trash2, Edit, Eye, RefreshCw, Layers, ShieldCheck, Check } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useCompanyData } from "@/hooks/use-company-data";
 import { formatCurrency, formatDate } from "@/lib/utils/formatter";
@@ -440,11 +436,11 @@ export default function BudgetsPage() {
 
                 <Card className="border-border/60 shadow-none bg-card/60 backdrop-blur-sm">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-xs font-mono uppercase tracking-wider text-purple-700 dark:text-purple-400 font-semibold">
+                        <CardDescription className="text-xs font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-400 font-semibold">
                             Pemantauan Varians
                         </CardDescription>
-                        <CardTitle className="text-2xl font-bold font-money text-purple-700 dark:text-purple-400 flex items-center gap-2">
-                            Real-Time <Sparkles className="h-4 w-4" />
+                        <CardTitle className="text-2xl font-bold font-money text-zinc-700 dark:text-zinc-400 flex items-center gap-2">
+                            Real-time
                         </CardTitle>
                     </CardHeader>
                     <CardContent>

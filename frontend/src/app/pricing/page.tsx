@@ -3,10 +3,9 @@
 import * as React from "react"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
-import { Check, Minus, ChevronDown, ArrowRight, Sparkles } from "lucide-react"
+import { Check, Minus, ChevronDown, ArrowRight } from "lucide-react"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { AmbientCursor } from "@/components/landing/ambient-cursor"
 import { TiltCard } from "@/components/landing/tilt-card"
 import { Magnetic } from "@/components/landing/magnetic"
 import { NumberTicker } from "@/components/ui/number-ticker"
@@ -321,7 +320,6 @@ export default function PricingPage() {
     return (
         <SmoothScrollProvider>
         <div className="relative flex min-h-screen flex-col bg-background text-foreground antialiased selection:bg-emerald-500/25 overflow-hidden">
-            <AmbientCursor />
             <SiteHeader />
 
             {/* Ambient stage */}
@@ -408,7 +406,6 @@ export default function PricingPage() {
                                     transition={{ ...SPRING.snappy }}
                                     className="inline-flex items-center gap-1 rounded-full border border-emerald-600/25 bg-emerald-600/10 dark:border-emerald-500/30 dark:bg-emerald-500/15 px-3 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400"
                                 >
-                                    <Sparkles className="h-3 w-3" />
                                     Save 20%
                                 </motion.span>
                             )}

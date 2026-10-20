@@ -13,7 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { siteConfig } from "@/config/site"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { MessageCircle, Mail, ChevronDown, ArrowUpRight } from "lucide-react"
+import { MessageCircle, Mail, ChevronDown, ArrowRight } from "lucide-react"
 
 const NAV_LINKS = [
     { label: "Features", href: "/features" },
@@ -77,17 +77,17 @@ export function SiteHeader() {
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 120, damping: 20 }}
                     className={cn(
-                        "relative flex items-center justify-between rounded-full pl-5 pr-3 transition-all duration-300 border",
+                        "relative flex items-center justify-between rounded-full pl-4 pr-2 sm:pl-5 sm:pr-3 transition-all duration-300 border",
                         "bg-white/85 dark:bg-zinc-950/80 backdrop-blur-xl",
                         "border-zinc-900/10 dark:border-white/10",
                         scrolled
-                            ? "h-13 w-full max-w-5xl shadow-lg shadow-zinc-900/5 dark:shadow-black/40"
-                            : "h-16 w-full max-w-6xl shadow-sm"
+                            ? "h-13 w-full max-w-5xl shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)] dark:shadow-black/40"
+                            : "h-16 w-full max-w-6xl"
                     )}
                 >
                     {/* ── Wordmark ─────────────────────────────────────── */}
                     <Link href="/" className="flex items-center gap-2.5 group shrink-0">
-                        <div className="relative h-8 w-8 rounded-lg overflow-hidden shadow-md shadow-emerald-900/20 transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-3">
+                        <div className="relative h-8 w-8 rounded-lg overflow-hidden">
                             <img
                                 src="/images/logo-icon.svg"
                                 alt={siteConfig.name}
@@ -99,19 +99,11 @@ export function SiteHeader() {
                             style={{ fontFamily: "var(--font-document-serif), Georgia, serif" }}
                         >
                             {siteConfig.name}
-                            {/* The period doubles as a balance indicator: it
-                                settles level when the mark is hovered. */}
-                            <motion.span
-                                className="ml-px inline-block h-[5px] w-[5px] rounded-full bg-emerald-600 dark:bg-emerald-400"
-                                initial={false}
-                                whileHover={{ scale: 1.3 }}
-                                animate={{ y: [0, -2, 0, 1.5, 0] }}
-                                transition={{
-                                    duration: 3.2,
-                                    repeat: Infinity,
-                                    ease: "easeInOut",
-                                }}
-                            />
+                            {/* The period doubles as a balance indicator. It
+                                used to bob up and down forever, which reads
+                                as a loading spinner on a brand mark; it now
+                                rests, and settles once when hovered. */}
+                            <span className="ml-px inline-block h-[5px] w-[5px] rounded-full bg-emerald-600 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:-translate-y-[2px] dark:bg-emerald-400" />
                         </span>
                     </Link>
 
@@ -130,17 +122,10 @@ export function SiteHeader() {
                                     className={cn(
                                         "group relative px-4 py-2 text-sm font-medium rounded-full transition-colors",
                                         active
-                                            ? "text-emerald-700 dark:text-emerald-400"
-                                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                            ? "text-foreground"
+                                            : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
-                                    {hovered === link.href && (
-                                        <motion.span
-                                            layoutId="nav-hover-pill"
-                                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                                            className="absolute inset-0 rounded-full bg-zinc-900/[0.05] dark:bg-white/[0.07]"
-                                        />
-                                    )}
                                     <span className="relative z-10">{link.label}</span>
                                     {/* Ledger rule: draws left-to-right, the way
                                         a line is ruled under a posted total. */}
@@ -158,15 +143,8 @@ export function SiteHeader() {
                         <button
                             onMouseEnter={() => setHovered("contact")}
                             onClick={() => setContactOpen(!contactOpen)}
-                            className="group relative px-4 py-2 text-sm font-medium rounded-full text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors inline-flex items-center gap-1"
+                            className="group relative px-4 py-2 text-sm font-medium rounded-full text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
                         >
-                            {hovered === "contact" && (
-                                <motion.span
-                                    layoutId="nav-hover-pill"
-                                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                                    className="absolute inset-0 rounded-full bg-zinc-900/[0.05] dark:bg-white/[0.07]"
-                                />
-                            )}
                             <span className="relative z-10">Contact</span>
                             <ChevronDown
                                 className={cn(
@@ -188,21 +166,18 @@ export function SiteHeader() {
                                 size="sm"
                                 className="hidden sm:inline-flex text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-900/5 dark:hover:bg-white/10 rounded-full font-medium px-4 transition-colors"
                             >
-                                Log In
+                                Sign in
                             </Button>
                         </Link>
 
                         <Link href="/register">
                             <Button
                                 size="sm"
-                                className="group relative overflow-hidden rounded-full font-semibold px-5 bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400 shadow-md transition-all"
+                                className="group rounded-full font-medium px-3.5 sm:px-5 bg-foreground text-background hover:bg-foreground/85 transition-colors"
                             >
-                                {/* Sheen sweeps across on hover, like a fresh
-                                    line ruled across the page. */}
-                                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
-                                <span className="relative z-10 inline-flex items-center gap-1">
-                                    Get Started
-                                    <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                                <span className="inline-flex items-center gap-1.5">
+                                    Create account
+                                    <ArrowRight className="hidden h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 sm:block" />
                                 </span>
                             </Button>
                         </Link>
@@ -240,8 +215,8 @@ export function SiteHeader() {
                                     className="flex items-center gap-3 px-4 py-3.5 text-sm text-zinc-700 dark:text-zinc-100 hover:bg-zinc-900/[0.04] dark:hover:bg-white/10 transition-colors border-t border-zinc-900/5 dark:border-white/5"
                                     onClick={() => setContactOpen(false)}
                                 >
-                                    <div className="h-9 w-9 rounded-full bg-blue-500/15 flex items-center justify-center">
-                                        <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    <div className="h-9 w-9 rounded-full bg-cyan-500/15 flex items-center justify-center">
+                                        <Mail className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                                     </div>
                                     <div>
                                         <div className="font-semibold">Email</div>

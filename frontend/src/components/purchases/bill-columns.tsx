@@ -11,7 +11,7 @@ import Link from "next/link"
 const getStatusColor = (status: string) => {
     switch (status) {
         case 'PAID': return 'bg-emerald-500 hover:bg-emerald-600';
-        case 'OPEN': return 'bg-blue-500 hover:bg-blue-600';
+        case 'OPEN': return 'bg-cyan-500 hover:bg-cyan-600';
         case 'OVERDUE': return 'bg-red-500 hover:bg-red-600';
         default: return 'bg-gray-500';
     }

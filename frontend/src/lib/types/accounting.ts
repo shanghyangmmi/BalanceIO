@@ -38,11 +38,11 @@ export interface Account {
 export const accountGroupLabels: Record<string, { label: string; labelId: string; color: string; bgColor: string }> = {
   Asset: { label: 'Assets', labelId: 'Harta', color: '#10b981', bgColor: 'bg-emerald-500/10' },
   Liability: { label: 'Liabilities', labelId: 'Kewajiban', color: '#ef4444', bgColor: 'bg-red-500/10' },
-  Equity: { label: 'Equity', labelId: 'Modal', color: '#8b5cf6', bgColor: 'bg-violet-500/10' },
-  Sales: { label: 'Sales / Revenue', labelId: 'Pendapatan', color: '#3b82f6', bgColor: 'bg-blue-500/10' },
-  CostOfSales: { label: 'Cost of Sales', labelId: 'Harga Pokok', color: '#f97316', bgColor: 'bg-orange-500/10' },
-  Expense: { label: 'General & Administrative Expenses', labelId: 'Beban Umum & Administrasi', color: '#ec4899', bgColor: 'bg-pink-500/10' },
-  OtherIncomeExpense: { label: 'Other Income & Expense', labelId: 'Pendapatan & Beban Lain', color: '#6366f1', bgColor: 'bg-indigo-500/10' },
+  Equity: { label: 'Equity', labelId: 'Modal', color: '#8b5cf6', bgColor: 'bg-zinc-500/10' },
+  Sales: { label: 'Sales / Revenue', labelId: 'Pendapatan', color: '#3b82f6', bgColor: 'bg-cyan-500/10' },
+  CostOfSales: { label: 'Cost of Sales', labelId: 'Harga Pokok', color: '#f97316', bgColor: 'bg-amber-500/10' },
+  Expense: { label: 'General & Administrative Expenses', labelId: 'Beban Umum & Administrasi', color: '#ec4899', bgColor: 'bg-zinc-500/10' },
+  OtherIncomeExpense: { label: 'Other Income & Expense', labelId: 'Pendapatan & Beban Lain', color: '#6366f1', bgColor: 'bg-cyan-500/10' },
 };
 
 export type JournalStatus = 'DRAFT' | 'POSTED' | 'VOID';

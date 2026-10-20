@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Zap, Crown, Sparkles } from "lucide-react";
+import { Check, Zap, Crown, Layers } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { usePlanCheckout } from "@/components/billing/plan-checkout";
 import { useCompanyData } from "@/hooks/use-company-data";
@@ -81,10 +81,10 @@ function BillingPageContent() {
 
     const getPlanIcon = (name: string) => {
         switch (name.toLowerCase()) {
-            case "free": return <Sparkles className="h-6 w-6" />;
+            case "free": return <Layers className="h-6 w-6" />;
             case "pro": return <Zap className="h-6 w-6" />;
             case "enterprise": return <Crown className="h-6 w-6" />;
-            default: return <Sparkles className="h-6 w-6" />;
+            default: return <Layers className="h-6 w-6" />;
         }
     };
 
@@ -100,8 +100,8 @@ function BillingPageContent() {
         <div className="flex-1 space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-gradient">Billing & Subscription</h2>
-                    <p className="text-muted-foreground">Manage your subscription and billing</p>
+                    <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Billing & Subscription</h2>
+                    <p className="text-muted-foreground">Plans and payments</p>
                 </div>
                 <Link href="/dashboard/settings/billing/history">
                     <Button variant="outline">Payment History</Button>
@@ -161,7 +161,7 @@ function BillingPageContent() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: idx * 0.1 }}
                         >
-                            <Card className={`relative h-full ${plan.isPopular ? "border-2 border-emerald-500 shadow-lg" : ""}`}>
+                            <Card className={`relative h-full ${plan.isPopular ? "border-primary/50 ring-1 ring-primary/30" : ""}`}>
                                 {plan.isPopular && (
                                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                                         <Badge className="bg-emerald-500 text-white">Most Popular</Badge>
@@ -200,7 +200,7 @@ function BillingPageContent() {
                                         disabled={isCurrentPlan}
                                         onClick={() => handleUpgrade(plan.id)}
                                     >
-                                        {isCurrentPlan ? "Current Plan" : plan.priceMonthly === 0 ? "Get Started" : "Upgrade"}
+                                        {isCurrentPlan ? "Current Plan" : plan.priceMonthly === 0 ? "Choose plan" : "Upgrade"}
                                     </Button>}
                                 </CardContent>
                             </Card>

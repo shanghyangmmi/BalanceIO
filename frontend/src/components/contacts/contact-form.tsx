@@ -221,7 +221,7 @@ export function ContactForm({ defaultValues, onSubmit, onCancel }: ContactFormPr
                                             <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                                         </FormControl>
                                         <FormLabel className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
-                                            <Truck className="h-3.5 w-3.5 text-blue-600" /> Vendor
+                                            <Truck className="h-3.5 w-3.5 text-cyan-600" /> Vendor
                                         </FormLabel>
                                     </FormItem>
                                 )}
@@ -236,7 +236,7 @@ export function ContactForm({ defaultValues, onSubmit, onCancel }: ContactFormPr
                                             <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                                         </FormControl>
                                         <FormLabel className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
-                                            <UserCheck className="h-3.5 w-3.5 text-purple-600" /> Employee
+                                            <UserCheck className="h-3.5 w-3.5 text-zinc-600" /> Employee
                                         </FormLabel>
                                     </FormItem>
                                 )}
@@ -261,8 +261,8 @@ export function ContactForm({ defaultValues, onSubmit, onCancel }: ContactFormPr
 
                     {/* Employee Profile Section */}
                     {isEmployee && (
-                        <div className="col-span-2 p-3 bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
-                            <div className="text-xs font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                        <div className="col-span-2 p-3 bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-200 dark:border-zinc-800 rounded-lg space-y-3">
+                            <div className="text-xs font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
                                 Employee & Payroll Profile (Unblocks PPh 21)
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -353,8 +353,8 @@ export function ContactForm({ defaultValues, onSubmit, onCancel }: ContactFormPr
 
                     {/* Vendor Withholding Section */}
                     {isVendor && (
-                        <div className="col-span-2 p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
-                            <div className="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                        <div className="col-span-2 p-3 bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800 rounded-lg space-y-3">
+                            <div className="text-xs font-semibold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
                                 Vendor Withholding Profile (Unblocks PPh 23 / 4(2))
                             </div>
                             <div className="grid grid-cols-2 gap-3">

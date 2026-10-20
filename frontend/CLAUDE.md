@@ -3,8 +3,8 @@
 Next.js 16 (App Router, static export) · React 19 · Tailwind v4 ·
 shadcn/ui (Radix) · TanStack Query + Virtual · Framer Motion · GSAP +
 Lenis. Backend is .NET 8 via `src/lib/api-client.ts`.
-`npm run build` passes; `npm run lint` currently fails (444 errors, mostly
-`no-explicit-any`).
+`npm run build` passes; `npm run lint` passes with 0 errors (warnings remain,
+mostly `no-explicit-any`).
 
 **`DESIGN-SYSTEM.md` in this folder is the design source of truth.**
 Read it before making visual decisions.
@@ -39,7 +39,8 @@ hues drift close together the product stops being legible.
 Light and dark mode use **different stops** of the same hue
 (`emerald-600/700` on paper, `emerald-400` on ink). Consume the OKLCH
 semantic tokens in `globals.css` — raw hex does not respond to the
-theme, and `src/components/dashboard` still has 31 hex literals in 4 files.
+theme. Product code has none left; data-driven colours use Tailwind's
+theme variables (`var(--color-emerald-800)`), never hex.
 
 ### Dark mode
 
@@ -128,15 +129,26 @@ The product's own refusal, which doubles as its scope rule:
 
 ---
 
-## Deprecated — do not learn from or extend
+## Page structure
 
-`.text-gradient` (a fully gradient-filled sans heading) appears in **40
-files under `src/app/dashboard`**. It is legacy. The canonical pattern
-is a Merriweather display heading with a *single* italic gradient span.
+- Working screens (lists, forms, settings) open with `PageHeading`
+  (`components/dashboard/page-heading.tsx`): mono eyebrow, Merriweather
+  title, one-line lede, actions right, hairline under. No gradient.
+- Module overviews use `ModuleMasthead`; that is where the single italic
+  gradient accent lives.
+- Unauthenticated pages (sign in, register, reset, verify) render inside
+  `AuthShell` (`components/auth/auth-shell.tsx`) and use its `AuthField`,
+  `AuthError` and `AuthNotice`.
+- Empty states: a small muted icon, a plain statement of what is missing,
+  and the one action that fixes it. No icon tiles, no "Get started".
+- Copy states facts the code guarantees. Before writing "signs out other
+  sessions", "expires in one hour" or "submitted to DJP", find the line of
+  code that does it.
 
-`src/app/dashboard` also has 57 `shadow-*` uses across 20 files, and
-`components/ui/card.tsx` ships `shadow-sm`, against the hairline rule above.
+## Retired patterns
 
-Both are cosmetic and can be corrected incrementally as each module is
-touched. Neither should be treated as the house style, and neither
-should be used as a reference when generating new screens.
+`.text-gradient`, shadows on in-flow cards, animated background blobs,
+`Sparkles` icons, raw hex and off-palette hues (purple, indigo, pink,
+blue) were removed in October 2026. Paper previews of printed documents
+keep a shadow: a sheet on a desk is genuinely floating. Do not
+reintroduce any of the others.

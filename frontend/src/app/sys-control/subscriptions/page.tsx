@@ -95,7 +95,7 @@ function SubscriptionsTable({ subscriptions, onSuspend }: { subscriptions: Subsc
                                 <td className="p-4 align-middle">
                                     <Badge className={
                                         sub.status === 'Active' ? 'bg-emerald-600' :
-                                            sub.status === 'Trial' ? 'bg-blue-600' :
+                                            sub.status === 'Trial' ? 'bg-cyan-600' :
                                                 sub.status === 'Suspended' ? 'bg-red-600' : 'bg-zinc-500'
                                     }>{sub.status}</Badge>
                                 </td>
@@ -326,7 +326,7 @@ export default function AdminSubscriptionsPage() {
         <div className="flex-1 space-y-6 pt-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Subscriptions & Billing</h2>
+                    <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Subscriptions & Billing</h2>
                     <p className="text-muted-foreground">Manage plans, limits, and system capabilities.</p>
                 </div>
             </div>

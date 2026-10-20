@@ -80,7 +80,7 @@ export function DocumentPreview({
                                     className={cn(
                                         "px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
                                         selectedTemplate === key
-                                            ? "bg-[#0B3C3D] text-white"
+                                            ? "bg-primary text-primary-foreground"
                                             : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
                                     )}
                                 >
@@ -97,7 +97,7 @@ export function DocumentPreview({
                             Print
                         </Button>
                         {onExportPdf && (
-                            <Button size="sm" onClick={onExportPdf} className="bg-[#0B3C3D] hover:bg-[#0B3C3D]/90">
+                            <Button size="sm" onClick={onExportPdf} >
                                 <FileDown className="h-4 w-4 mr-2" />
                                 Export PDF
                             </Button>

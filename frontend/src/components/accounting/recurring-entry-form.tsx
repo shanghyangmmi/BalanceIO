@@ -107,7 +107,7 @@ export function RecurringEntryForm({ defaultValues, onSubmit, isSubmitting }: Re
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white dark:bg-zinc-900/50 rounded-lg border border-zinc-200 dark:border-white/10 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-card/60 rounded-xl border border-foreground/10">
                     <FormField
                         control={form.control}
                         name="description"

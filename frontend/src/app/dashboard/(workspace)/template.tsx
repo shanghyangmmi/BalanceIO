@@ -1,28 +1,25 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
+import { EASE_HOUSE } from "@/lib/motion"
 
 /**
  * Dashboard page transitions. Next.js remounts template.tsx on every
- * navigation, giving each page a physics-based entrance. Kept subtle
- * (8px rise, spring-damped) so it reads as "fluid", never "slow" —
- * the animation settles in ~250ms, well under perceived-latency budgets.
+ * navigation. A 6px rise on the house curve, opacity and transform only:
+ * a blur filter here used to leave every screen looking out of focus for
+ * the first few frames, which reads as a rendering fault in a ledger.
  */
 export default function DashboardTemplate({
     children,
 }: {
     children: React.ReactNode
 }) {
+    const reduce = useReducedMotion()
     return (
         <motion.div
-            initial={{ opacity: 0, y: 8, filter: "blur(2px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{
-                type: "spring",
-                stiffness: 380,
-                damping: 32,
-                mass: 0.6,
-            }}
+            initial={reduce ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: EASE_HOUSE }}
         >
             {children}
         </motion.div>

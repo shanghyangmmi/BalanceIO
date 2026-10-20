@@ -80,7 +80,7 @@ export default function ServerActionsPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Server Actions</h1>
+                <h1 className="font-display text-3xl font-bold tracking-tight text-foreground">Server Actions</h1>
                 <p className="text-muted-foreground">Run SQL scripts, manage disk space, and view server info.</p>
             </div>
 
@@ -157,7 +157,7 @@ function SqlScriptRunner() {
                 <div className="flex items-center justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2">
-                            <FileCode2 className="h-5 w-5 text-blue-500" />
+                            <FileCode2 className="h-5 w-5 text-cyan-500" />
                             SQL Script Runner
                         </CardTitle>
                         <CardDescription className="mt-1">
@@ -240,7 +240,7 @@ function SqlScriptRunner() {
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
                                 onClick={() => confirmScript && runScript(confirmScript)}
-                                className="bg-blue-600 hover:bg-blue-700"
+                                className="bg-cyan-600 hover:bg-cyan-700"
                             >
                                 Execute Script
                             </AlertDialogAction>

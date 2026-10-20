@@ -8,7 +8,7 @@ export default function NewAssetPage() {
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-col space-y-2">
         {" "}
-        <h2 className="text-3xl font-bold tracking-tight">
+        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
           Onboard New Asset
         </h2>{" "}
         <p className="text-muted-foreground">

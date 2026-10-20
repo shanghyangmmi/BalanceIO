@@ -80,10 +80,10 @@ export const contactColumns: ColumnDef<Contact>[] = [
                         <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 hover:bg-emerald-100 text-xs">Customer</Badge>
                     )}
                     {(c.isVendor || c.type === 1 || c.type === 2) && (
-                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-100 text-xs">Vendor</Badge>
+                        <Badge variant="secondary" className="bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 hover:bg-cyan-100 text-xs">Vendor</Badge>
                     )}
                     {c.isEmployee && (
-                        <Badge variant="secondary" className="bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 hover:bg-purple-100 text-xs">Employee</Badge>
+                        <Badge variant="secondary" className="bg-zinc-50 text-zinc-700 dark:bg-zinc-900/30 dark:text-zinc-300 hover:bg-zinc-100 text-xs">Employee</Badge>
                     )}
                     {c.isPkp && (
                         <Badge variant="secondary" className="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 hover:bg-amber-100 text-xs">PKP</Badge>
@@ -100,8 +100,8 @@ export const contactColumns: ColumnDef<Contact>[] = [
             const label = contactScopeLabels[scope] || "Unknown";
             return (
                 <div className="flex items-center gap-2">
-                    {scope === 1 && <Globe className="h-3 w-3 text-indigo-500" />}
-                    <span className={scope === 1 ? "text-indigo-600 font-medium" : ""}>
+                    {scope === 1 && <Globe className="h-3 w-3 text-cyan-500" />}
+                    <span className={scope === 1 ? "text-cyan-600 font-medium" : ""}>
                         {label}
                     </span>
                 </div>

@@ -74,7 +74,7 @@ export default function DepreciationSchedulePage() {
     >
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Acquisition Cost</p>
@@ -88,7 +88,7 @@ export default function DepreciationSchedulePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Accumulated Depreciation</p>
@@ -102,7 +102,7 @@ export default function DepreciationSchedulePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Net Book Value</p>
@@ -116,15 +116,15 @@ export default function DepreciationSchedulePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-zinc-900 border shadow-sm">
+        <Card className="bg-card/60 border-foreground/10">
           <CardContent className="pt-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Est. Monthly Depreciation</p>
-              <h3 className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400 mt-1">
+              <h3 className="text-xl font-bold font-mono text-zinc-600 dark:text-zinc-400 mt-1">
                 {formatCurrency(monthlyDeprTotal, company?.currency)}
               </h3>
             </div>
-            <div className="p-2.5 bg-purple-50 dark:bg-purple-950/30 rounded-xl text-purple-600">
+            <div className="p-2.5 bg-zinc-50 dark:bg-zinc-950/30 rounded-xl text-zinc-600">
               <Calculator className="w-5 h-5" />
             </div>
           </CardContent>
@@ -149,7 +149,7 @@ export default function DepreciationSchedulePage() {
             onClick={() => setSelectedCategory("all")}
             className={`px-3 py-1.5 rounded-full transition-all ${
               selectedCategory === "all" || selectedCategory === "all font-semibold"
-                ? "bg-white dark:bg-zinc-900 text-foreground shadow-sm font-semibold"
+                ? "bg-card text-foreground ring-1 ring-foreground/10 font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -161,7 +161,7 @@ export default function DepreciationSchedulePage() {
               onClick={() => setSelectedCategory(cat)}
               className={`px-3 py-1.5 rounded-full transition-all whitespace-nowrap ${
                 selectedCategory === cat
-                  ? "bg-white dark:bg-zinc-900 text-foreground shadow-sm font-semibold"
+                  ? "bg-card text-foreground ring-1 ring-foreground/10 font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -174,7 +174,7 @@ export default function DepreciationSchedulePage() {
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center items-center h-48 border rounded-2xl bg-white dark:bg-zinc-900">
-          <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+          <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
           <span className="ml-2 text-sm text-muted-foreground">Loading depreciation schedule...</span>
         </div>
       ) : (
@@ -207,7 +207,7 @@ export default function DepreciationSchedulePage() {
 
               return (
                 <tr key={code} className="border-b hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 text-sm transition-colors">
-                  <td className="py-3 px-4 font-mono font-semibold text-purple-600">{code}</td>
+                  <td className="py-3 px-4 font-mono font-semibold text-zinc-600">{code}</td>
                   <td className="py-3 px-4 font-medium">
                     <div className="flex flex-col">
                       <span className="text-foreground font-semibold">{name}</span>
@@ -221,7 +221,7 @@ export default function DepreciationSchedulePage() {
                   <td className="py-3 px-4 text-right font-mono font-medium text-foreground">
                     {formatCurrency(cost, company?.currency)}
                   </td>
-                  <td className="py-3 px-4 text-right font-mono text-purple-600 dark:text-purple-400">
+                  <td className="py-3 px-4 text-right font-mono text-zinc-600 dark:text-zinc-400">
                     {formatCurrency(monthlyDepr, company?.currency)}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-amber-600 dark:text-amber-400">
@@ -247,7 +247,7 @@ export default function DepreciationSchedulePage() {
               <tr className="border-t-2 font-bold text-sm bg-zinc-50 dark:bg-zinc-900">
                 <td className="py-3 px-4" colSpan={4}>Grand Total ({filteredAssets.length} Assets)</td>
                 <td className="py-3 px-4 text-right font-mono text-foreground">{formatCurrency(totalCost, company?.currency)}</td>
-                <td className="py-3 px-4 text-right font-mono text-purple-600 dark:text-purple-400">{formatCurrency(monthlyDeprTotal, company?.currency)}</td>
+                <td className="py-3 px-4 text-right font-mono text-zinc-600 dark:text-zinc-400">{formatCurrency(monthlyDeprTotal, company?.currency)}</td>
                 <td className="py-3 px-4 text-right font-mono text-amber-600 dark:text-amber-400">{formatCurrency(totalAccDepr, company?.currency)}</td>
                 <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400">{formatCurrency(totalBookValue, company?.currency)}</td>
               </tr>

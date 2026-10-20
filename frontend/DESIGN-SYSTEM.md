@@ -342,46 +342,30 @@ Unsafe: *determine, calculate your tax, decide, file for you.*
 
 ## 7. Known drift
 
-Recorded honestly so it can be fixed, and so **Claude Design is not fed
-a contaminated system**. If the repo is imported as-is today, it will
-absorb both the canonical language and the older dashboard patterns.
+Recorded honestly so it can be fixed. The October 2026 pass cleared the
+dashboard of the legacy patterns; what remains is listed here.
 
 | Issue | Extent | Action |
 |---|---|---|
-| `.text-gradient` on page headings | **40 dashboard files** | Legacy. The landing standard is a display-serif heading with a single italic gradient span, not a fully gradient-filled sans heading. |
-| `shadow-*` on in-flow cards | **57 uses in 20 files** under `app/dashboard`, plus `card.tsx` and `tabs.tsx` | Replace with hairline borders per §4. |
-| ~20 distinct spring configs | landing components | Collapse to the three presets in §5. |
-| Raw hex colours | `#0B3C3D`, `#ef4444`, `#e5e7eb`, `#6b7280`, `#3b82f6`, `#1f2937` in dashboard | Replace with semantic tokens; these do not respond to theme. |
-| Hardcoded `from-zinc-* to-white` card gradients | 2 files | Use `bg-card`. |
-| `ledger-core.tsx` | unused since the hero was rebuilt | Dead code, safe to delete. |
-| i18n coverage | nav labels only | All other UI strings are hardcoded English. |
+| `.text-gradient` headings | **0** (was 40 files) | Class deleted from `globals.css`. Working screens use `PageHeading`. |
+| `shadow-*` on in-flow cards | **0** in-flow (was 57 in `app/dashboard`) | `card.tsx` and `tabs.tsx` are hairline. Remaining shadows are floating chrome or paper previews. |
+| Raw hex colours | **0** in product code (was 31 in `components/dashboard`) | Print CSS for statements keeps `#fff`/`#555` deliberately. |
+| Off-palette hues | **0** (was 445 uses) | Blue/indigo became cyan, purple/pink neutral, orange amber, rose red. |
+| ~20 distinct spring configs | landing components | Collapse to the three presets in §5 (`lib/motion.ts`). |
+| i18n coverage | nav labels only | All other UI strings are English; Indonesian regulatory terms stay Indonesian. |
 
 ### Where the drift actually lives
 
-Measured, not assumed:
+Measured after the pass:
 
-| Folder | Files | `.text-gradient` files | `shadow-{sm..2xl}` uses | hex literals |
+| Folder | Files | `.text-gradient` | `shadow-{sm..2xl}` uses | hex literals |
 |---|---|---|---|---|
-| `components/ui` | 37 | 0 | 14 | 4 |
-| `components/landing` | 24 | 0 | 9 | 5 |
-| `components/dashboard` | 21 | 0 | 14 | 31 |
-| **`app/dashboard`** | **109** | **40** | 57 | 5 |
-| `app/pricing` | 1 | 0 | 1 | 0 |
+| `components/ui` | 34 | 0 | 8 (dropdowns, dialogs, toasts) | 0 |
+| `components/landing` | 12 | 0 | 3 | 0 |
+| `components/dashboard` | 18 | 0 | 3 | 0 |
+| `app/dashboard` | 116 | 0 | 2 | 0 |
 
-The legacy heading pattern is confined **entirely to `src/app/dashboard`**.
-Everything under `src/components/` is clean of it. The raw-hex problem is
-worst in `components/dashboard` (31 occurrences across 4 files) — those
-are widget internals and chart colours that ignore the theme.
-
-**Recommendation when importing to Claude Design:** point it at `src`
-but **exclude `src/app/dashboard`**. That yields the shadcn primitives,
-the canonical landing components, the dashboard widget components and
-the marketing pages — while leaving out the one folder that would teach
-the deprecated heading pattern.
-
-Do not rely on this section alone to protect the import. Forty
-files demonstrating a pattern exert more statistical pull than one
-paragraph forbidding it.
+The whole of `src` can now be imported into Claude Design as a reference.
 
 ---
 

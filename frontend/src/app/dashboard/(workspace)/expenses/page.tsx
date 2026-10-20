@@ -54,7 +54,7 @@ export default function ExpensesPage() {
   return (
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight text-gradient">Expenses</h2>
+        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Expenses</h2>
         <div className="flex items-center space-x-2">
           {can(PERMISSIONS.FinanceCreate) && <Link href="/dashboard/expenses/new">
             <Button>

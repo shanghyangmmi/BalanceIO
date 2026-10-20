@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, Fragment } from "react";
+import { PageHeading } from "@/components/dashboard/page-heading";
 import { format } from "date-fns";
 import {
     Table,
@@ -61,7 +62,7 @@ export default function AuditLogsPage() {
     const getActionColor = (action: string) => {
         if (action.includes("LOGIN") && !action.includes("FAIL")) return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
         if (action.includes("FAIL") || action.includes("DELETE") || action.includes("VOID")) return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-        if (action.includes("UPDATE") || action.includes("CHANGE")) return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+        if (action.includes("UPDATE") || action.includes("CHANGE")) return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400";
         return "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-400";
     };
 
@@ -86,19 +87,15 @@ export default function AuditLogsPage() {
     };
 
     return (
-        <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                        <ShieldAlert className="h-5 w-5 text-emerald-500" />
-                        Activity Audit Logs
-                    </CardTitle>
-                    <CardDescription>
-                        View a detailed history of security events and administrative actions associated with your organization.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="rounded-md border">
+        <div className="space-y-8">
+            <PageHeading
+                eyebrow="Settings"
+                title="Audit log"
+                lede="Every change to accounts, journals, contacts, products, invoices, bills, assets and payroll, with who made it and when. Rows are append-only and kept for ten years under UU KUP Pasal 28."
+            />
+            <div>
+                <div>
+                    <div className="overflow-hidden rounded-xl border border-foreground/10">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -282,8 +279,8 @@ export default function AuditLogsPage() {
                             </Button>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
     );
 }

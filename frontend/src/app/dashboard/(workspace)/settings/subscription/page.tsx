@@ -14,6 +14,7 @@ import { NoPermission, RBACGuard, useCan } from "@/components/auth/rbac-guard"
 import { useCompany } from "@/contexts/company-context"
 import { useModuleDoors } from "@/hooks/use-module-doors"
 import { PaymentReturnBanner, usePlanCheckout } from "@/components/billing/plan-checkout"
+import { PageHeading } from "@/components/dashboard/page-heading";
 
 /** Mirrors GET /api/Plans. */
 interface Plan {
@@ -75,12 +76,11 @@ function SubscriptionContent() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h3 className="font-display text-lg font-bold">Subscription</h3>
-        <p className="text-[13px] text-muted-foreground">
-          The plan decides which modules open. A new plan activates when its payment is confirmed.
-        </p>
-      </div>
+      <PageHeading
+        eyebrow="Settings"
+        title="Subscription"
+        lede="The plan decides which modules open. A new plan activates when its payment is confirmed."
+      />
 
       <PaymentReturnBanner />
 

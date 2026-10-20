@@ -19,10 +19,11 @@ export const siteConfig = {
 
     // Marketing content
     marketing: {
-        slogan: "Financial Logic. Perfected.",
-        description: "BalanceIO is the Native Accounting Engine designed for scale. We replaced manual entries with precision engineering and automated integrity.",
-        trustBadge: "Enterprise Grade Security",
-        trustBadgeSecondary: "ISO 27001 Ready",
+        slogan: "Nothing posts until both sides agree.",
+        description: "Accounting for Indonesian companies. A module earns its place only if it posts to the general ledger.",
+        // No certification claims here until an audit report exists to back them.
+        trustBadge: "MFA, role-based access and an append-only audit trail",
+        trustBadgeSecondary: "PSAK, PPN and PPh 21 records",
     },
 
     // Feature Flags (Toggle functionality)

@@ -91,7 +91,7 @@ export default function AdminLoginPage() {
             {/* Background Effects */}
             <div className="absolute inset-0 z-0">
                 <div className="absolute top-0 left-0 w-full h-[500px] bg-red-900/20 blur-[120px] rounded-full mix-blend-screen opacity-50 pointer-events-none" />
-                <div className="absolute bottom-0 right-0 w-full h-[500px] bg-indigo-900/10 blur-[120px] rounded-full mix-blend-screen opacity-50 pointer-events-none" />
+                <div className="absolute bottom-0 right-0 w-full h-[500px] bg-cyan-900/10 blur-[120px] rounded-full mix-blend-screen opacity-50 pointer-events-none" />
             </div>
 
             <Card className="z-10 w-full max-w-[420px] bg-zinc-900/80 border-zinc-800 backdrop-blur-xl shadow-2xl">

@@ -72,12 +72,12 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
             <>
                 <aside
                     className={cn(
-                        "fixed top-0 left-0 z-40 h-screen print:hidden bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 w-[240px]",
+                        "fixed top-0 left-0 z-40 h-screen print:hidden bg-background border-r border-foreground/10 transition-all duration-300 w-[240px]",
                         !isOpen && "-translate-x-full md:translate-x-0 md:w-[70px]",
                         isMobile && "shadow-2xl"
                     )}
                 >
-                    <div className="h-16 flex items-center justify-between px-3 border-b border-dashed border-zinc-200/50 dark:border-white/5 relative">
+                    <div className="h-14 flex items-center justify-between px-3 border-b border-foreground/10 relative">
                         <div className="h-8 w-8 rounded-lg bg-zinc-200 dark:bg-zinc-800 animate-pulse" />
                     </div>
                 </aside>
@@ -91,7 +91,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                 initial={false}
                 animate={{ width: isOpen ? 240 : 70 }}
                 className={cn(
-                    "fixed top-0 left-0 z-40 h-screen print:hidden bg-zinc-50/50 dark:bg-zinc-900/50 border-r border-[#E0E0E0] dark:border-white/10 transition-all duration-300 flex flex-col",
+                    "fixed top-0 left-0 z-40 h-screen print:hidden bg-background border-r border-foreground/10 transition-all duration-300 flex flex-col",
                     isMobile && "shadow-2xl"
                 )}
             >
@@ -108,7 +108,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                         return (
                             <div key={groupIndex} className="px-0.5">
                                 {isOpen && (
-                                    <h4 className="px-2.5 mb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 opacity-80">
+                                    <h4 className="px-2.5 mb-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/80">
                                         {group.label}
                                     </h4>
                                 )}
@@ -121,16 +121,16 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                                 href={item.href}
                                                 onClick={() => { if (isMobile) setIsOpen(false); }}
                                                 className={cn(
-                                                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-all duration-200 group relative overflow-hidden text-xs font-medium",
+                                                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-md transition-colors duration-150 group relative text-xs font-medium",
                                                     !isOpen && "justify-center px-0 w-9 mx-auto", // Center icons when collapsed
                                                     isActive
-                                                        ? "bg-emerald-100/80 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 font-semibold shadow-sm ring-1 ring-emerald-500/20"
-                                                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-white/5 active:scale-95"
+                                                        ? "bg-foreground/[0.06] text-foreground"
+                                                        : "text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04]"
                                                 )}
                                             >
-                                                {/* Aurora Background for Active Item */}
-                                                {isActive && (
-                                                    <div className="absolute inset-0 z-0 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent animate-gradient-flow opacity-70" />
+                                                {/* Active: a primary rule on the left edge, the ledger gesture. */}
+                                                {isActive && isOpen && (
+                                                    <span aria-hidden className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-primary" />
                                                 )}
 
                                                 <div className={cn(
@@ -139,7 +139,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                                 )}>
                                                     <item.icon className={cn(
                                                         "h-full w-full transition-all duration-300",
-                                                        isActive ? "text-emerald-600 dark:text-emerald-400 scale-110 drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "group-hover:text-zinc-900 dark:group-hover:text-white"
+                                                        isActive ? "text-foreground" : "group-hover:text-foreground"
                                                     )} />
                                                 </div>
 
@@ -156,20 +156,10 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                                     )}
                                                 </AnimatePresence>
 
-                                                {/* Active Indicator Dot */}
-                                                {isActive && (
-                                                    <motion.div
-                                                        layoutId="active-dot"
-                                                        className={cn(
-                                                            "absolute rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] z-10",
-                                                            isOpen ? "right-2 h-1 w-1" : "bottom-1 left-1/2 -translate-x-1/2 h-1 w-1.5"
-                                                        )}
-                                                    />
-                                                )}
 
                                                 {/* Tooltip for collapsed state */}
                                                 {!isOpen && (
-                                                    <div className="absolute left-14 top-1/2 -translate-y-1/2 bg-zinc-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-2xl ring-1 ring-white/10">
+                                                    <div className="absolute left-14 top-1/2 -translate-y-1/2 bg-foreground text-background text-[11px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
                                                         {item.label}
                                                     </div>
                                                 )}
@@ -179,7 +169,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                 </div>
                                 {/* Separator between groups */}
                                 {groupIndex < (currentModule?.groups.length ?? 0) - 1 && isOpen && (
-                                    <div className="mx-5 my-3 h-px bg-white/5 border-t border-dashed border-zinc-200/50 dark:border-white/5" />
+                                    <div className="mx-2.5 my-3 h-px bg-foreground/[0.06]" />
                                 )}
                             </div>
                         )
@@ -187,7 +177,7 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                 </nav>
 
                 {/* Footer Info */}
-                <div className="p-4 border-t border-dashed border-zinc-200/50 dark:border-white/5 bg-zinc-50/30 dark:bg-zinc-900/30 backdrop-blur-sm">
+                <div className="p-4 border-t border-foreground/10">
                     <AnimatePresence mode="wait">
                         {isOpen ? (
                             <motion.div
@@ -197,13 +187,13 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                 className="space-y-3"
                             >
                                 <div className="px-1 space-y-1">
-                                    <div className="flex justify-between gap-3 text-[10px] text-zinc-400">
+                                    <div className="flex justify-between gap-3 text-[11px] text-muted-foreground">
                                         <span>Company</span>
-                                        <span className="truncate font-semibold text-zinc-600 dark:text-zinc-300" title={company?.name}>{company?.name ?? "—"}</span>
+                                        <span className="truncate font-medium text-foreground" title={company?.name}>{company?.name ?? "—"}</span>
                                     </div>
-                                    <div className="flex justify-between gap-3 text-[10px] text-zinc-400">
+                                    <div className="flex justify-between gap-3 text-[11px] text-muted-foreground">
                                         <span>Role</span>
-                                        <span className="font-mono font-semibold text-zinc-600 dark:text-zinc-300">{company?.role ?? "—"}</span>
+                                        <span className="font-mono text-foreground">{company?.role ?? "—"}</span>
                                     </div>
                                 </div>
                                 <Button
@@ -213,10 +203,10 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                     }}
                                     variant="ghost"
                                     size="sm"
-                                    className="w-full justify-start gap-2 h-8 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95"
+                                    className="w-full justify-start gap-2 h-8 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
                                 >
                                     <LogOut className="h-3 w-3" />
-                                    Sign Out
+                                    Sign out
                                 </Button>
                             </motion.div>
                         ) : (
@@ -228,7 +218,8 @@ export function DashboardSidebar({ isOpen, setIsOpen, isMobile, closeMobile }: S
                                     }}
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                    aria-label="Sign out"
                                 >
                                     <LogOut className="h-4 w-4" />
                                 </Button>

@@ -101,8 +101,8 @@ export function UploadButton({
                 className={`
                     border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
                     ${isDragActive
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                        : "border-zinc-200 dark:border-zinc-800 hover:border-blue-400 dark:hover:border-blue-700"
+                        ? "border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20"
+                        : "border-zinc-200 dark:border-zinc-800 hover:border-cyan-400 dark:hover:border-cyan-700"
                     }
                 `}
             >
@@ -128,7 +128,7 @@ export function UploadButton({
                     {files.map((file, index) => (
                         <div key={index} className="flex items-center justify-between p-3 rounded-md bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
                             <div className="flex items-center gap-3 overflow-hidden">
-                                <FileText className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                                <FileText className="h-5 w-5 text-cyan-500 flex-shrink-0" />
                                 <div className="min-w-0">
                                     <p className="text-sm font-medium truncate">{file.name}</p>
                                     <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>

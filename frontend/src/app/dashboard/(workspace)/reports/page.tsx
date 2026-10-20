@@ -36,22 +36,22 @@ const reportCategories = [
     id: "sales",
     label: "Sales & Receivables",
     icon: TrendingUp,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50 dark:bg-blue-900/20",
+    color: "text-cyan-600",
+    bgColor: "bg-cyan-50 dark:bg-cyan-900/20",
   },
   {
     id: "purchases",
     label: "Purchases & Payables",
     icon: Truck,
-    color: "text-orange-600",
-    bgColor: "bg-orange-50 dark:bg-orange-900/20",
+    color: "text-amber-600",
+    bgColor: "bg-amber-50 dark:bg-amber-900/20",
   },
   {
     id: "assets",
     label: "Assets",
     icon: Building2,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50 dark:bg-purple-900/20",
+    color: "text-zinc-600",
+    bgColor: "bg-zinc-50 dark:bg-zinc-900/20",
   },
   {
     id: "inventory",
@@ -64,8 +64,8 @@ const reportCategories = [
     id: "custom",
     label: "Custom Reports",
     icon: Settings2,
-    color: "text-indigo-600",
-    bgColor: "bg-indigo-50 dark:bg-indigo-900/20",
+    color: "text-cyan-600",
+    bgColor: "bg-cyan-50 dark:bg-cyan-900/20",
   },
 ];
 
@@ -268,7 +268,7 @@ export default function ReportsPage() {
     <div className="flex-1 space-y-6">
       {/* Page Header */}
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-gradient">
+        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
           Financial Reports
         </h2>
       </div>

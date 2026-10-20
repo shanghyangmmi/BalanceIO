@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { PageHeading } from "@/components/dashboard/page-heading";
 
 export default function BackupPage() {
   const [downloading, setDownloading] = useState(false);
@@ -35,12 +36,11 @@ export default function BackupPage() {
 
   return (
     <div className="max-w-4xl space-y-8">
-      <div>
-        <h3 className="text-lg font-medium">Data Backup</h3>
-        <p className="text-sm text-muted-foreground">
-          Download a full snapshot of your business data (JSON format).
-        </p>
-      </div>
+      <PageHeading
+        eyebrow="Settings"
+        title="Data backup"
+        lede="Download a complete snapshot of this company's data as JSON. Keep it somewhere you control; UU KUP Pasal 28 requires books to be retained for ten years."
+      />
 
       <Card className="border-emerald-100 dark:border-emerald-900/30">
         <CardHeader>

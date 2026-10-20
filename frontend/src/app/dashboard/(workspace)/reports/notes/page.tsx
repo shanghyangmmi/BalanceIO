@@ -251,13 +251,13 @@ export default function NotesPage() {
             Rincian liabilitas usaha, kewajiban perpajakan, dan beban akrual entitas:
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border bg-white dark:bg-zinc-900 shadow-sm">
+            <div className="p-4 rounded-xl border border-foreground/10 bg-card/60">
               <span className="text-xs text-muted-foreground block">Liabilitas Jangka Pendek</span>
               <span className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
                 {formatCurrency(currentLiabTotal, company?.currency)}
               </span>
             </div>
-            <div className="p-4 rounded-xl border bg-white dark:bg-zinc-900 shadow-sm">
+            <div className="p-4 rounded-xl border border-foreground/10 bg-card/60">
               <span className="text-xs text-muted-foreground block">Liabilitas Jangka Panjang</span>
               <span className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">
                 {formatCurrency(nonCurrentLiabTotal, company?.currency)}
@@ -277,14 +277,14 @@ export default function NotesPage() {
           <p className="text-sm text-muted-foreground">
             Ringkasan ketaatan pengakuan pendapatan (PSAK 72 / IFRS 15) dan beban operasional:
           </p>
-          <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 flex justify-between items-center">
+          <div className="p-4 rounded-xl bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-800 flex justify-between items-center">
             <div>
-              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium block">Laba Bersih Periode Berjalan</span>
-              <span className="text-xl font-bold font-mono text-blue-800 dark:text-blue-200">
+              <span className="text-xs text-cyan-700 dark:text-cyan-300 font-medium block">Laba Bersih Periode Berjalan</span>
+              <span className="text-xl font-bold font-mono text-cyan-800 dark:text-cyan-200">
                 {formatCurrency(netIncome, company?.currency)}
               </span>
             </div>
-            <Badge className="bg-blue-600 text-white">PSAK 72 Verified</Badge>
+            <Badge className="bg-cyan-600 text-white">PSAK 72 Verified</Badge>
           </div>
         </div>
       ),
@@ -334,7 +334,7 @@ export default function NotesPage() {
       showAjeSelector={false}
     >
       {/* Overview Banner */}
-      <Card className="mb-6 border-emerald-500/20 bg-gradient-to-br from-emerald-50/50 via-white to-emerald-50/30 dark:from-emerald-950/20 dark:via-zinc-900 dark:to-emerald-950/10 shadow-sm">
+      <Card className="mb-6 border-foreground/10 bg-card/60">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -373,7 +373,7 @@ export default function NotesPage() {
           return (
             <div
               key={note.id}
-              className="border rounded-2xl bg-white dark:bg-zinc-900 shadow-sm overflow-hidden transition-colors"
+              className="border border-foreground/10 rounded-xl bg-card/60 overflow-hidden transition-colors"
             >
               <button
                 type="button"

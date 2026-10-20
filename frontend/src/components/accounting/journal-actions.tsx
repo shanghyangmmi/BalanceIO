@@ -57,7 +57,7 @@ export function JournalActions({ entry }: JournalActionsProps) {
         <>
             <div className="flex items-center justify-end gap-2">
                 <Link href={`/dashboard/accounting/journal/edit?id=${entry.id}`}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-blue-600">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-cyan-600">
                         <Eye className="h-4 w-4" />
                     </Button>
                 </Link>

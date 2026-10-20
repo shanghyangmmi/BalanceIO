@@ -2,535 +2,816 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { motion, AnimatePresence } from "framer-motion"
-import {
-    BookOpen,
-    PieChart,
-    Globe,
-    Scale,
-    Calculator,
-    ShieldCheck,
-    FileText,
-    Boxes,
-    Building2,
-    RefreshCcw,
-    Command,
-    DatabaseBackup,
-    ArrowRight,
-    Check,
-} from "lucide-react"
+import { motion } from "framer-motion"
+import { ArrowRight } from "lucide-react"
 import { SiteHeader } from "@/components/site-header"
 import { SiteFooter } from "@/components/site-footer"
-import { AmbientCursor } from "@/components/landing/ambient-cursor"
-import { TiltCard } from "@/components/landing/tilt-card"
-import { Magnetic } from "@/components/landing/magnetic"
-import { NumberTicker } from "@/components/ui/number-ticker"
-import { formatCurrency } from "@/lib/utils/formatter"
-import { cn } from "@/lib/utils"
-import { SPRING, EASE_HOUSE } from "@/lib/motion"
 import { SmoothScrollProvider } from "@/components/landing/scroll-engine"
+import { EASE_HOUSE } from "@/lib/motion"
+import { cn } from "@/lib/utils"
 
-/* ────────────────────────────────────────────────────────────────────────
-   Deep-dive capabilities (tabbed)
-──────────────────────────────────────────────────────────────────────── */
-interface Capability {
-    id: string
-    icon: React.ElementType
-    label: string
-    title: string
-    body: string
-    points: string[]
-    visual: React.ComponentType
+/**
+ * Features — what the product does, module by module.
+ *
+ * This page used to be six tabbed "capabilities" in a tilting card, with
+ * check-mark bullets, icon badges, a spinning conic glow and a bento of
+ * extras. Several of its claims were not true of the code: "IFRS",
+ * "consolidated IDR reporting", "25 reports", asset "revaluation" (the
+ * form edits cost and posts nothing), recurring journals whose "entries
+ * post themselves" (they create drafts), and roles named Owner, Staff and
+ * Auditor when the product's roles are Admin, Finance and Auditor.
+ *
+ * It is now laid out as a report: a contents list, the ledger's rules,
+ * one exhibit block per module with the entry it posts, the statement set
+ * and report index, the controls, and what is not built. The patterns are
+ * the landing page's (modules-showcase, StandardsBand); nothing here is a
+ * new visual idea.
+ *
+ * Every line is something the code does. Sources: root CLAUDE.md
+ * (Accounting integrity, Tax module state, Payroll, Inventory and
+ * warehouses, Fixed assets, Financial statements), PlansController for
+ * plan availability, RolePermissions for roles, JobCatalogue for what
+ * runs on a schedule. If one of those changes, change the line here.
+ */
+
+const reveal = {
+    initial: { opacity: 0, y: 12 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true, amount: 0.3 },
 }
 
-function LedgerVisual() {
-    const rows = [
-        { a: "1-1100 · Cash & Bank", d: 55_500_000, c: 0 },
-        { a: "4-1000 · Sales Revenue", d: 0, c: 50_000_000 },
-        { a: "2-1300 · PPN Output", d: 0, c: 5_500_000 },
-    ]
-    return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between text-[10px] text-muted-foreground pb-1">
-                <span className="font-mono">Journal #JV-2026-008</span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-bold uppercase tracking-wider">
-                    Posted (Locked)
-                </span>
-            </div>
-            {rows.map((r, i) => (
-                <motion.div
-                    key={r.a}
-                    initial={{ opacity: 0, x: -16 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + i * 0.14, ...SPRING.medium }}
-                    className="flex justify-between items-center rounded-lg border border-foreground/[0.06] bg-card/70 px-3 py-2 text-[11px]"
-                >
-                    <span className="text-foreground/80 font-medium truncate mr-3">{r.a}</span>
-                    <span className="font-money text-emerald-700 dark:text-emerald-300 shrink-0">
-                        {formatCurrency(r.d || r.c)}
-                    </span>
-                </motion.div>
-            ))}
-            <motion.div
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={{ delay: 0.6, ...SPRING.soft }}
-                className="h-1.5 w-full origin-left rounded-full bg-emerald-600 dark:bg-emerald-500"
-                style={{ boxShadow: "0 0 12px rgba(16,185,129,0.5)" }}
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
-                <span className="text-muted-foreground">Drafts stay Unposted until ready</span>
-                <span className="text-emerald-700 dark:text-emerald-400">Dr = Cr · balanced exactly</span>
-            </div>
-        </div>
-    )
-}
+/* ── Hero ────────────────────────────────────────────────────────── */
 
-function ReportsVisual() {
-    return (
-        <div>
-            <div className="flex items-end gap-1.5 h-24 mb-2">
-                {[45, 62, 50, 74, 58, 86, 68, 95, 78, 100].map((h, i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ scaleY: 0 }}
-                        animate={{ scaleY: 1 }}
-                        transition={{ delay: 0.1 + i * 0.05, ...SPRING.medium }}
-                        style={{ height: `${h}%`, transformOrigin: "bottom" }}
-                        className="flex-1 rounded-t-[4px] bg-gradient-to-t from-emerald-700/40 to-emerald-500 dark:from-emerald-600/40 dark:to-emerald-400"
-                    />
-                ))}
-            </div>
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-                <span>Net profit · trailing 12m</span>
-                <span className="font-money font-bold text-foreground">
-                    <NumberTicker value={1_212_500_000} format={(v) => formatCurrency(v)} stiffness={55} />
-                </span>
-            </div>
-        </div>
-    )
-}
-
-function CurrencyVisual() {
-    const pairs = [
-        { p: "USD / IDR", v: "16.245", up: true },
-        { p: "SGD / IDR", v: "12.108", up: false },
-        { p: "EUR / IDR", v: "17.632", up: true },
-    ]
-    return (
-        <div className="space-y-2">
-            {pairs.map((x, i) => (
-                <motion.div
-                    key={x.p}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + i * 0.12, ...SPRING.medium }}
-                    className="flex justify-between items-center rounded-lg border border-foreground/[0.06] bg-card/70 px-3 py-2.5 text-xs"
-                >
-                    <span className="font-mono text-muted-foreground">{x.p}</span>
-                    <span className={cn("font-money font-bold", x.up ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                        {x.v} {x.up ? "▲" : "▼"}
-                    </span>
-                </motion.div>
-            ))}
-            <div className="text-[10px] text-muted-foreground text-right">Rate as booked, per transaction</div>
-        </div>
-    )
-}
-
-function ComplianceVisual() {
-    const items = ["Revenue recognition", "Depreciation schedules", "Period locking", "Period closing"]
-    return (
-        <div className="space-y-2">
-            {items.map((x, i) => (
-                <motion.div
-                    key={x}
-                    initial={{ opacity: 0, x: 14 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + i * 0.11, ...SPRING.medium }}
-                    className="flex items-center gap-2.5 rounded-lg border border-foreground/[0.06] bg-card/70 px-3 py-2 text-xs text-foreground/85"
-                >
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600/10 dark:bg-emerald-500/15">
-                        <Check className="h-2.5 w-2.5 text-emerald-700 dark:text-emerald-400" />
-                    </span>
-                    {x}
-                </motion.div>
-            ))}
-        </div>
-    )
-}
-
-function TaxVisual() {
-    return (
-        <div className="space-y-2.5">
-            {[
-                { l: "PPN Output · July", v: 128_400_000 },
-                { l: "PPN Input · July", v: 87_100_000 },
-            ].map((t, i) => (
-                <motion.div
-                    key={t.l}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + i * 0.12, ...SPRING.medium }}
-                    className="flex justify-between rounded-lg border border-foreground/[0.06] bg-card/70 px-3 py-2.5 text-xs"
-                >
-                    <span className="text-muted-foreground">{t.l}</span>
-                    <span className="font-money font-bold text-foreground">
-                        <NumberTicker value={t.v} format={(v) => formatCurrency(v)} stiffness={80} />
-                    </span>
-                </motion.div>
-            ))}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.45, duration: 0.6, ease: EASE_HOUSE }}
-                className="rounded-lg border border-emerald-600/25 dark:border-emerald-500/25 bg-emerald-600/[0.06] dark:bg-emerald-500/[0.08] px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 text-center"
-            >
-                Structured tax data support
-            </motion.div>
-        </div>
-    )
-}
-
-function SecurityVisual() {
-    const roles = [
-        { r: "Owner", p: "Full access" },
-        { r: "Finance", p: "Post & report" },
-        { r: "Staff", p: "Draft only" },
-        { r: "Auditor", p: "Read only" },
-    ]
-    return (
-        <div className="grid grid-cols-2 gap-2">
-            {roles.map((x, i) => (
-                <motion.div
-                    key={x.r}
-                    initial={{ opacity: 0, scale: 0.92 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.1 + i * 0.09, ...SPRING.medium }}
-                    className="rounded-lg border border-foreground/[0.06] bg-card/70 px-3 py-2.5"
-                >
-                    <div className="text-xs font-semibold text-foreground">{x.r}</div>
-                    <div className="text-[10px] text-muted-foreground">{x.p}</div>
-                </motion.div>
-            ))}
-        </div>
-    )
-}
-
-const CAPABILITIES: Capability[] = [
-    {
-        id: "ledger",
-        icon: BookOpen,
-        label: "Ledger & Posting Control",
-        title: "A ledger that runs itself — with total posting control",
-        body: "Operational modules auto-post upon approval, while manual entries stay safely in Draft (Unposted) until verified. Double-entry is enforced to the exact rupiah with batch posting and immutable Void + Reversal audit trails.",
-        points: ["Sub-ledger auto-posting on approval", "Draft (Unposted) entry safety", "Period lock stops back-dating", "Immutable Posted entries (Void & Reversals)"],
-        visual: LedgerVisual,
-    },
-    {
-        id: "reports",
-        icon: PieChart,
-        label: "Financial Reports",
-        title: "Financial Statements & Disclosures",
-        body: "25 financial and managerial reports generated live from posted ledger entries — from Statement of Financial Position, Statement of Profit or Loss and Other Comprehensive Income, Cash Flows, Equity, to Inventory & Fixed Assets Reports.",
-        points: ["Statement of Financial Position", "Statement of Profit or Loss & Comprehensive Income", "Notes to Financial Statements", "Inventory & Fixed Assets Reports"],
-        visual: ReportsVisual,
-    },
-    {
-        id: "currency",
-        icon: Globe,
-        label: "Multi-Currency",
-        title: "Books that cross borders",
-        body: "Invoice in USD, pay in SGD, report in IDR. Every transaction carries the rate it was booked at — buy, sell and middle, dated — so the figure in the statement is the figure that was agreed.",
-        points: ["Per-transaction exchange rates", "Dated rate table, buy / sell / middle", "Multi-currency AR / AP", "Consolidated IDR reporting"],
-        visual: CurrencyVisual,
-    },
-    {
-        id: "compliance",
-        icon: Scale,
-        label: "PSAK / IFRS Accommodating",
-        title: "Compliance-ready by design",
-        body: "Engineered to accommodate local PSAK and international IFRS reporting needs directly within the posting logic — supporting period locking, audit trails, and financial disclosures.",
-        points: ["Accommodates PSAK & IFRS needs", "Period locking & closing", "Immutable posted entries", "Audit-ready trails"],
-        visual: ComplianceVisual,
-    },
-    {
-        id: "tax",
-        icon: Calculator,
-        label: "Tax Compliance Support",
-        title: "Tax compliance data support",
-        body: "Organize PPN input and output details per line item, track PPh withholding records, and maintain structured NPWP and invoice data formatted for easy export.",
-        points: ["PPN input & output tracking", "PPh withholding record management", "NPWP & invoice data organization", "Exportable tax data format"],
-        visual: TaxVisual,
-    },
-    {
-        id: "security",
-        icon: ShieldCheck,
-        label: "RBAC Security",
-        title: "Everyone sees exactly enough",
-        body: "Granular role-based access down to individual actions, MFA on sign-in, encrypted credential storage, and an append-only audit log behind every mutation.",
-        points: ["Granular role permissions", "Multi-factor authentication", "Append-only audit logs", "High data-protection standards"],
-        visual: SecurityVisual,
-    },
+const HEAD: { words: string[]; accent?: boolean }[] = [
+    { words: ["One", "ledger."] },
+    { words: ["Every", "module", "posts", "to", "it."], accent: true },
 ]
 
-/* ────────────────────────────────────────────────────────────────────────
-   Secondary bento
-──────────────────────────────────────────────────────────────────────── */
-/** Split for the mask reveal; the second clause carries the gradient. */
-const HEADLINE: { text: string; accent?: boolean }[] = [
-    { text: "Built" },
-    { text: "like" },
-    { text: "an" },
-    { text: "audit" },
-    { text: "firm." },
-    { text: "Run", accent: true },
-    { text: "like", accent: true },
-    { text: "software.", accent: true },
-]
+const CONTENTS = [
+    { id: "ledger", no: "01", label: "The ledger" },
+    { id: "modules", no: "02", label: "Modules" },
+    { id: "statements", no: "03", label: "Statements and reports" },
+    { id: "controls", no: "04", label: "Controls" },
+    { id: "scope", no: "05", label: "Not yet built" },
+] as const
 
-const EXTRAS = [
-    { icon: FileText, title: "Invoice templates", body: "Five premium, print-perfect designs." },
-    { icon: Boxes, title: "Inventory & opname", body: "Multi-warehouse stock with physical counts." },
-    { icon: Building2, title: "Fixed assets", body: "Auto depreciation, revaluation, disposal." },
-    { icon: RefreshCcw, title: "Recurring journals", body: "Set the schedule, entries post themselves." },
-    { icon: Command, title: "⌘K everywhere", body: "Any page or action in one keystroke." },
-    { icon: DatabaseBackup, title: "Automated backups", body: "Your books, safeguarded continuously." },
-]
-
-export default function FeaturesPage() {
-    const [active, setActive] = React.useState("ledger")
-    const cap = CAPABILITIES.find((c) => c.id === active)!
-    const Visual = cap.visual
-
+function Hero() {
+    let n = 0
     return (
-        <SmoothScrollProvider>
-        <div className="relative flex min-h-screen flex-col bg-background text-foreground antialiased selection:bg-emerald-500/25 overflow-hidden">
-            <AmbientCursor />
-            <SiteHeader />
-
-            {/* Ambient stage */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute inset-0 dark:hidden bg-gradient-to-br from-emerald-500/[0.07] via-transparent to-transparent" />
-                <div className="absolute -top-[30%] left-1/2 -translate-x-1/2 w-[100vw] aspect-square rounded-full opacity-[0.10] dark:opacity-20 blur-[110px] bg-[conic-gradient(from_90deg,transparent_0deg,var(--color-emerald-500)_60deg,var(--color-cyan-500)_140deg,transparent_220deg)] animate-[spin_30s_linear_infinite]" />
-                <div className="absolute inset-0 bg-[radial-gradient(rgba(9,60,50,0.10)_1px,transparent_1px)] dark:bg-[radial-gradient(rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:34px_34px] [mask-image:radial-gradient(ellipse_70%_50%_at_50%_0%,black,transparent)]" />
-                <div className="absolute inset-0 bg-noise" />
-            </div>
-
-            <main className="flex-1 relative z-10 pt-40 pb-24">
-                {/* ── Hero ─────────────────────────────────────────────── */}
-                <section className="mx-auto max-w-4xl px-6 text-center mb-20">
-                    <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center justify-center gap-3 mb-7"
+        <section className="border-b border-foreground/10">
+            <div className="mx-auto grid max-w-6xl gap-14 px-6 pt-32 pb-16 sm:pt-40 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:items-end lg:pb-20">
+                <div>
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.05, duration: 0.8, ease: EASE_HOUSE }}
+                        className="mb-7 font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground"
                     >
-                        <span className="h-px w-10 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                        <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-700 dark:text-emerald-400">
-                            Features
-                        </span>
-                        <span className="h-px w-10 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                    </motion.div>
-                    {/* Mask reveal, not a fade.
-                        The words slide up from behind a clipping edge, which is
-                        the house technique for headlines - it reads as printed
-                        rather than faded in. This page was using a plain
-                        opacity+y drift while the landing hero next door used
-                        the mask, and that difference is most of why the two
-                        felt like different levels of finish. */}
-                    <h1 className="font-display text-5xl md:text-6xl font-bold tracking-tight leading-[1.08]">
-                        {HEADLINE.map((w, i) => (
-                            <span key={w.text + i} className="inline-block overflow-hidden pb-[0.08em] align-bottom">
-                                <motion.span
-                                    initial={{ y: "110%" }}
-                                    animate={{ y: "0%" }}
-                                    transition={{ delay: 0.1 + i * 0.06, duration: 0.85, ease: EASE_HOUSE }}
-                                    className={
-                                        "mr-[0.24em] inline-block will-change-transform " +
-                                        (w.accent
-                                            ? "italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-600 dark:from-emerald-400 dark:via-teal-300 dark:to-cyan-400 bg-clip-text text-transparent animate-gradient-flow [background-size:200%_200%]"
-                                            : "")
-                                    }
-                                >
-                                    {w.text}
-                                </motion.span>
+                        Features
+                    </motion.p>
+
+                    {/* Mask reveal: the words rise from behind a clipping
+                        edge, as on the landing hero. The accent is the one
+                        italic gradient on this page. */}
+                    <h1 className="font-display text-[2.6rem] font-bold leading-[1.06] tracking-tight text-foreground sm:text-6xl lg:text-[4.4rem]">
+                        {HEAD.map((line) => (
+                            <span key={line.words.join(" ")} className="block">
+                                {line.words.map((w) => {
+                                    const i = n++
+                                    return (
+                                        <span key={w + i} className="inline-block overflow-hidden pb-[0.08em] align-bottom">
+                                            <motion.span
+                                                initial={{ y: "110%" }}
+                                                animate={{ y: "0%" }}
+                                                transition={{ delay: 0.1 + i * 0.06, duration: 0.85, ease: EASE_HOUSE }}
+                                                className={cn(
+                                                    "mr-[0.24em] inline-block will-change-transform",
+                                                    line.accent &&
+                                                        "italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-600 bg-clip-text text-transparent dark:from-emerald-400 dark:via-teal-300 dark:to-cyan-400",
+                                                )}
+                                            >
+                                                {w}
+                                            </motion.span>
+                                        </span>
+                                    )
+                                })}
                             </span>
                         ))}
                     </h1>
+
                     <motion.p
-                        initial={{ opacity: 0, y: 16 }}
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2, duration: 0.7, ease: EASE_HOUSE }}
-                        className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto"
+                        transition={{ delay: 0.55, duration: 0.8, ease: EASE_HOUSE }}
+                        className="mt-7 max-w-xl text-base leading-relaxed text-muted-foreground"
                     >
-                        Six capabilities, each deep enough to close a period on.
-                        Ledger and posting control, financial statements,
-                        multi-currency, PSAK and IFRS, tax records, access control.
+                        What BalanceIO does today: the rules the ledger enforces, the
+                        entry each module posts and the plan it comes with, the
+                        statements built from those entries, and the controls around
+                        them. Where something is not built yet, this page says so.
                     </motion.p>
-                </section>
+                </div>
 
-                {/* ── Tabbed deep-dive ─────────────────────────────────── */}
-                <section className="mx-auto max-w-6xl px-6 mb-28">
-                    <div className="grid lg:grid-cols-[280px_1fr] gap-8">
-                        {/* Tab rail */}
-                        <div className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
-                            {CAPABILITIES.map((c) => (
-                                <button
-                                    key={c.id}
-                                    onClick={() => setActive(c.id)}
-                                    className={cn(
-                                        "relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors text-left",
-                                        active === c.id
-                                            ? "text-foreground"
-                                            : "text-muted-foreground hover:text-foreground"
-                                    )}
+                {/* Contents, as a report would open. */}
+                <motion.nav
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.75, duration: 0.8, ease: EASE_HOUSE }}
+                    aria-label="Contents"
+                    className="w-full lg:max-w-xs lg:justify-self-end"
+                >
+                    <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                        Contents
+                    </p>
+                    <ol className="mt-4 border-t border-foreground">
+                        {CONTENTS.map((c) => (
+                            <li key={c.id} className="border-b border-foreground/10">
+                                <a
+                                    href={`#${c.id}`}
+                                    className="group flex items-baseline gap-4 py-3 text-[14px] text-foreground transition-colors hover:text-emerald-700 dark:hover:text-emerald-400"
                                 >
-                                    {active === c.id && (
-                                        <motion.span
-                                            layoutId="feature-tab-bg"
-                                            transition={{ ...SPRING.snappy }}
-                                            className="absolute inset-0 rounded-xl border border-emerald-600/25 dark:border-emerald-500/25 bg-emerald-600/[0.06] dark:bg-emerald-500/[0.08]"
-                                        />
-                                    )}
-                                    <c.icon
-                                        className={cn(
-                                            "relative z-10 h-4 w-4 shrink-0",
-                                            active === c.id
-                                                ? "text-emerald-700 dark:text-emerald-400"
-                                                : "text-muted-foreground/70"
-                                        )}
+                                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground">
+                                        {c.no}
+                                    </span>
+                                    <span className="flex-1">{c.label}</span>
+                                    <span
+                                        aria-hidden
+                                        className="h-px w-6 origin-left scale-x-0 bg-current transition-transform duration-300 group-hover:scale-x-100"
                                     />
-                                    <span className="relative z-10">{c.label}</span>
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Detail panel */}
-                        <div className="[perspective:1400px]">
-                            <TiltCard max={3} className="rounded-3xl">
-                                <div className="relative overflow-hidden rounded-2xl border border-foreground/10 bg-card/60 backdrop-blur-sm min-h-[380px]">
-                                    <div className="absolute inset-0 bg-noise pointer-events-none" />
-                                    <AnimatePresence mode="wait">
-                                        <motion.div
-                                            key={cap.id}
-                                            initial={{ opacity: 0, y: 18, scale: 0.99 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, y: -12, scale: 0.99 }}
-                                            transition={{ ...SPRING.medium }}
-                                            className="relative p-8 space-y-6"
-                                        >
-                                            {/* Full-width Header Banner across top */}
-                                            <div className="flex items-center gap-4 border-b border-foreground/10 pb-5">
-                                                <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-600/20 bg-emerald-600/[0.07] text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400 shrink-0">
-                                                    <cap.icon className="h-6 w-6" />
-                                                </span>
-                                                <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-foreground">
-                                                    {cap.title}
-                                                </h2>
-                                            </div>
-
-                                            {/* Content Grid */}
-                                            <div className="grid md:grid-cols-[1.15fr_1fr] gap-8 items-center">
-                                                <div>
-                                                    <p className="text-sm md:text-base text-muted-foreground leading-relaxed mb-6 text-justify">
-                                                        {cap.body}
-                                                    </p>
-                                                    <ul className="space-y-2.5">
-                                                        {cap.points.map((p, i) => (
-                                                            <motion.li
-                                                                key={p}
-                                                                initial={{ opacity: 0, x: -12 }}
-                                                                animate={{ opacity: 1, x: 0 }}
-                                                                transition={{ delay: 0.15 + i * 0.07, duration: 0.5, ease: EASE_HOUSE }}
-                                                                className="flex items-center gap-2.5 text-sm font-medium text-foreground/90"
-                                                            >
-                                                                <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-emerald-600/10 dark:bg-emerald-500/15 shrink-0">
-                                                                    <Check className="h-2.5 w-2.5 text-emerald-700 dark:text-emerald-400" />
-                                                                </span>
-                                                                {p}
-                                                            </motion.li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                                <div className="rounded-2xl border border-foreground/[0.06] bg-foreground/[0.02] p-5 self-center">
-                                                    <Visual />
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    </AnimatePresence>
-                                </div>
-                            </TiltCard>
-                        </div>
-                    </div>
-                </section>
-
-                {/* ── Secondary bento ──────────────────────────────────── */}
-                <section className="mx-auto max-w-6xl px-6 mb-28">
-                    <motion.div
-                        initial={{ opacity: 0, y: 24 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.5 }}
-                        className="flex items-center gap-3 mb-10"
-                    >
-                        <span className="h-px w-10 bg-emerald-600/70 dark:bg-emerald-400/70" />
-                        <span className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-700 dark:text-emerald-400">
-                            And everything around it
-                        </span>
-                    </motion.div>
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {EXTRAS.map((f, i) => (
-                            <motion.div
-                                key={f.title}
-                                initial={{ opacity: 0, y: 24 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true, amount: 0.4 }}
-                                transition={{ delay: (i % 3) * 0.08, ...SPRING.soft }}
-                                whileHover={{ y: -5 }}
-                                className="group relative rounded-2xl border border-foreground/10 bg-card/60 backdrop-blur-xl p-6 overflow-hidden hover:border-emerald-600/25 dark:hover:border-emerald-500/25 transition-colors"
-                            >
-                                <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-gradient-to-br from-emerald-500/15 to-transparent blur-2xl opacity-40 group-hover:opacity-80 group-hover:scale-125 transition-all duration-500" />
-                                <f.icon className="h-5 w-5 text-emerald-700 dark:text-emerald-400 mb-4 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6" />
-                                <h3 className="text-sm font-semibold mb-1">{f.title}</h3>
-                                <p className="text-[13px] text-muted-foreground leading-relaxed">{f.body}</p>
-                            </motion.div>
+                                </a>
+                            </li>
                         ))}
-                    </div>
-                </section>
+                    </ol>
+                </motion.nav>
+            </div>
+        </section>
+    )
+}
 
-                {/* ── Closing ──────────────────────────────────────────── */}
-                <section className="mx-auto max-w-3xl px-6 text-center">
-                    <motion.h2
-                        initial={{ opacity: 0, y: 24 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.6 }}
-                        className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-8"
+/* ── Section heading ─────────────────────────────────────────────── */
+
+/** The landing's section head (modules-showcase), without the gradient. */
+function SectionHead({
+    no,
+    label,
+    title,
+    note,
+}: {
+    no: string
+    label: string
+    title: string
+    note: React.ReactNode
+}) {
+    return (
+        <motion.div
+            {...reveal}
+            transition={{ duration: 0.8, ease: EASE_HOUSE }}
+            className="mb-12 grid gap-6 lg:mb-14 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:items-end lg:gap-8"
+        >
+            <div>
+                <div className="flex items-center gap-3">
+                    <span className="h-px w-8 bg-foreground/30" />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                        {no} — {label}
+                    </span>
+                </div>
+                <h2 className="font-display mt-5 text-3xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-4xl">
+                    {title}
+                </h2>
+            </div>
+            <p className="max-w-md text-[15px] leading-relaxed text-muted-foreground lg:justify-self-end">
+                {note}
+            </p>
+        </motion.div>
+    )
+}
+
+/** Term and description in a two-column grid of hairlines (StandardsBand). */
+function RuleGrid({
+    items,
+    mono = true,
+}: {
+    items: readonly { term: string; text: string }[]
+    mono?: boolean
+}) {
+    return (
+        <dl className="grid gap-x-10 sm:grid-cols-2">
+            {items.map((it, i) => (
+                <motion.div
+                    key={it.term}
+                    {...reveal}
+                    transition={{ delay: (i % 2) * 0.06 + Math.floor(i / 2) * 0.04, duration: 0.6, ease: EASE_HOUSE }}
+                    className="border-t border-foreground/10 py-5"
+                >
+                    <dt
+                        className={
+                            mono
+                                ? "font-mono text-[11px] uppercase tracking-[0.18em] text-foreground"
+                                : "text-[14px] font-medium text-foreground"
+                        }
                     >
-                        Ready to see the{" "}
-                        <span className="italic box-decoration-clone pr-[0.14em] pb-[0.08em] bg-gradient-to-r from-emerald-700 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 bg-clip-text text-transparent">
-                            full picture?
-                        </span>
-                    </motion.h2>
+                        {it.term}
+                    </dt>
+                    <dd className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{it.text}</dd>
+                </motion.div>
+            ))}
+        </dl>
+    )
+}
+
+/* ── 01 The ledger ───────────────────────────────────────────────── */
+
+/**
+ * Balance, status and immutability are checked in
+ * ApplicationDbContext.SaveChangesAsync, which every writer passes
+ * through. The period lock is checked by each posting path; the list in
+ * the text is the set that calls it.
+ */
+const LEDGER_RULES = [
+    {
+        term: "Dr = Cr",
+        text: "Debits must equal credits exactly; there is no rounding tolerance. In production a database trigger checks every posted entry a second time.",
+    },
+    {
+        term: "Draft · Posted · Void",
+        text: "An entry stays Draft until someone posts it. Posted and void entries cannot be edited, and only drafts can be deleted. A mistake is voided or reversed, and the original stays on the record.",
+    },
+    {
+        term: "Segregation of duties",
+        text: "The person who created an entry cannot also post it. On by default for every company.",
+    },
+    {
+        term: "Period lock",
+        text: "Journals, invoices, bills, vouchers, payroll runs, stock counts and asset postings dated inside a locked period are refused. Year-end closing posts one closing journal to retained earnings.",
+    },
+    {
+        term: "Documents write their entries",
+        text: "Posting an invoice, bill, receipt, payment, payroll run or asset charge writes its journal entry and links it to the document. Nobody retypes it into the ledger.",
+    },
+    {
+        term: "Recurring entries",
+        text: "A recurring template produces a draft entry each time it is run. Nothing recurring posts without someone posting it.",
+    },
+] as const
+
+function LedgerSection() {
+    return (
+        <section id="ledger" className="scroll-mt-24 border-b border-foreground/10 py-24 sm:py-28">
+            <div className="mx-auto max-w-6xl px-6">
+                <SectionHead
+                    no="01"
+                    label="The ledger"
+                    title="Nothing posts until both sides agree."
+                    note="Balance and immutability are checked at the one point every write passes through, not in the screens, so an import is held to them as well."
+                />
+                <RuleGrid items={LEDGER_RULES} />
+            </div>
+        </section>
+    )
+}
+
+/* ── 02 Modules (Exhibit 1) ──────────────────────────────────────── */
+
+interface Module {
+    name: string
+    plan: string
+    dr: string
+    cr: string
+    items: { term: string; text: string }[]
+}
+
+/**
+ * Plan availability is PlansController.SeedDefaultPlans as it stands;
+ * the commercial split is not final. The /pricing page currently says
+ * something different, and that is a pending decision, not this page's.
+ */
+const MODULES: Module[] = [
+    {
+        name: "Accounting",
+        plan: "Every plan",
+        dr: "Trade receivables",
+        cr: "Revenue · PPN keluaran",
+        items: [
+            {
+                term: "Chart of accounts",
+                text: "86 accounts in the standard chart, coded by class and named in Indonesian and English. An account with entries cannot change its code; it is deactivated instead.",
+            },
+            {
+                term: "Sales and purchases",
+                text: "Sales invoices and purchase bills post when approved. Discounts go to their own contra accounts instead of netting revenue or cost.",
+            },
+            {
+                term: "Receipts and payments",
+                text: "Receipt and payment vouchers post against the cash and bank accounts, inside the same period lock.",
+            },
+            {
+                term: "Bank reconciliation",
+                text: "Bank statements imported as CSV and matched to the ledger. Bank charges and interest post as adjusting entries.",
+            },
+            {
+                term: "Foreign currency",
+                text: "Invoices and bills in foreign currency post in rupiah at the document’s rate. Rates are kept by date and type, Kurs BI and Kurs Pajak (KMK). Period-end retranslation under PSAK 221 posts the unrealised gain or loss.",
+            },
+            {
+                term: "Cost centres and budgets",
+                text: "Journal lines carry an optional cost centre and project. Budgets are set per account and compared with posted actuals.",
+            },
+        ],
+    },
+    {
+        name: "Tax",
+        plan: "Pro and above",
+        dr: "PPN keluaran",
+        cr: "PPN masukan · PPN payable",
+        items: [
+            {
+                term: "SPT Masa PPN",
+                text: "The monthly 1111 summary from posted invoices and bills, and the settlement journal that clears PPN keluaran against PPN masukan.",
+            },
+            {
+                term: "e-Faktur",
+                text: "Faktur Pajak data exported as CSV for upload. NSFP is taken from the range you register; without one the invoice is marked pending, never numbered.",
+            },
+            {
+                term: "Withholding",
+                text: "PPh 21 from posted payroll runs; PPh 22, 23 and 4(2) recorded on purchase bills. A summary by type and an e-Bupot CSV export.",
+            },
+            {
+                term: "DPP nilai lain",
+                text: "Products and bill lines carry their DPP scheme, including DPP nilai lain at 11/12.",
+            },
+            {
+                term: "Ekualisasi and rekonsiliasi fiskal",
+                text: "PPN equalised against recorded revenue, and commercial profit reconciled to fiscal profit, with fiscal depreciation as a correction.",
+            },
+            {
+                term: "DER test",
+                text: "The debt-to-equity ratio under PMK-169/2015, for the interest deduction.",
+            },
+        ],
+    },
+    {
+        name: "Inventory",
+        plan: "Pro and above",
+        dr: "Cost of goods sold",
+        cr: "Inventory",
+        items: [
+            {
+                term: "Moving-average cost",
+                text: "One average cost per product across the company. Each movement carries the value it posts, so cost of sales equals the stock that left.",
+            },
+            {
+                term: "Warehouses",
+                text: "Stock is held per warehouse and moved by transfer. An issue that would take a warehouse below zero is refused.",
+            },
+            {
+                term: "Orders and receipts",
+                text: "A receipt adds stock at the order price against goods received not invoiced. The bill clears that account and books any price difference.",
+            },
+            {
+                term: "Stock opname",
+                text: "A physical count against the book quantity. The adjustment posts at the value of the stock it moves.",
+            },
+            {
+                term: "Opening stock",
+                text: "Stock entered with a new product posts against opening balance equity, so the books balance from the first day.",
+            },
+            {
+                term: "Stock reports",
+                text: "Stock on hand, stock card, ageing by receipt date, and valuation.",
+            },
+        ],
+    },
+    {
+        name: "Fixed assets",
+        plan: "Enterprise",
+        dr: "Depreciation expense",
+        cr: "Accumulated depreciation",
+        items: [
+            {
+                term: "Register and acquisition",
+                text: "Posting an acquisition debits the asset, credits cash or payables, and puts the asset in service at cost.",
+            },
+            {
+                term: "Depreciation and amortisation",
+                text: "The commercial charge is straight line and posted monthly. Intangible assets are amortised by the same schedule.",
+            },
+            {
+                term: "Fiscal depreciation",
+                text: "Kelompok 1 to 4 and buildings under Pasal 11 as amended by UU HPP, straight line or declining balance, beside the commercial charge as in Lampiran 1A.",
+            },
+            {
+                term: "Disposal",
+                text: "Removes cost and accumulated depreciation, books the proceeds and the gain or loss. A disposal dated before depreciation already charged is refused.",
+            },
+        ],
+    },
+    {
+        name: "Payroll",
+        plan: "Enterprise",
+        dr: "Salaries · employer BPJS",
+        cr: "PPh 21 · BPJS · net pay",
+        items: [
+            {
+                term: "PPh 21",
+                text: "TER rates of PP 58/2023 applied January to November. December settles the year under Pasal 17, less the TER already withheld.",
+            },
+            {
+                term: "BPJS",
+                text: "Ketenagakerjaan (JKK, JKM, JHT, JP) and Kesehatan, employer and employee shares, with the wage caps held as configuration.",
+            },
+            {
+                term: "Pay runs",
+                text: "One run per month, Draft to Posted to Void. Whoever calculated a run cannot post it, and a draft that no longer matches a fresh calculation is refused.",
+            },
+            {
+                term: "Employees",
+                text: "Employees are contacts with PTKP status, NIK and bank details. An unknown PTKP is withheld as TK/0, with a warning.",
+            },
+        ],
+    },
+]
+
+function ModulesSection() {
+    return (
+        <section id="modules" className="scroll-mt-24 border-b border-foreground/10 py-24 sm:py-28">
+            <div className="mx-auto max-w-6xl px-6">
+                <SectionHead
+                    no="02"
+                    label="Modules"
+                    title="Five modules, each judged by the entry it posts."
+                    note="A module belongs in BalanceIO only if it posts to the general ledger. Each block below opens with that entry, then lists what the module does."
+                />
+
+                {/* The exhibit */}
+                <div className="border-t border-foreground">
+                    {MODULES.map((m) => (
+                        <motion.article
+                            key={m.name}
+                            {...reveal}
+                            transition={{ duration: 0.6, ease: EASE_HOUSE }}
+                            className="grid gap-6 border-b border-foreground/10 py-10 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12"
+                        >
+                            <div>
+                                <h3 className="font-display text-2xl font-bold tracking-tight text-foreground">
+                                    {m.name}
+                                </h3>
+                                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    {m.plan}
+                                </p>
+                                <div className="mt-6 space-y-2 border-l border-foreground/15 pl-4 text-[14px] text-foreground">
+                                    <p>
+                                        <span className="mr-2 font-mono text-[10px] uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">
+                                            Dr
+                                        </span>
+                                        {m.dr}
+                                    </p>
+                                    <p>
+                                        <span className="mr-2 font-mono text-[10px] uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-400">
+                                            Cr
+                                        </span>
+                                        {m.cr}
+                                    </p>
+                                </div>
+                            </div>
+                            <RuleGrid items={m.items} mono={false} />
+                        </motion.article>
+                    ))}
+
+                    {/* The refusal, as a row of the same exhibit. */}
                     <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, amount: 0.6 }}
-                        transition={{ delay: 0.12, duration: 0.6, ease: EASE_HOUSE }}
+                        {...reveal}
+                        transition={{ duration: 0.6, ease: EASE_HOUSE }}
+                        className="grid gap-3 py-8 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-12"
                     >
-                        <Magnetic>
-                            <Link
-                                href="/pricing"
-                                className="group inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-bold bg-zinc-900 text-white hover:shadow-[0_12px_40px_-8px_rgba(16,185,129,0.5)] dark:bg-emerald-500 dark:text-zinc-950 dark:shadow-[0_0_40px_-8px_rgba(16,185,129,0.7)] transition-shadow"
-                            >
-                                Compare plans
-                                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                            </Link>
-                        </Magnetic>
+                        <p className="font-display text-2xl font-bold tracking-tight text-muted-foreground/70">
+                            Not included
+                        </p>
+                        <p className="max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+                            CRM, attendance and online storefronts. None of them posts to the
+                            general ledger, so none of them belongs in it. Use the tools you
+                            already have for those.
+                        </p>
                     </motion.div>
-                </section>
-            </main>
+                </div>
 
-            <SiteFooter />
-        </div>
+                <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                    Exhibit 1 · Typical entry per module · Plan availability as currently configured
+                </p>
+            </div>
+        </section>
+    )
+}
+
+/* ── 03 Statements and reports (Exhibit 2) ───────────────────────── */
+
+/** TitleId / TitleEn as FinancialStatementsService prints them. */
+const STATEMENTS = [
+    { id: "Laporan Posisi Keuangan", en: "Statement of Financial Position (SoFP)" },
+    { id: "Laporan Laba Rugi dan Penghasilan Komprehensif Lain", en: "Statement of Profit or Loss and Other Comprehensive Income" },
+    { id: "Laporan Perubahan Ekuitas", en: "Statement of Changes in Equity" },
+    { id: "Laporan Arus Kas", en: "Statement of Cash Flows (indirect method)" },
+    { id: "Neraca Saldo", en: "Trial Balance" },
+] as const
+
+/** The arithmetic each statement carries, and must pass. */
+const CHECKS = [
+    "Assets = liabilities + equity",
+    "Opening equity + movements = closing equity",
+    "Closing cash = cash and bank accounts",
+    "Total debits = total credits",
+] as const
+
+/**
+ * One row per report screen that reads real data. Aliases (customer and
+ * vendor balance are the ageing reports) are counted once, and the older
+ * single-statement pages are left out: the statement set above replaces
+ * them, and the old cash-flow endpoint does not reconcile.
+ */
+const REPORTS = [
+    {
+        group: "Ledger",
+        reports: "General ledger, trial balance, notes to the financial statements",
+        source: "Posted journal lines",
+    },
+    {
+        group: "Receivables and payables",
+        reports: "Aged receivables, aged payables, invoice list, bill list",
+        source: "Invoices, bills and their payments",
+    },
+    {
+        group: "Trade",
+        reports: "Sales by customer, sales by product with cost of sales, purchases by vendor, purchases by product",
+        source: "Posted documents, net of PPN, per currency",
+    },
+    {
+        group: "Inventory",
+        reports: "Stock on hand, stock card, inventory ageing, inventory valuation",
+        source: "Stock movements",
+    },
+    {
+        group: "Fixed assets",
+        reports: "Asset register, depreciation schedule, fiscal depreciation (Lampiran 1A)",
+        source: "Asset register and posted charges",
+    },
+    {
+        group: "Tax",
+        reports: "SPT Masa PPN, withholding summary, ekualisasi PPN, rekonsiliasi fiskal, DER test",
+        source: "Invoices, bills and payroll runs, at report time",
+    },
+    {
+        group: "Management",
+        reports: "Budget variance, cash position",
+        source: "Posted lines and budgets",
+    },
+] as const
+
+function StatementsSection() {
+    return (
+        <section id="statements" className="scroll-mt-24 border-b border-foreground/10 py-24 sm:py-28">
+            <div className="mx-auto max-w-6xl px-6">
+                <SectionHead
+                    no="03"
+                    label="Statements and reports"
+                    title="The PSAK statement set, in both languages."
+                    note="Built from posted lines only, for any period, with a comparative if you want one. Printed on A4 with Indonesian on the left and English on the right, or in one language, and exported to Excel."
+                />
+
+                <div className="grid gap-12 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:gap-16">
+                    {/* The set, laid out the way it prints. */}
+                    <motion.ol
+                        {...reveal}
+                        transition={{ duration: 0.7, ease: EASE_HOUSE }}
+                        className="border-t border-foreground"
+                    >
+                        {STATEMENTS.map((s, i) => (
+                            <li
+                                key={s.id}
+                                className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-foreground/10 py-4 sm:grid-cols-[1.75rem_minmax(0,1fr)_minmax(0,1fr)] sm:gap-x-6"
+                            >
+                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground sm:pt-0.5">
+                                    {String(i + 1).padStart(2, "0")}
+                                </span>
+                                <span className="text-[14px] font-medium text-foreground">{s.id}</span>
+                                <span className="col-start-2 text-[13px] text-muted-foreground sm:col-start-3 sm:text-right">
+                                    {s.en}
+                                </span>
+                            </li>
+                        ))}
+                    </motion.ol>
+
+                    <motion.div {...reveal} transition={{ delay: 0.1, duration: 0.7, ease: EASE_HOUSE }}>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                            Checks on every statement
+                        </p>
+                        <ul className="mt-4 border-t border-foreground/10">
+                            {CHECKS.map((c) => (
+                                <li
+                                    key={c}
+                                    className="border-b border-foreground/10 py-3 font-mono text-[12px] text-foreground"
+                                >
+                                    {c}
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+                            Each statement shows its checks with it. A statement that fails one
+                            says so, rather than printing as if it balanced.
+                        </p>
+                    </motion.div>
+                </div>
+
+                {/* Exhibit 2: the report index */}
+                <div className="mt-20 border-t border-foreground">
+                    <div className="hidden grid-cols-[13rem_minmax(0,1.8fr)_minmax(0,1fr)] gap-6 border-b border-foreground/10 py-3 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground lg:grid">
+                        <span>Area</span>
+                        <span>Reports</span>
+                        <span>Built from</span>
+                    </div>
+                    {REPORTS.map((r, i) => (
+                        <motion.div
+                            key={r.group}
+                            {...reveal}
+                            transition={{ delay: i * 0.04, duration: 0.6, ease: EASE_HOUSE }}
+                            className="grid gap-2 border-b border-foreground/10 py-5 lg:grid-cols-[13rem_minmax(0,1.8fr)_minmax(0,1fr)] lg:gap-6"
+                        >
+                            <p className="text-[14px] font-medium text-foreground">{r.group}</p>
+                            <p className="text-[13px] leading-relaxed text-foreground/85">{r.reports}</p>
+                            <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">{r.source}</p>
+                        </motion.div>
+                    ))}
+                </div>
+                <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                    Exhibit 2 · Reports by area · A module’s reports come with that module
+                </p>
+            </div>
+        </section>
+    )
+}
+
+/* ── 04 Controls ─────────────────────────────────────────────────── */
+
+/**
+ * Roles from RolePermissions (Owner, Manager, Staff and Viewer are
+ * legacy aliases, not roles to sell). Audit coverage is the entity list
+ * SaveChangesAsync logs. Support access is SupportAccessGrant.
+ */
+const CONTROLS = [
+    {
+        term: "Roles",
+        text: "Admin, Finance and Auditor. Finance keeps the books but cannot manage users or the subscription. Auditor reads every module and can change nothing.",
+    },
+    {
+        term: "Permissions",
+        text: "Every API action requires a named permission. An automated test fails if an action is added without one.",
+    },
+    {
+        term: "Audit log",
+        text: "Changes to accounts, journals, contacts, products, invoices, bills, fixed assets and payroll are logged with the user and the time.",
+    },
+    {
+        term: "UU KUP Pasal 28",
+        text: "Each document keeps an append-only history from creation to void, hash-chained with SHA-256, for ten years. A shorter retention is refused.",
+    },
+    {
+        term: "Company isolation",
+        text: "Your membership is checked on every request, and every query is filtered to the company you are working in. A request without a company returns nothing.",
+    },
+    {
+        term: "Support access",
+        text: "Platform staff cannot open your books unless you grant time-limited access from a support ticket. Emergency access requires a stated reason. Both are logged.",
+    },
+    {
+        term: "Sign-in",
+        text: "Optional second factor with an authenticator app. Refresh tokens rotate, and presenting a revoked one ends every session of that user.",
+    },
+    {
+        term: "Money",
+        text: "Amounts are held as decimals, never floating point, and rounded half to even unless a regulation sets another rule.",
+    },
+] as const
+
+function ControlsSection() {
+    return (
+        <section id="controls" className="scroll-mt-24 border-b border-foreground/10 py-24 sm:py-28">
+            <div className="mx-auto max-w-6xl px-6">
+                <SectionHead
+                    no="04"
+                    label="Controls"
+                    title="Who may do what, and a record of what they did."
+                    note="Roles decide what each person can do. The audit log and the document history keep what was done, for as long as Indonesian tax law asks you to keep your books."
+                />
+                <RuleGrid items={CONTROLS} />
+            </div>
+        </section>
+    )
+}
+
+/* ── 05 Not yet built ────────────────────────────────────────────── */
+
+/** From root CLAUDE.md: Tax module state, Payroll, Known issues. */
+const NOT_BUILT = [
+    {
+        term: "Tax",
+        text: "No submission to Coretax or DJP: files are exported for you to upload. PPnBM is not computed, and bukti potong numbers are not generated.",
+    },
+    {
+        term: "Payroll",
+        text: "No annualisation for leavers mid-year, no PPh 26, no Form 1721-A1, no payslips or bank transfer files. THR and bonuses are entered as other earnings.",
+    },
+] as const
+
+function ScopeSection() {
+    return (
+        <section id="scope" className="scroll-mt-24 border-b border-foreground/10 py-24 sm:py-28">
+            <div className="mx-auto max-w-6xl px-6">
+                <div className="grid gap-12 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,2fr)]">
+                    <motion.div {...reveal} transition={{ duration: 0.8, ease: EASE_HOUSE }}>
+                        <div className="flex items-center gap-3">
+                            <span className="h-px w-8 bg-foreground/30" />
+                            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                                05 — Not yet built
+                            </span>
+                        </div>
+                        <h2 className="font-display mt-5 text-3xl font-bold leading-[1.1] tracking-tight text-foreground">
+                            Stated here, not found later.
+                        </h2>
+                        <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
+                            The product records, organises and exports. Judgements on tax
+                            treatment stay with your accountant, and tax and payroll output
+                            should be reviewed by one before you rely on it.
+                        </p>
+                    </motion.div>
+                    <RuleGrid items={NOT_BUILT} />
+                </div>
+            </div>
+        </section>
+    )
+}
+
+/* ── Close ───────────────────────────────────────────────────────── */
+
+function Close() {
+    return (
+        <section className="py-24 sm:py-32">
+            <motion.div
+                {...reveal}
+                transition={{ duration: 0.8, ease: EASE_HOUSE }}
+                className="mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:items-end"
+            >
+                <div>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+                        Next step
+                    </p>
+                    <h2 className="font-display mt-5 text-3xl font-bold leading-[1.1] tracking-tight text-foreground sm:text-4xl">
+                        Start with this month’s entries.
+                    </h2>
+                    <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-muted-foreground">
+                        The accounting module comes with every plan, the free one included.
+                        Tax, inventory, fixed assets and payroll are added with a paid plan.
+                    </p>
+                </div>
+                <div className="lg:justify-self-end">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                        <Link
+                            href="/register"
+                            className="group inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-6 text-[15px] font-medium text-background transition-colors hover:bg-foreground/85"
+                        >
+                            Create an account
+                            <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                        </Link>
+                        <Link
+                            href="/pricing"
+                            className="text-[15px] font-medium text-foreground underline decoration-foreground/25 underline-offset-[6px] transition-colors hover:decoration-foreground"
+                        >
+                            Compare plans
+                        </Link>
+                    </div>
+                    <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                        Free plan · No card required
+                    </p>
+                </div>
+            </motion.div>
+        </section>
+    )
+}
+
+export default function FeaturesPage() {
+    return (
+        <SmoothScrollProvider>
+            <div className="relative flex min-h-screen flex-col bg-background text-foreground antialiased selection:bg-emerald-500/25">
+                <SiteHeader />
+                <main className="flex-1">
+                    <Hero />
+                    <LedgerSection />
+                    <ModulesSection />
+                    <StatementsSection />
+                    <ControlsSection />
+                    <ScopeSection />
+                    <Close />
+                </main>
+                <SiteFooter />
+            </div>
         </SmoothScrollProvider>
     )
 }

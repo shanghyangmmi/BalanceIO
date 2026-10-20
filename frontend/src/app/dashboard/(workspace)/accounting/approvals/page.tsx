@@ -347,10 +347,10 @@ export default function JournalApprovalsPage() {
                     {/* 4. High-Value Entries */}
                     <Card className="border-border/60 shadow-none bg-card/60 backdrop-blur-sm">
                         <CardHeader className="pb-2">
-                            <CardDescription className="text-xs font-mono uppercase tracking-wider text-purple-700 dark:text-purple-400 font-semibold">
+                            <CardDescription className="text-xs font-mono uppercase tracking-wider text-zinc-700 dark:text-zinc-400 font-semibold">
                                 Nilai Tinggi (&ge; Rp 50Jt)
                             </CardDescription>
-                            <CardTitle className="text-2xl font-bold font-money text-purple-700 dark:text-purple-400">
+                            <CardTitle className="text-2xl font-bold font-money text-zinc-700 dark:text-zinc-400">
                                 {highValueCount} <span className="text-xs font-normal text-muted-foreground">Entri</span>
                             </CardTitle>
                         </CardHeader>

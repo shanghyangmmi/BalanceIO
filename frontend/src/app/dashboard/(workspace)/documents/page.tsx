@@ -56,11 +56,11 @@ interface FinancialDocument {
 
 const statusColors: Record<string, string> = {
   paid: "bg-green-500/10 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800",
-  posted: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+  posted: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800",
   draft: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800",
-  pending: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+  pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
   overdue: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800",
-  sent: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800",
+  sent: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800",
   approved: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800",
   cancelled: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800",
   void: "bg-zinc-500/10 text-zinc-500 dark:text-zinc-500 border-zinc-200 dark:border-zinc-700",
@@ -68,8 +68,8 @@ const statusColors: Record<string, string> = {
 
 const typeIcons: Record<string, React.ReactNode> = {
   invoice: <Receipt className="h-4 w-4 text-emerald-500" />,
-  journal: <FileText className="h-4 w-4 text-blue-500" />,
-  "purchase-order": <ShoppingCart className="h-4 w-4 text-violet-500" />,
+  journal: <FileText className="h-4 w-4 text-cyan-500" />,
+  "purchase-order": <ShoppingCart className="h-4 w-4 text-zinc-500" />,
   "purchase-bill": <FileText className="h-4 w-4 text-red-500" />,
 }
 
@@ -206,7 +206,7 @@ export default function DocumentsPage() {
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gradient">Financial Documents</h2>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">Financial Documents</h2>
           <p className="text-muted-foreground">
             View and create invoices, journal entries, and purchase documents.
           </p>
@@ -230,7 +230,7 @@ export default function DocumentsPage() {
             {canCreateSales && <DropdownMenuSeparator />}
             <DropdownMenuLabel>Accounting</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => handleCreateDocument("journal")}>
-              <FileText className="mr-2 h-4 w-4 text-blue-500" />
+              <FileText className="mr-2 h-4 w-4 text-cyan-500" />
               Journal Entry
             </DropdownMenuItem>
             </>}
@@ -238,7 +238,7 @@ export default function DocumentsPage() {
             {(canCreateSales || canCreateJournal) && <DropdownMenuSeparator />}
             <DropdownMenuLabel>Purchases</DropdownMenuLabel>
             <DropdownMenuItem onClick={() => handleCreateDocument("purchase-order")}>
-              <ShoppingCart className="mr-2 h-4 w-4 text-violet-500" />
+              <ShoppingCart className="mr-2 h-4 w-4 text-zinc-500" />
               Purchase Order
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleCreateDocument("purchase-bill")}>

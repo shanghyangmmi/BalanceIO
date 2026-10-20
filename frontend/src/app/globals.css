@@ -203,9 +203,6 @@
 
 /* Premium Gradients */
 @layer utilities {
-  .text-gradient {
-    @apply bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent w-fit;
-  }
 
   .bg-gradient-premium {
     @apply bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600;
