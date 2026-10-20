@@ -19,8 +19,8 @@ values being present.
 | `BALANCEIO_ADMIN_EMAIL` + `BALANCEIO_ADMIN_PASSWORD` | platform admin account | No admin is created (warning). Password: 12+ characters; setting only one of the two stops startup |
 | `BALANCEIO_SMTP_USER` | `SmtpSettings:User` | Warning; email disabled |
 | `BALANCEIO_SMTP_PASSWORD` | `SmtpSettings:Password` | Warning; email disabled |
-| `BALANCEIO_AWS_ACCESS_KEY` | `AWS:AccessKey` | Warning; upload disabled |
-| `BALANCEIO_AWS_SECRET_KEY` | `AWS:SecretKey` | Warning; upload disabled |
+| `BALANCEIO_AWS_ACCESS_KEY` | `AWS:AccessKey` | Warning; uploads refused, unless `Storage__AllowLocalDisk=true` (a persistent volume) |
+| `BALANCEIO_AWS_SECRET_KEY` | `AWS:SecretKey` | Warning; uploads refused, unless `Storage__AllowLocalDisk=true` (a persistent volume) |
 | `Payments__Midtrans__ServerKey` | `Payments:Midtrans:ServerKey` | Only read when `Payments__Provider=midtrans`; without it checkout falls back to manual transfer (warning) and Midtrans notifications are refused |
 
 The framework's own `Jwt__Key` / `SmtpSettings__Password` double-underscore

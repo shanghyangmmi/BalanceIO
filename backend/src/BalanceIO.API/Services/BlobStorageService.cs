@@ -1,6 +1,7 @@
 using Amazon.S3;
 using Amazon.S3.Transfer;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace BalanceIO.API.Services;
 
@@ -17,11 +18,18 @@ public class BlobStorageService
     private readonly string _bucketName;
     private readonly string _localUploadDirectory;
     private readonly bool _useLocalStorage;
+    private readonly bool _allowLocalDisk;
 
-    public BlobStorageService(IConfiguration configuration)
+    public BlobStorageService(IConfiguration configuration, IHostEnvironment environment)
     {
         _configuration = configuration;
-        
+
+        // Local disk is the development store. Anywhere else it has to be
+        // asked for (Storage:AllowLocalDisk, for a server with a persistent
+        // volume): a deployment replaces the application directory, and
+        // evidence written there would go with it without anyone being told.
+        _allowLocalDisk = configuration.GetValue<bool?>("Storage:AllowLocalDisk") ?? environment.IsDevelopment();
+
         var awsConfig = _configuration.GetSection("AWS");
         _bucketName = awsConfig["BucketName"] ?? "balanceio-uploads";
         
@@ -58,6 +66,18 @@ public class BlobStorageService
             _useLocalStorage = true;
         }
     }
+
+    /// <summary>
+    /// Whether an upload has somewhere durable to go: object storage, or
+    /// local disk where that is allowed. Callers refuse uploads when it is
+    /// false rather than accept a file that will not be kept.
+    /// </summary>
+    public bool IsAvailable => !_useLocalStorage || _allowLocalDisk;
+
+    /// <summary>True when uploads are written to <see cref="LocalUploadDirectory"/>.</summary>
+    public bool UsesLocalDisk => _useLocalStorage && _allowLocalDisk;
+
+    public string LocalUploadDirectory => _localUploadDirectory;
 
     /// <summary>
     /// Uploads a file stream and returns (storageKey, publicUrl)

@@ -1,6 +1,7 @@
 import { toast } from "sonner"
 import { siteConfig } from "@/config/site"
 import { format } from "date-fns"
+import type { AttachmentStorageStatus, EvidenceAttachment } from "@/lib/types/attachments"
 
 const BASE_URL = siteConfig.api.baseUrl;
 
@@ -159,8 +160,11 @@ async function request<T>(endpoint: string, apiOptions: ApiOptions = {}, tokenKe
 
     const isServer = typeof window === "undefined"
 
+    // A multipart body needs the browser to write its own Content-Type,
+    // boundary included.
+    const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData
     const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        ...(isMultipart ? {} : { "Content-Type": "application/json" }),
         ...options.headers as Record<string, string>,
     }
 
@@ -949,16 +953,23 @@ export const apiClient = {
     },
 
     // --- EVIDENCE ATTACHMENTS ---
+    // Silent: the form that asks shows its own state instead of a toast.
+    getAttachmentStorage: async () => {
+        return request<AttachmentStorageStatus>("/attachments/storage", { method: "GET", silent: true });
+    },
+
     getAttachments: async (entityType: string, entityId: string) => {
-        return apiClient.get<any[]>(`/attachments/${entityType}/${entityId}`);
+        return apiClient.get<EvidenceAttachment[]>(`/attachments/${entityType}/${entityId}`);
     },
 
-    uploadAttachment: async (formData: FormData) => {
-        return apiClient.post<any>("/attachments/upload", formData);
+    // Not apiClient.post: that JSON-encodes its body, and a FormData
+    // JSON-encodes to "{}". Every upload arrived empty.
+    uploadAttachment: async (formData: FormData, options: ApiOptions = {}) => {
+        return request<EvidenceAttachment>("/attachments/upload", { ...options, method: "POST", body: formData });
     },
 
-    deleteAttachment: async (id: string) => {
-        return apiClient.delete<any>(`/attachments/${id}`);
+    deleteAttachment: async (id: string, options: ApiOptions = {}) => {
+        return request<unknown>(`/attachments/${id}`, { ...options, method: "DELETE" });
     },
 
     verifyAttachment: async (id: string) => {

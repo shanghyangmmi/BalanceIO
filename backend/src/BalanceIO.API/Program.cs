@@ -176,6 +176,18 @@ foreach (var (feature, variable) in
         "{Feature} is disabled: {Variable} is not set.", feature, variable);
 }
 
+// Without object storage, uploads fall back to local disk only where that
+// is allowed (Development, or Storage:AllowLocalDisk); elsewhere they are
+// refused. Say which, so "disabled" above is not misread either way.
+using (var scope = app.Services.CreateScope())
+{
+    var storage = scope.ServiceProvider.GetRequiredService<BlobStorageService>();
+    if (storage.UsesLocalDisk)
+        app.Logger.LogWarning("File uploads are stored on local disk at {Directory}.", storage.LocalUploadDirectory);
+    else if (!storage.IsAvailable)
+        app.Logger.LogWarning("File uploads are refused: no object storage, and local disk is not allowed (Storage:AllowLocalDisk).");
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

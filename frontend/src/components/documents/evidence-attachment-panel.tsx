@@ -18,26 +18,9 @@ import { toast } from "sonner";
 import { downloadAttachment, useAttachmentBlob } from "@/hooks/use-attachment-blob";
 import { useCan } from "@/components/auth/rbac-guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
+import type { EvidenceAttachment } from "@/lib/types/attachments";
 
-export interface EvidenceAttachment {
-    id: string;
-    companyId: string;
-    entityType: string;
-    entityId: string;
-    attachmentType: string;
-    fileName: string;
-    fileExtension: string;
-    contentType: string;
-    fileSize: number;
-    fileUrl: string;
-    storagePath: string;
-    notes?: string;
-    uploadedBy?: string;
-    uploadedAt: string;
-    isVerified: boolean;
-    verifiedBy?: string;
-    verifiedAt?: string;
-}
+export type { EvidenceAttachment };
 
 interface EvidenceAttachmentPanelProps {
     entityType: string;
