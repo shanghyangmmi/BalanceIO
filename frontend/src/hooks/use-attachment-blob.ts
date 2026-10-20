@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { siteConfig } from "@/config/site"
+import { sessionFetch } from "@/lib/api-client"
 
 /**
  * Fetches an attachment with credentials and hands back a blob URL.
@@ -38,17 +38,7 @@ export function useAttachmentBlob(id: string | undefined, kind: "preview" | "dow
       setError(null)
 
       try {
-        const headers: Record<string, string> = {}
-
-        const token = localStorage.getItem("token")
-        if (token) headers.Authorization = `Bearer ${token}`
-
-        const companyId = localStorage.getItem("selectedCompanyId")
-        if (companyId) headers["X-Company-Id"] = companyId
-
-        const response = await fetch(`${siteConfig.api.baseUrl}/attachments/${id}/${kind}`, {
-          headers,
-        })
+        const response = await sessionFetch(`/attachments/${id}/${kind}`)
 
         if (!response.ok) {
           throw new Error(
@@ -90,17 +80,7 @@ export function useAttachmentBlob(id: string | undefined, kind: "preview" | "dow
  * under its own name.
  */
 export async function downloadAttachment(id: string, fileName: string) {
-  const headers: Record<string, string> = {}
-
-  const token = localStorage.getItem("token")
-  if (token) headers.Authorization = `Bearer ${token}`
-
-  const companyId = localStorage.getItem("selectedCompanyId")
-  if (companyId) headers["X-Company-Id"] = companyId
-
-  const response = await fetch(`${siteConfig.api.baseUrl}/attachments/${id}/download`, {
-    headers,
-  })
+  const response = await sessionFetch(`/attachments/${id}/download`)
 
   if (!response.ok) {
     throw new Error(`The server answered ${response.status}.`)

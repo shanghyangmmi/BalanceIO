@@ -29,7 +29,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { siteConfig } from "@/config/site";
+import { sessionFetch } from "@/lib/api-client";
 
 interface SqlScript {
     fileName: string;
@@ -61,19 +61,14 @@ interface ServerInfo {
     drives: DriveInfo[];
 }
 
-function getAdminToken() {
-    return localStorage.getItem("adminToken") || "";
-}
-
 async function adminFetch(path: string, options?: RequestInit) {
-    const res = await fetch(`${siteConfig.api.baseUrl}/admin/system${path}`, {
+    const res = await sessionFetch(`/admin/system${path}`, {
         ...options,
         headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${getAdminToken()}`,
             ...options?.headers,
         },
-    });
+    }, "adminToken");
     if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(err.error || err.details || res.statusText);
