@@ -112,7 +112,10 @@ public class PlansController : ControllerBase
                     p.PriceMonthly,
                     p.PriceYearly,
                     promo ? p.PromoPriceMonthly : null,
-                    promo ? p.PromoEndsAt : null,
+                    // Stored as UTC; SQLite hands it back without a kind,
+                    // which would serialise without the Z and be read as
+                    // local time by the browser.
+                    promo ? DateTime.SpecifyKind(p.PromoEndsAt!.Value, DateTimeKind.Utc) : null,
                     p.EffectivePriceMonthly(now),
                     ParseList(p.Features),
                     ParseList(p.Modules),

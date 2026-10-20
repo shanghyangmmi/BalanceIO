@@ -17,6 +17,7 @@ import { siteConfig } from "@/config/site"
 const LINKS = [
     { label: "Features", href: "/features" },
     { label: "Pricing", href: "/pricing" },
+    { label: "Contact", href: "/contact" },
     { label: "Sign in", href: "/login" },
 ]
 
